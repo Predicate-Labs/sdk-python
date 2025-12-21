@@ -7,6 +7,7 @@ from sentience import SentienceBrowser, snapshot
 from sentience.models import Snapshot
 
 
+@pytest.mark.requires_extension
 def test_snapshot_basic():
     """Test basic snapshot on example.com"""
     with SentienceBrowser(headless=False) as browser:
@@ -23,6 +24,7 @@ def test_snapshot_basic():
                    for el in snap.elements)
 
 
+@pytest.mark.requires_extension
 def test_snapshot_roundtrip():
     """Test snapshot round-trip on multiple sites"""
     # Use sites that reliably have elements
@@ -57,6 +59,7 @@ def test_snapshot_roundtrip():
             # (min size 5x5, visibility, etc.) - this is acceptable
 
 
+@pytest.mark.requires_extension
 def test_snapshot_save():
     """Test snapshot save functionality"""
     import tempfile

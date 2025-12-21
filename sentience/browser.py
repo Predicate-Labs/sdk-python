@@ -53,18 +53,34 @@ class SentienceBrowser:
     
     def start(self) -> None:
         """Launch browser with extension loaded"""
-        # Get extension path (sentience-chrome directory)
+        # Try to find extension in multiple locations:
+        # 1. Embedded extension (sentience/extension/) - for production/CI
+        # 2. Development mode (../sentience-chrome/) - for local development
+        
         # __file__ is sdk-python/sentience/browser.py, so:
         # parent = sdk-python/sentience/
         # parent.parent = sdk-python/
-        # parent.parent.parent = Sentience/ (project root)
-        repo_root = Path(__file__).parent.parent.parent
-        extension_source = repo_root / "sentience-chrome"
+        sdk_root = Path(__file__).parent.parent
         
-        if not extension_source.exists():
+        # Check for embedded extension first (production/CI)
+        embedded_extension = sdk_root / "sentience" / "extension"
+        
+        # Check for development extension (local development)
+        repo_root = sdk_root.parent
+        dev_extension = repo_root / "sentience-chrome"
+        
+        # Prefer embedded extension, fall back to dev extension
+        if embedded_extension.exists() and (embedded_extension / "manifest.json").exists():
+            extension_source = embedded_extension
+        elif dev_extension.exists() and (dev_extension / "manifest.json").exists():
+            extension_source = dev_extension
+        else:
             raise FileNotFoundError(
-                f"Extension not found at {extension_source}. "
-                "Make sure sentience-chrome directory exists."
+                f"Extension not found. Checked:\n"
+                f"  1. {embedded_extension}\n"
+                f"  2. {dev_extension}\n"
+                "Make sure extension files are available. "
+                "For development: cd ../sentience-chrome && ./build.sh"
             )
         
         # Create temporary extension bundle

@@ -11,7 +11,10 @@ from sentience.models import Snapshot as SnapshotModel
 
 def load_schema():
     """Load JSON schema from spec directory"""
-    repo_root = Path(__file__).parent.parent.parent
+    # __file__ is sdk-python/tests/test_spec_validation.py
+    # parent = sdk-python/tests/
+    # parent.parent = sdk-python/
+    repo_root = Path(__file__).parent.parent
     schema_path = repo_root / "spec" / "snapshot.schema.json"
     
     with open(schema_path) as f:
@@ -57,6 +60,7 @@ def validate_against_schema(data: dict, schema: dict) -> list:
     return errors
 
 
+@pytest.mark.requires_extension
 def test_snapshot_matches_spec():
     """Test that snapshot response matches spec schema"""
     schema = load_schema()
