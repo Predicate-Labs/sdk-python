@@ -14,6 +14,9 @@ dependencies = [
     "jsonschema>=4.0.0",
 ]
 
+[project.scripts]
+sentience = "sentience.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
