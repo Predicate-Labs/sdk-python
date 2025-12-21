@@ -1,0 +1,55 @@
+"""
+Day 5-6 Example: Wait for element and click
+"""
+
+from sentience import SentienceBrowser, snapshot, find, wait_for, click, expect
+
+
+def main():
+    with SentienceBrowser(headless=False) as browser:
+        # Navigate to example.com
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+        
+        # Take initial snapshot
+        snap = snapshot(browser)
+        
+        # Find a link
+        link = find(snap, "role=link")
+        
+        if link:
+            print(f"Found link: {link.text} (id: {link.id})")
+            
+            # Click it
+            result = click(browser, link.id)
+            print(f"Click result: success={result.success}, outcome={result.outcome}")
+            
+            # Wait for navigation
+            browser.page.wait_for_load_state("networkidle")
+            print(f"New URL: {browser.page.url}")
+        else:
+            print("No link found")
+        
+        # Example: Wait for element using wait_for
+        print("\n=== Wait Example ===")
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+        
+        wait_result = wait_for(browser, "role=link", timeout=5.0)
+        if wait_result.found:
+            print(f"✅ Found element after {wait_result.duration_ms}ms")
+        else:
+            print(f"❌ Element not found (timeout: {wait_result.timeout})")
+        
+        # Example: Expect assertion
+        print("\n=== Expect Example ===")
+        try:
+            element = expect(browser, "role=link").to_exist(timeout=5.0)
+            print(f"✅ Element exists: {element.text}")
+        except AssertionError as e:
+            print(f"❌ Assertion failed: {e}")
+
+
+if __name__ == "__main__":
+    main()
+
