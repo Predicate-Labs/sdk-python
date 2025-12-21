@@ -19,45 +19,30 @@ def parse_selector(selector: str) -> Dict[str, Any]:
     """
     query: Dict[str, Any] = {}
     
-    # Split by spaces (but preserve quoted strings)
-    parts = re.findall(r'(?:[^\s"]+|"[^"]*")+', selector)
+    # Match patterns like: key=value, key~'value', key!="value"
+    # This regex matches: key, operator (=, ~, !=), and value (quoted or unquoted)
+    pattern = r'(\w+)([=~!]+)((?:\'[^\']+\'|\"[^\"]+\"|[^\s]+))'
+    matches = re.findall(pattern, selector)
     
-    for part in parts:
-        # Handle negation
-        if '!=' in part:
-            key, value = part.split('!=', 1)
-            key = key.strip()
-            value = value.strip().strip('"\'')
-            
+    for key, op, value in matches:
+        # Remove quotes from value
+        value = value.strip().strip('"\'')
+        
+        if op == '!=':
             if key == "role":
                 query["role_exclude"] = value
             elif key == "clickable":
                 query["clickable"] = False
-            continue
-        
-        # Handle = (exact match)
-        if '=' in part:
-            key, value = part.split('=', 1)
-            key = key.strip()
-            value = value.strip().strip('"\'')
-            
+        elif op == '~':
+            if key == "text" or key == "name":
+                query["text_contains"] = value
+        elif op == '=':
             if key == "role":
                 query["role"] = value
             elif key == "clickable":
                 query["clickable"] = value.lower() == "true"
             elif key == "name" or key == "text":
                 query["text"] = value
-            continue
-        
-        # Handle ~ (contains match)
-        if '~' in part:
-            key, value = part.split('~', 1)
-            key = key.strip()
-            value = value.strip().strip('"\'')
-            
-            if key == "text" or key == "name":
-                query["text_contains"] = value
-            continue
     
     return query
 

@@ -12,7 +12,12 @@ dependencies = [
     "playwright>=1.40.0",
     "pydantic>=2.0.0",
     "jsonschema>=4.0.0",
+    "requests>=2.31.0",  # For server-side API calls
+    "playwright-stealth>=1.0.6",  # Bot evasion and stealth mode
 ]
+
+[project.scripts]
+sentience = "sentience.cli:main"
 
 [project.optional-dependencies]
 dev = [
