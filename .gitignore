@@ -1,17 +1,9 @@
 # Python
-# Ignore __pycache__ directories at any level
 __pycache__/
-**/__pycache__/
-# Ignore Python cache files
 *.py[cod]
-*.pyc
-*.pyo
-*.pyd
 *$py.class
 *.so
 .Python
-
-# Distribution / packaging
 build/
 develop-eggs/
 dist/
@@ -24,51 +16,39 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-.pytest_cache/
-.coverage
-.coverage.*
-.cache
-htmlcov/
-.tox/
-.nox/
-coverage/
-*.cover
-*.py,cover
-.hypothesis/
-
 # Virtual environments
-.env
-.venv
-env/
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
+.venv
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Environment
+.env
+.env.local
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Project specific
-snapshot_*.json
-*.log
-
+# Playwright
+.playwright/
