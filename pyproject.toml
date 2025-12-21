@@ -12,6 +12,7 @@ dependencies = [
     "playwright>=1.40.0",
     "pydantic>=2.0.0",
     "jsonschema>=4.0.0",
+    "requests>=2.31.0",  # For server-side API calls
 ]
 
 [project.scripts]

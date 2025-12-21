@@ -13,15 +13,25 @@ from playwright.sync_api import sync_playwright, BrowserContext, Page, Playwrigh
 class SentienceBrowser:
     """Main browser session with Sentience extension loaded"""
     
-    def __init__(self, license_key: Optional[str] = None, headless: bool = False):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        api_url: Optional[str] = None,
+        headless: bool = False
+    ):
         """
         Initialize Sentience browser
         
         Args:
-            license_key: Optional license key for headless mode
+            api_key: Optional API key for server-side processing (Pro/Enterprise tiers)
+                    If None, uses free tier (local extension only)
+            api_url: Optional server URL for API calls (defaults to https://api.sentienceapi.com)
+                    If None and api_key is provided, uses default URL
+                    If 'local' or Docker sidecar URL, uses Enterprise tier
             headless: Whether to run in headless mode
         """
-        self.license_key = license_key
+        self.api_key = api_key
+        self.api_url = api_url or ("https://api.sentienceapi.com" if api_key else None)
         self.headless = headless
         self.playwright: Optional[Playwright] = None
         self.context: Optional[BrowserContext] = None
