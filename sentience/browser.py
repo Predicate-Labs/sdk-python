@@ -31,6 +31,10 @@ class SentienceBrowser:
     def start(self) -> None:
         """Launch browser with extension loaded"""
         # Get extension path (sentience-chrome directory)
+        # __file__ is sdk-python/sentience/browser.py, so:
+        # parent = sdk-python/sentience/
+        # parent.parent = sdk-python/
+        # parent.parent.parent = Sentience/ (project root)
         repo_root = Path(__file__).parent.parent.parent
         extension_source = repo_root / "sentience-chrome"
         
@@ -62,6 +66,11 @@ class SentienceBrowser:
         if pkg_source.exists():
             pkg_dest = os.path.join(temp_dir, "pkg")
             shutil.copytree(pkg_source, pkg_dest, dirs_exist_ok=True)
+        else:
+            raise FileNotFoundError(
+                f"WASM files not found at {pkg_source}. "
+                "Build the extension first: cd sentience-chrome && ./build.sh"
+            )
         
         # Launch Playwright
         self.playwright = sync_playwright().start()
@@ -83,10 +92,28 @@ class SentienceBrowser:
         else:
             self.page = self.context.new_page()
         
+        # Navigate to a real page so extension can inject
+        # Extension content scripts only run on actual pages (not about:blank)
+        # Use a simple page that loads quickly
+        self.page.goto("https://example.com", wait_until="domcontentloaded")
+        
+        # Give extension time to initialize (WASM loading is async)
+        self.page.wait_for_timeout(1000)
+        
         # Wait for extension to load
-        self._wait_for_extension()
+        if not self._wait_for_extension():
+            # Extension might need more time, try waiting a bit longer
+            self.page.wait_for_timeout(2000)
+            if not self._wait_for_extension():
+                raise RuntimeError(
+                    "Extension failed to load after navigation. Make sure:\n"
+                    "1. Extension is built (cd sentience-chrome && ./build.sh)\n"
+                    "2. All files are present (manifest.json, content.js, injected_api.js, pkg/)\n"
+                    "3. Check browser console for errors\n"
+                    f"4. Extension path: {temp_dir}"
+                )
     
-    def _wait_for_extension(self, timeout: int = 10000) -> bool:
+    def _wait_for_extension(self, timeout: int = 15000) -> bool:
         """Wait for window.sentience API to be available"""
         import time
         start = time.time()
@@ -95,16 +122,29 @@ class SentienceBrowser:
             try:
                 result = self.page.evaluate("""
                     () => {
-                        return typeof window.sentience !== 'undefined' && 
-                               typeof window.sentience.snapshot === 'function';
+                        // Check if sentience API exists
+                        if (typeof window.sentience === 'undefined') {
+                            return { ready: false, reason: 'window.sentience not defined' };
+                        }
+                        // Check if snapshot function exists
+                        if (typeof window.sentience.snapshot !== 'function') {
+                            return { ready: false, reason: 'snapshot function not available' };
+                        }
+                        // Check if WASM module is loaded
+                        if (window.sentience_registry === undefined) {
+                            return { ready: false, reason: 'registry not initialized' };
+                        }
+                        return { ready: true };
                     }
                 """)
-                if result:
+                
+                if isinstance(result, dict) and result.get("ready"):
                     return True
-            except Exception:
+            except Exception as e:
+                # Continue waiting on errors
                 pass
             
-            time.sleep(0.1)
+            time.sleep(0.2)
         
         return False
     
