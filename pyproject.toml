@@ -20,13 +20,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
 ]
-
-[project.urls]
-Homepage = "https://github.com/SentienceAPI/sentience-python"
-Repository = "https://github.com/SentienceAPI/sentience-python"
-Issues = "https://github.com/SentienceAPI/sentience-python/issues"
-
-[project]
 dependencies = [
     "playwright>=1.40.0",
     "pydantic>=2.0.0",
@@ -34,6 +27,11 @@ dependencies = [
     "requests>=2.31.0",  # For server-side API calls
     "playwright-stealth>=1.0.6",  # Bot evasion and stealth mode
 ]
+
+[project.urls]
+Homepage = "https://github.com/SentienceAPI/sentience-python"
+Repository = "https://github.com/SentienceAPI/sentience-python"
+Issues = "https://github.com/SentienceAPI/sentience-python/issues"
 
 [project.scripts]
 sentience = "sentience.cli:main"
@@ -47,4 +45,3 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sentience*"]
-
