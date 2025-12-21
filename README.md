@@ -9,6 +9,9 @@ Python SDK for Sentience AI Agent Browser Automation.
 ```bash
 cd sdk-python
 pip install -e .
+
+# Install Playwright browsers (required)
+playwright install chromium
 ```
 
 ## Quick Start
