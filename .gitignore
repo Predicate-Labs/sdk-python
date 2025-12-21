@@ -1,6 +1,12 @@
 # Python
+# Ignore __pycache__ directories at any level
 __pycache__/
+**/__pycache__/
+# Ignore Python cache files
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
 *$py.class
 *.so
 .Python
