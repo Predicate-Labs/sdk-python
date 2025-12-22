@@ -6,7 +6,7 @@ from .browser import SentienceBrowser
 from .models import Snapshot, Element, BBox, Viewport, ActionResult, WaitResult
 from .snapshot import snapshot
 from .query import query, find
-from .actions import click, type_text, press
+from .actions import click, type_text, press, click_rect
 from .wait import wait_for
 from .expect import expect
 from .inspector import Inspector, inspect
@@ -31,6 +31,7 @@ __all__ = [
     "click",
     "type_text",
     "press",
+    "click_rect",
     "wait_for",
     "expect",
     "Inspector",
