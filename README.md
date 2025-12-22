@@ -73,6 +73,28 @@ with SentienceBrowser(headless=False) as browser:
   - `.to_have_text(text)`
   - `.to_have_count(n)`
 
+### Content Reading
+- `read(browser, format="raw|text|markdown")` - Read page content
+  - **Default format: `"raw"`** - Returns HTML suitable for Turndown/markdownify
+  - `format="raw"` - Get cleaned HTML
+  - `format="markdown"` - Get high-quality markdown (uses markdownify internally)
+  - `format="text"` - Get plain text
+  
+  **Examples:**
+  ```python
+  from sentience import read
+  
+  # Get raw HTML (default)
+  result = read(browser)
+  html = result["content"]
+  
+  # Get high-quality markdown (uses markdownify automatically)
+  result = read(browser, format="markdown")
+  markdown = result["content"]
+  ```
+  
+  See `examples/read_markdown.py` for complete examples.
+
 ## Examples
 
 See `examples/` directory:
@@ -80,6 +102,7 @@ See `examples/` directory:
 - `basic_agent.py` - Basic snapshot
 - `query_demo.py` - Query engine
 - `wait_and_click.py` - Wait and actions
+- `read_markdown.py` - Reading page content and converting to markdown
 
 ### Content Reading Example
 
