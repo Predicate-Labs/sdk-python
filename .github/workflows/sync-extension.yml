@@ -41,8 +41,18 @@ jobs:
           TAG="${{ github.event.client_payload.release_tag }}"
         else
           # Scheduled check - get latest release
-          TAG=$(curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
-            "https://api.github.com/repos/${{ secrets.SENTIENCE_CHROME_REPO }}/releases/latest" | jq -r '.tag_name // empty')
+          # Note: This also needs a token with access to the private repo
+          HTTP_CODE=$(curl -s -o latest_release.json -w "%{http_code}" \
+            -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
+            "https://api.github.com/repos/${{ secrets.SENTIENCE_CHROME_REPO }}/releases/latest")
+            
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Failed to fetch latest release. HTTP Code: $HTTP_CODE"
+            cat latest_release.json
+            exit 1
+          fi
+          
+          TAG=$(cat latest_release.json | jq -r '.tag_name // empty')
           
           # Check if we already processed this tag
           if git ls-remote --exit-code --heads origin "sync-extension-$TAG"; then
@@ -72,9 +82,7 @@ jobs:
         
         echo "⬇️ Fetching release info for $TAG from $REPO..."
         
-        # Capture response to file for debugging
-        # Use -f to fail on HTTP errors (404/403) so we don't parse error HTML
-        # We explicitly print the response body on failure for debugging
+        # 1. Get Release Info
         HTTP_CODE=$(curl -s -w "%{http_code}" -o release.json \
           -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
           "https://api.github.com/repos/$REPO/releases/tags/$TAG")
@@ -86,38 +94,49 @@ jobs:
           exit 1
         fi
           
-        # Check if we got a valid release object (sanity check for "Not Found" message)
-        if grep -q "Not Found" release.json; then
-          echo "❌ Critical Error: Release tag $TAG not found in repo $REPO (API returned 404 message)"
-          cat release.json
-          exit 1
-        fi
-
-        # Robust extraction with safe navigation operator
-        # The ? prevents jq from crashing if .assets is missing/null
-        ASSET_URL=$(cat release.json | jq -r '.assets[]? | select(.name == "extension-files.tar.gz") | .browser_download_url')
-          
+        # Check for asset URL
+        ASSET_URL=$(cat release.json | jq -r '.assets[]? | select(.name == "extension-files.tar.gz") | .url')
+        
         if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" == "null" ]; then
           echo "❌ Critical Error: extension-files.tar.gz not found in release assets!"
-          echo "Available assets in release:"
-          cat release.json | jq -r '.assets[].name' || echo "No assets found or invalid JSON"
+          echo "Available assets:"
+          cat release.json | jq -r '.assets[].name'
           exit 1
         fi
 
-        # 2. Download the tarball
-        echo "📦 Downloading tarball from $ASSET_URL..."
-        curl -L -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
+        echo "📦 Downloading tarball from asset API endpoint..."
+        # NOTE: For private repos, we must use the API URL (.url) with Accept: application/octet-stream header
+        # Using .browser_download_url often redirects to S3 which breaks auth headers
+        
+        HTTP_CODE=$(curl -L -s -w "%{http_code}" -o extension.tar.gz \
+             -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
              -H "Accept: application/octet-stream" \
-             "$ASSET_URL" -o extension.tar.gz
+             "$ASSET_URL")
 
-        # 3. Extract it
+        if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "302" ]; then
+             echo "❌ Failed to download asset. HTTP Code: $HTTP_CODE"
+             # If it's a small file (error message), show it
+             if [ $(stat -c%s extension.tar.gz) -lt 1000 ]; then
+                cat extension.tar.gz
+             fi
+             exit 1
+        fi
+
+        # 3. Verify File Type before extracting
+        FILE_TYPE=$(file -b --mime-type extension.tar.gz)
+        echo "📄 Downloaded file type: $FILE_TYPE"
+        
+        if [[ "$FILE_TYPE" != *"gzip"* ]] && [[ "$FILE_TYPE" != *"octet-stream"* ]]; then
+            echo "❌ Error: Downloaded file is not a gzip archive. It is: $FILE_TYPE"
+            echo "First 100 bytes:"
+            head -c 100 extension.tar.gz
+            exit 1
+        fi
+
+        # 4. Extract
         echo "📂 Extracting..."
         tar -xzf extension.tar.gz
         rm extension.tar.gz
-        
-        # 4. Verify extraction
-        echo "✅ Extraction complete. Contents:"
-        ls -la
         
         if [ ! -f "manifest.json" ]; then
           echo "❌ Error: manifest.json missing after extraction"
@@ -131,7 +150,6 @@ jobs:
         TARGET_DIR="sentience/extension"
         
         # Ensure target directory exists and is clean
-        # Note: We preserve the directory structure, just update contents
         rm -rf "$TARGET_DIR"
         mkdir -p "$TARGET_DIR"
         
