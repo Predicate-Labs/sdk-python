@@ -12,6 +12,8 @@ from .expect import expect
 from .inspector import Inspector, inspect
 from .recorder import Recorder, Trace, TraceStep, record
 from .generator import ScriptGenerator, generate
+from .read import read
+from .screenshot import screenshot
 
 __version__ = "0.1.0"
 
@@ -39,5 +41,7 @@ __all__ = [
     "record",
     "ScriptGenerator",
     "generate",
+    "read",
+    "screenshot",
 ]
 
