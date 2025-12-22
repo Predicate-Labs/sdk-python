@@ -8,7 +8,7 @@ from sentience import SentienceBrowser, inspect
 
 def test_inspector_start_stop():
     """Test inspector can start and stop"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -28,7 +28,7 @@ def test_inspector_start_stop():
 
 def test_inspector_context_manager():
     """Test inspector as context manager"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -44,7 +44,7 @@ def test_inspector_context_manager():
 
 def test_inspector_mouse_move_detection():
     """Test inspector detects mouse move"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -60,7 +60,7 @@ def test_inspector_mouse_move_detection():
 
 def test_inspector_click_detection():
     """Test inspector detects clicks"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

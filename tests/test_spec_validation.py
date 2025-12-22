@@ -65,7 +65,7 @@ def test_snapshot_matches_spec():
     """Test that snapshot response matches spec schema"""
     schema = load_schema()
     
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

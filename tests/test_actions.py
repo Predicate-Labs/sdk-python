@@ -8,7 +8,7 @@ from sentience import SentienceBrowser, snapshot, find, click, type_text, press
 
 def test_click():
     """Test click action"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -24,7 +24,7 @@ def test_click():
 
 def test_type_text():
     """Test type action"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         # Use a page with a text input
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
@@ -41,7 +41,7 @@ def test_type_text():
 
 def test_press():
     """Test press action"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

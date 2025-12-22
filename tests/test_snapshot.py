@@ -10,7 +10,7 @@ from sentience.models import Snapshot
 @pytest.mark.requires_extension
 def test_snapshot_basic():
     """Test basic snapshot on example.com"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -33,7 +33,7 @@ def test_snapshot_roundtrip():
     ]
     
     for site in sites:
-        with SentienceBrowser(headless=False) as browser:
+        with SentienceBrowser() as browser:
             browser.page.goto(site)
             browser.page.wait_for_load_state("networkidle")
             
@@ -66,7 +66,7 @@ def test_snapshot_save():
     import os
     import json
     
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

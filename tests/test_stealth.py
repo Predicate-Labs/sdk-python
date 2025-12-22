@@ -25,7 +25,7 @@ def test_stealth_features():
     print("Bot Evasion / Stealth Mode Test")
     print("=" * 60)
     
-    browser = SentienceBrowser(headless=False)
+    browser = SentienceBrowser()
     
     try:
         browser.start()

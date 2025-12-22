@@ -155,7 +155,7 @@ def test_match_element():
 
 def test_query_integration():
     """Test query on real page"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -174,7 +174,7 @@ def test_query_integration():
 
 def test_find_integration():
     """Test find on real page"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

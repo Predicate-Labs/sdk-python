@@ -12,7 +12,7 @@ from sentience.generator import ScriptGenerator, generate
 
 def test_generator_python():
     """Test Python script generation"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -37,7 +37,7 @@ def test_generator_python():
 
 def test_generator_typescript():
     """Test TypeScript script generation"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -57,7 +57,7 @@ def test_generator_typescript():
 
 def test_generator_save_python():
     """Test saving generated Python script"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -82,7 +82,7 @@ def test_generator_save_python():
 
 def test_generator_save_typescript():
     """Test saving generated TypeScript script"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -107,7 +107,7 @@ def test_generator_save_typescript():
 
 def test_generator_without_selector():
     """Test generator handles steps without selectors"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -124,7 +124,7 @@ def test_generator_without_selector():
 
 def test_generate_helper():
     """Test generate() helper function"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

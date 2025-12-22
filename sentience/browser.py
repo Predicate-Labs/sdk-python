@@ -24,7 +24,7 @@ class SentienceBrowser:
         self,
         api_key: Optional[str] = None,
         api_url: Optional[str] = None,
-        headless: bool = False
+        headless: Optional[bool] = None
     ):
         """
         Initialize Sentience browser
@@ -36,7 +36,7 @@ class SentienceBrowser:
                     If None and api_key is provided, uses default URL
                     If None and no api_key, uses free tier (local extension only)
                     If 'local' or Docker sidecar URL, uses Enterprise tier
-            headless: Whether to run in headless mode
+            headless: Whether to run in headless mode. If None, defaults to True in CI, False otherwise
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -45,7 +45,12 @@ class SentienceBrowser:
             self.api_url = api_url or "https://api.sentienceapi.com"
         else:
             self.api_url = None
-        self.headless = headless
+        # Default to headless=True in CI (no X server), headless=False locally
+        if headless is None:
+            import os
+            self.headless = os.getenv("CI", "").lower() in ("true", "1", "yes")
+        else:
+            self.headless = headless
         self.playwright: Optional[Playwright] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None

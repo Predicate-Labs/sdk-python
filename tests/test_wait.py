@@ -3,12 +3,14 @@ Tests for wait functionality
 """
 
 import pytest
+import os
 from sentience import SentienceBrowser, wait_for, expect
 
 
 def test_wait_for():
     """Test wait_for element"""
-    with SentienceBrowser(headless=False) as browser:
+    # Auto-detect headless mode (True in CI, False locally)
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -21,7 +23,7 @@ def test_wait_for():
 
 def test_wait_for_timeout():
     """Test wait_for timeout"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -33,7 +35,7 @@ def test_wait_for_timeout():
 
 def test_expect_to_exist():
     """Test expect().to_exist()"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -44,7 +46,7 @@ def test_expect_to_exist():
 
 def test_expect_to_be_visible():
     """Test expect().to_be_visible()"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

@@ -13,6 +13,14 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture
+def headless():
+    """Fixture that returns headless mode based on CI environment"""
+    # In CI, always use headless mode (no X server available)
+    # Locally, default to False (headed) for better debugging
+    return os.getenv("CI", "").lower() in ("true", "1", "yes")
+
+
 @pytest.fixture(scope="session")
 def extension_available():
     """Check if the sentience-chrome extension is available"""

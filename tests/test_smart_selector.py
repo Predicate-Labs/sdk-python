@@ -8,7 +8,7 @@ from sentience import SentienceBrowser, record, snapshot
 
 def test_smart_selector_inference():
     """Test that recorder infers selectors automatically"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -30,7 +30,7 @@ def test_smart_selector_inference():
 
 def test_smart_selector_with_text():
     """Test selector inference for elements with text"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -54,7 +54,7 @@ def test_smart_selector_with_text():
 
 def test_smart_selector_validation():
     """Test that inferred selectors are validated"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         

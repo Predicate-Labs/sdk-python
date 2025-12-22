@@ -11,7 +11,7 @@ from sentience.recorder import Recorder
 
 def test_recorder_start_stop():
     """Test recorder can start and stop"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -26,7 +26,7 @@ def test_recorder_start_stop():
 
 def test_recorder_context_manager():
     """Test recorder as context manager"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -39,7 +39,7 @@ def test_recorder_context_manager():
 
 def test_recorder_navigation():
     """Test recording navigation events"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -53,7 +53,7 @@ def test_recorder_navigation():
 
 def test_recorder_click():
     """Test recording click events"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -68,7 +68,7 @@ def test_recorder_click():
 
 def test_recorder_type():
     """Test recording type events"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -84,7 +84,7 @@ def test_recorder_type():
 
 def test_recorder_type_masking():
     """Test text masking in type events"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -98,7 +98,7 @@ def test_recorder_type_masking():
 
 def test_recorder_press():
     """Test recording key press events"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -112,7 +112,7 @@ def test_recorder_press():
 
 def test_trace_save_load():
     """Test trace save and load"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
@@ -142,7 +142,7 @@ def test_trace_save_load():
 
 def test_trace_format():
     """Test trace format matches spec"""
-    with SentienceBrowser(headless=False) as browser:
+    with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
