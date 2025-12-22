@@ -15,7 +15,7 @@ from .generator import ScriptGenerator, generate
 from .read import read
 from .screenshot import screenshot
 
-__version__ = "0.1.0"
+__version__ = "0.10.5"
 
 __all__ = [
     "SentienceBrowser",
