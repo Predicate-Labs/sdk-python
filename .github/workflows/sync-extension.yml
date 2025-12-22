@@ -74,25 +74,32 @@ jobs:
         
         # Capture response to file for debugging
         # Use -f to fail on HTTP errors (404/403) so we don't parse error HTML
-        curl -s -f -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
-          "https://api.github.com/repos/$REPO/releases/tags/$TAG" > release.json || {
-            echo "❌ Failed to fetch release info. Response:"
-            cat release.json || echo "(No response body)"
-            exit 1
-          }
+        # We explicitly print the response body on failure for debugging
+        HTTP_CODE=$(curl -s -w "%{http_code}" -o release.json \
+          -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG")
           
-        # Check if we got a valid release object (sanity check)
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "❌ Failed to fetch release info. HTTP Code: $HTTP_CODE"
+          echo "Response Body:"
+          cat release.json
+          exit 1
+        fi
+          
+        # Check if we got a valid release object (sanity check for "Not Found" message)
         if grep -q "Not Found" release.json; then
-          echo "❌ Critical Error: Release tag $TAG not found in repo $REPO"
+          echo "❌ Critical Error: Release tag $TAG not found in repo $REPO (API returned 404 message)"
+          cat release.json
           exit 1
         fi
 
         # Robust extraction with safe navigation operator
+        # The ? prevents jq from crashing if .assets is missing/null
         ASSET_URL=$(cat release.json | jq -r '.assets[]? | select(.name == "extension-files.tar.gz") | .browser_download_url')
           
         if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" == "null" ]; then
           echo "❌ Critical Error: extension-files.tar.gz not found in release assets!"
-          echo "Available assets:"
+          echo "Available assets in release:"
           cat release.json | jq -r '.assets[].name' || echo "No assets found or invalid JSON"
           exit 1
         fi
