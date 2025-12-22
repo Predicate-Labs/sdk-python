@@ -13,8 +13,7 @@ def main():
     try:
         with SentienceBrowser(api_key=api_key, headless=False) as browser:
             # Navigate to a page to ensure extension is active
-            browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.goto("https://example.com", wait_until="domcontentloaded")
             
             # Check if extension API is available
             bridge_ok = browser.page.evaluate("""

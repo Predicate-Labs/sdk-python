@@ -12,8 +12,7 @@ def main():
 
     with SentienceBrowser(api_key=api_key, headless=False) as browser:
         # Navigate to example.com
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         # Take initial snapshot
         snap = snapshot(browser)
@@ -27,17 +26,14 @@ def main():
             # Click it
             result = click(browser, link.id)
             print(f"Click result: success={result.success}, outcome={result.outcome}")
-            
-            # Wait for navigation
-            browser.page.wait_for_load_state("networkidle")
+
             print(f"New URL: {browser.page.url}")
         else:
             print("No link found")
         
         # Example: Wait for element using wait_for
         print("\n=== Wait Example ===")
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         wait_result = wait_for(browser, "role=link", timeout=5.0)
         if wait_result.found:
