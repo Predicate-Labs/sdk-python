@@ -8,15 +8,18 @@ from .browser import SentienceBrowser
 
 def read(
     browser: SentienceBrowser,
-    format: Literal["raw", "text", "markdown"] = "raw",  # noqa: A002
+    output_format: Literal["raw", "text", "markdown"] = "raw",
+    enhance_markdown: bool = True,
 ) -> dict:
     """
     Read page content as raw HTML, text, or markdown
     
     Args:
         browser: SentienceBrowser instance
-        format: Output format - "raw" (default, returns HTML for Turndown/markdownify),
-                "text" (plain text), or "markdown" (high-quality markdown via markdownify)
+        output_format: Output format - "raw" (default, returns HTML for external processing),
+                        "text" (plain text), or "markdown" (lightweight or enhanced markdown).
+        enhance_markdown: If True and output_format is "markdown", uses markdownify for better conversion.
+                          If False, uses the extension's lightweight markdown converter.
     
     Returns:
         dict with:
@@ -33,20 +36,19 @@ def read(
         html_content = result["content"]
         
         # Get high-quality markdown (uses markdownify internally)
-        result = read(browser, format="markdown")
+        result = read(browser, output_format="markdown")
         markdown = result["content"]
         
         # Get plain text
-        result = read(browser, format="text")
+        result = read(browser, output_format="text")
         text = result["content"]
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
     
-    # For markdown format, get raw HTML first, then convert with markdownify
-    if format == "markdown":
-        # Get raw HTML from extension
-        raw_result = browser.page.evaluate(
+    if output_format == "markdown" and enhance_markdown:
+        # Get raw HTML from the extension first
+        raw_html_result = browser.page.evaluate(
             """
             (options) => {
                 return window.sentience.read(options);
@@ -55,57 +57,34 @@ def read(
             {"format": "raw"},
         )
         
-        if raw_result.get("status") != "success":
-            return raw_result
-        
-        # Convert to markdown using markdownify
-        try:
-            from markdownify import markdownify as md
-            html_content = raw_result["content"]
-            markdown_content = md(
-                html_content,
-                heading_style="ATX",  # Use # for headings
-                bullets="-",  # Use - for lists
-                strip=['script', 'style', 'nav', 'footer', 'header', 'noscript'],  # Strip unwanted tags
-            )
-            
-            # Return result with markdown content
-            return {
-                "status": "success",
-                "url": raw_result["url"],
-                "format": "markdown",
-                "content": markdown_content,
-                "length": len(markdown_content),
-            }
-        except ImportError:
-            # Fallback to extension's lightweight markdown if markdownify not installed
-            result = browser.page.evaluate(
-                """
-                (options) => {
-                    return window.sentience.read(options);
+        if raw_html_result.get("status") == "success":
+            html_content = raw_html_result["content"]
+            try:
+                # Use markdownify for enhanced markdown conversion
+                from markdownify import markdownify, MarkdownifyError
+                markdown_content = markdownify(html_content, heading_style="ATX", wrap=True)
+                return {
+                    "status": "success",
+                    "url": raw_html_result["url"],
+                    "format": "markdown",
+                    "content": markdown_content,
+                    "length": len(markdown_content),
                 }
-                """,
-                {"format": "markdown"},
-            )
-            return result
-        except (ValueError, TypeError, AttributeError) as e:
-            # If conversion fails, return error
-            return {
-                "status": "error",
-                "url": raw_result.get("url", ""),
-                "format": "markdown",
-                "content": "",
-                "length": 0,
-                "error": f"Markdown conversion failed: {e}",
-            }
-    else:
-        # For "raw" or "text", call extension directly
-        result = browser.page.evaluate(
-            """
-            (options) => {
-                return window.sentience.read(options);
-            }
-            """,
-            {"format": format},
-        )
-        return result
+            except ImportError:
+                print("Warning: 'markdownify' not installed. Install with 'pip install markdownify' for enhanced markdown. Falling back to extension's markdown.")
+            except MarkdownifyError as e:
+                print(f"Warning: markdownify failed ({e}), falling back to extension's markdown.")
+            except Exception as e:
+                print(f"Warning: An unexpected error occurred with markdownify ({e}), falling back to extension's markdown.")
+
+    # If not enhanced markdown, or fallback, call extension with requested format
+    result = browser.page.evaluate(
+        """
+        (options) => {
+            return window.sentience.read(options);
+        }
+        """,
+        {"format": output_format},
+    )
+    
+    return result
