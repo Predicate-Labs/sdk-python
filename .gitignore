@@ -52,3 +52,6 @@ Thumbs.db
 
 # Playwright
 .playwright/
+
+# Temporary directories from sync workflows
+extension-temp/
