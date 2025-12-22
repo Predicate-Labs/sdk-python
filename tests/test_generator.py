@@ -6,7 +6,7 @@ import pytest
 import tempfile
 import os
 from sentience import SentienceBrowser, record
-from sentience.recorder import Trace
+from sentience.recorder import Trace, TraceStep
 from sentience.generator import ScriptGenerator, generate
 
 
@@ -111,10 +111,18 @@ def test_generator_without_selector():
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
         
-        with record(browser) as rec:
-            rec.record_click(1)  # No selector
+        # Create a trace manually with a step that has no selector
+        # (The recorder automatically infers selectors, so we create the step directly)
+        trace = Trace("https://example.com")
+        step = TraceStep(
+            ts=0,
+            type="click",
+            element_id=1,
+            selector=None  # Explicitly no selector
+        )
+        trace.add_step(step)
         
-        generator = ScriptGenerator(rec.trace)
+        generator = ScriptGenerator(trace)
         code = generator.generate_python()
         
         # Should include TODO comment for missing selector
