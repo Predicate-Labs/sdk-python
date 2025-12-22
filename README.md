@@ -46,6 +46,14 @@ with SentienceBrowser(headless=False) as browser:
 - Pydantic models for type safety
 - `snapshot.save(filepath)` - Save to JSON
 
+### Content Reading & Screenshots
+- `read(browser, format="text|markdown")` - Read page content as text or markdown
+  - Enhanced markdown conversion using `markdownify` (better than extension's lightweight conversion)
+  - Supports `enhance_markdown=True` to use improved conversion
+- `screenshot(browser, format="png|jpeg", quality=80)` - Capture standalone screenshot
+  - Returns base64-encoded data URL
+  - Supports PNG and JPEG formats with quality control
+
 ### Day 4: Query Engine
 - `query(snapshot, selector)` - Find elements matching selector
 - `find(snapshot, selector)` - Find single best match
@@ -72,6 +80,39 @@ See `examples/` directory:
 - `basic_agent.py` - Basic snapshot
 - `query_demo.py` - Query engine
 - `wait_and_click.py` - Wait and actions
+
+### Content Reading Example
+
+```python
+from sentience import SentienceBrowser, read
+
+with SentienceBrowser() as browser:
+    browser.page.goto("https://example.com")
+    browser.page.wait_for_load_state("networkidle")
+    
+    # Read as enhanced markdown (better quality)
+    result = read(browser, format="markdown", enhance_markdown=True)
+    print(result["content"])  # High-quality markdown
+```
+
+### Screenshot Example
+
+```python
+from sentience import SentienceBrowser, screenshot
+import base64
+
+with SentienceBrowser() as browser:
+    browser.page.goto("https://example.com")
+    browser.page.wait_for_load_state("networkidle")
+    
+    # Capture PNG screenshot
+    data_url = screenshot(browser, format="png")
+    
+    # Save to file
+    image_data = base64.b64decode(data_url.split(",")[1])
+    with open("screenshot.png", "wb") as f:
+        f.write(image_data)
+```
 
 ## Testing
 
