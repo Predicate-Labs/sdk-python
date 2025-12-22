@@ -75,11 +75,19 @@ jobs:
           jq -r '.assets[] | select(.name | endswith(".js") or endswith(".wasm") or endswith(".json") or endswith(".d.ts")) | "\(.browser_download_url)|\(.name)"' | \
           while IFS='|' read -r url name; do
             if [ -n "$url" ] && [ "$url" != "null" ] && [ -n "$name" ]; then
-              # Handle asset names that might have paths like "pkg/sentience_core.js"
+              # Handle asset names that might have paths like "pkg/sentience_core.js" or "extension-package/manifest.json"
               # GitHub releases might preserve directory structure in asset names
-              # If name starts with "pkg/", we want to preserve that structure
-              # If name is just a filename, put it at root
-              if [[ "$name" == pkg/* ]]; then
+              # Strip "extension-package/" prefix if present, as we'll handle it in copy step
+              if [[ "$name" == extension-package/* ]]; then
+                # Asset name is "extension-package/manifest.json" - strip prefix
+                filename="${name#extension-package/}"
+                dir=$(dirname "$filename")
+                if [ "$dir" != "." ]; then
+                  mkdir -p "$dir"
+                fi
+                echo "  Downloading $name -> $filename"
+                curl -L -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" "$url" -o "$filename"
+              elif [[ "$name" == pkg/* ]]; then
                 # Asset name is "pkg/sentience_core.js" - create pkg directory
                 mkdir -p pkg
                 filename=$(basename "$name")
@@ -103,6 +111,19 @@ jobs:
         echo ""
         echo "Directory structure:"
         ls -laR . | head -50
+        echo ""
+        echo "🔍 Verifying critical files:"
+        if [ -f "manifest.json" ]; then
+          echo "✅ manifest.json found ($(wc -c < manifest.json) bytes)"
+          head -5 manifest.json
+        else
+          echo "❌ manifest.json NOT FOUND"
+        fi
+        if [ -d "pkg" ]; then
+          echo "✅ pkg directory found with $(ls -1 pkg | wc -l) files"
+        else
+          echo "❌ pkg directory NOT FOUND"
+        fi
         
     - name: Copy extension files
       if: steps.release.outputs.skip != 'true'
@@ -113,11 +134,42 @@ jobs:
         # Copy extension files (handle both root and extension-package/ subdirectory)
         # Check root first, then extension-package/ subdirectory
         if [ -f "extension-temp/manifest.json" ]; then
-          cp extension-temp/manifest.json sentience/extension/
+          size=$(wc -c < extension-temp/manifest.json)
+          if [ "$size" -gt 0 ]; then
+            echo "✅ Copying manifest.json ($size bytes)"
+            cp extension-temp/manifest.json sentience/extension/
+            # Verify copy
+            if [ -f "sentience/extension/manifest.json" ] && [ "$(wc -c < sentience/extension/manifest.json)" -gt 0 ]; then
+              echo "✅ manifest.json copied successfully"
+            else
+              echo "❌ manifest.json copy failed or file is empty"
+              exit 1
+            fi
+          else
+            echo "❌ manifest.json is empty ($size bytes)"
+            exit 1
+          fi
         elif [ -f "extension-temp/extension-package/manifest.json" ]; then
-          cp extension-temp/extension-package/manifest.json sentience/extension/
+          size=$(wc -c < extension-temp/extension-package/manifest.json)
+          if [ "$size" -gt 0 ]; then
+            echo "✅ Copying manifest.json from extension-package/ ($size bytes)"
+            cp extension-temp/extension-package/manifest.json sentience/extension/
+            # Verify copy
+            if [ -f "sentience/extension/manifest.json" ] && [ "$(wc -c < sentience/extension/manifest.json)" -gt 0 ]; then
+              echo "✅ manifest.json copied successfully"
+            else
+              echo "❌ manifest.json copy failed or file is empty"
+              exit 1
+            fi
+          else
+            echo "❌ manifest.json is empty ($size bytes)"
+            exit 1
+          fi
         else
-          echo "⚠️ manifest.json not found"
+          echo "❌ manifest.json not found in extension-temp/"
+          echo "Available files:"
+          find extension-temp -type f | head -20
+          exit 1
         fi
         
         if [ -f "extension-temp/content.js" ]; then
