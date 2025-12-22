@@ -17,8 +17,7 @@ def main():
     # Initialize browser
     with SentienceBrowser(api_key=api_key, headless=True) as browser:
         # Navigate to a page
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         # Method 1: Get raw HTML (default) and convert with markdownify
         print("=== Method 1: Raw HTML + markdownify (Recommended) ===")

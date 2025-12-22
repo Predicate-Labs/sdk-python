@@ -12,8 +12,7 @@ def main():
 
     with SentienceBrowser(api_key=api_key, headless=False) as browser:
         # Navigate to a page with links
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         snap = snapshot(browser)
         
