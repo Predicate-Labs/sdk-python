@@ -20,8 +20,7 @@ from sentience import SentienceBrowser, snapshot, find, click
 
 # Start browser with extension
 with SentienceBrowser(headless=False) as browser:
-    browser.goto("https://example.com")
-    browser.page.wait_for_load_state("networkidle")
+    browser.goto("https://example.com", wait_until="domcontentloaded")
 
     # Take snapshot - captures all interactive elements
     snap = snapshot(browser)
@@ -44,8 +43,7 @@ import time
 
 with SentienceBrowser(headless=False) as browser:
     # Navigate to Amazon Best Sellers
-    browser.goto("https://www.amazon.com/gp/bestsellers/")
-    browser.page.wait_for_load_state("networkidle")
+    browser.goto("https://www.amazon.com/gp/bestsellers/", wait_until="domcontentloaded")
     time.sleep(2)  # Wait for dynamic content
 
     # Take snapshot and find products
@@ -146,6 +144,7 @@ first_row = query(snap, "bbox.y<600")
 
 ### Actions - Interact with Elements
 - **`click(browser, element_id)`** - Click element by ID
+- **`click_rect(browser, rect)`** - Click at center of rectangle (coordinate-based)
 - **`type_text(browser, element_id, text)`** - Type into input fields
 - **`press(browser, key)`** - Press keyboard keys (Enter, Escape, Tab, etc.)
 
@@ -160,16 +159,52 @@ print(f"Duration: {result.duration_ms}ms")
 print(f"URL changed: {result.url_changed}")
 ```
 
+**Coordinate-based clicking:**
+```python
+from sentience import click_rect
+
+# Click at center of rectangle (x, y, width, height)
+click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30})
+
+# With visual highlight (default: red border for 2 seconds)
+click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30}, highlight=True, highlight_duration=2.0)
+
+# Using element's bounding box
+snap = snapshot(browser)
+element = find(snap, "role=button")
+if element:
+    click_rect(browser, {
+        "x": element.bbox.x,
+        "y": element.bbox.y,
+        "w": element.bbox.width,
+        "h": element.bbox.height
+    })
+```
+
 ### Wait & Assertions
-- **`wait_for(browser, selector, timeout=5.0)`** - Wait for element to appear
+- **`wait_for(browser, selector, timeout=5.0, interval=None, use_api=None)`** - Wait for element to appear
 - **`expect(browser, selector)`** - Assertion helper with fluent API
 
 **Examples:**
 ```python
-# Wait for element
+# Wait for element (auto-detects optimal interval based on API usage)
 result = wait_for(browser, "role=button text='Submit'", timeout=10.0)
 if result.found:
     print(f"Found after {result.duration_ms}ms")
+
+# Use local extension with fast polling (0.25s interval)
+result = wait_for(browser, "role=button", timeout=5.0, use_api=False)
+
+# Use remote API with network-friendly polling (1.5s interval)
+result = wait_for(browser, "role=button", timeout=5.0, use_api=True)
+
+# Custom interval override
+result = wait_for(browser, "role=button", timeout=5.0, interval=0.5, use_api=False)
+
+# Semantic wait conditions
+wait_for(browser, "clickable=true", timeout=5.0)  # Wait for clickable element
+wait_for(browser, "importance>100", timeout=5.0)  # Wait for important element
+wait_for(browser, "role=link visible=true", timeout=5.0)  # Wait for visible link
 
 # Assertions
 expect(browser, "role=button text='Submit'").to_exist(timeout=5.0)
@@ -313,8 +348,7 @@ browser = SentienceBrowser()  # headless=True if CI=true, else False
 
 ### 1. Wait for Dynamic Content
 ```python
-browser.goto("https://example.com")
-browser.page.wait_for_load_state("networkidle")
+browser.goto("https://example.com", wait_until="domcontentloaded")
 time.sleep(1)  # Extra buffer for AJAX/animations
 ```
 
