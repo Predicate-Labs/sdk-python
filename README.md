@@ -20,8 +20,7 @@ from sentience import SentienceBrowser, snapshot, find, click
 
 # Start browser with extension
 with SentienceBrowser(headless=False) as browser:
-    browser.goto("https://example.com")
-    browser.page.wait_for_load_state("networkidle")
+    browser.goto("https://example.com", wait_until="domcontentloaded")
 
     # Take snapshot - captures all interactive elements
     snap = snapshot(browser)
@@ -44,8 +43,7 @@ import time
 
 with SentienceBrowser(headless=False) as browser:
     # Navigate to Amazon Best Sellers
-    browser.goto("https://www.amazon.com/gp/bestsellers/")
-    browser.page.wait_for_load_state("networkidle")
+    browser.goto("https://www.amazon.com/gp/bestsellers/", wait_until="domcontentloaded")
     time.sleep(2)  # Wait for dynamic content
 
     # Take snapshot and find products
@@ -313,8 +311,7 @@ browser = SentienceBrowser()  # headless=True if CI=true, else False
 
 ### 1. Wait for Dynamic Content
 ```python
-browser.goto("https://example.com")
-browser.page.wait_for_load_state("networkidle")
+browser.goto("https://example.com", wait_until="domcontentloaded")
 time.sleep(1)  # Extra buffer for AJAX/animations
 ```
 
