@@ -114,6 +114,11 @@ def test_generator_without_selector():
         with record(browser) as rec:
             rec.record_click(1)  # No selector
         
+        # Explicitly remove selector to test the no-selector case
+        # (The recorder automatically infers selectors, so we need to clear it)
+        if rec.trace.steps:
+            rec.trace.steps[-1].selector = None
+        
         generator = ScriptGenerator(rec.trace)
         code = generator.generate_python()
         
