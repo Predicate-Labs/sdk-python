@@ -5,6 +5,7 @@ Playwright browser harness with extension loading
 import os
 import tempfile
 import shutil
+import time
 from pathlib import Path
 from typing import Optional
 from playwright.sync_api import sync_playwright, BrowserContext, Page, Playwright
@@ -40,17 +41,19 @@ class SentienceBrowser:
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
-        # Default to https://api.sentienceapi.com if api_key is provided but api_url is not
-        if api_key:
-            self.api_url = api_url or "https://api.sentienceapi.com"
+        # Defaults to production API if key is present but url is missing
+        if self.api_key and not api_url:
+            self.api_url = "https://api.sentienceapi.com"
         else:
-            self.api_url = None
-        # Default to headless=True in CI (no X server), headless=False locally
+            self.api_url = api_url
+            
+        # Determine headless mode
         if headless is None:
-            import os
-            self.headless = os.getenv("CI", "").lower() in ("true", "1", "yes")
+            # Default to False for local dev, True for CI
+            self.headless = os.environ.get("CI", "").lower() == "true"
         else:
             self.headless = headless
+            
         self.playwright: Optional[Playwright] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
@@ -58,320 +61,121 @@ class SentienceBrowser:
     
     def start(self) -> None:
         """Launch browser with extension loaded"""
-        # Try to find extension in multiple locations:
-        # 1. Embedded extension (sentience/extension/) - for production/CI
-        # 2. Development mode (../sentience-chrome/) - for local development
+        # Get extension source path (relative to project root/package)
+        # Handle both development (src/) and installed package cases
         
-        # __file__ is sdk-python/sentience/browser.py, so:
-        # parent = sdk-python/sentience/
-        # parent.parent = sdk-python/
-        sdk_root = Path(__file__).parent.parent
+        # 1. Try relative to this file (installed package structure)
+        # sentience/browser.py -> sentience/extension/
+        package_ext_path = Path(__file__).parent / "extension"
         
-        # Check for embedded extension first (production/CI)
-        embedded_extension = sdk_root / "sentience" / "extension"
+        # 2. Try development root (if running from source repo)
+        # sentience/browser.py -> ../sentience-chrome
+        dev_ext_path = Path(__file__).parent.parent.parent / "sentience-chrome"
         
-        # Check for development extension (local development)
-        repo_root = sdk_root.parent
-        dev_extension = repo_root / "sentience-chrome"
-        
-        # Prefer embedded extension, fall back to dev extension
-        if embedded_extension.exists() and (embedded_extension / "manifest.json").exists():
-            extension_source = embedded_extension
-        elif dev_extension.exists() and (dev_extension / "manifest.json").exists():
-            extension_source = dev_extension
+        if package_ext_path.exists() and (package_ext_path / "manifest.json").exists():
+            extension_source = package_ext_path
+        elif dev_ext_path.exists() and (dev_ext_path / "manifest.json").exists():
+            extension_source = dev_ext_path
         else:
             raise FileNotFoundError(
                 f"Extension not found. Checked:\n"
-                f"  1. {embedded_extension}\n"
-                f"  2. {dev_extension}\n"
-                "Make sure extension files are available. "
-                "For development: cd ../sentience-chrome && ./build.sh"
+                f"1. {package_ext_path}\n"
+                f"2. {dev_ext_path}\n"
+                "Make sure the extension is built and 'sentience/extension' directory exists."
             )
-        
+
         # Create temporary extension bundle
-        temp_dir = tempfile.mkdtemp(prefix="sentience-ext-")
-        self._extension_path = temp_dir
-        
-        # Copy extension files
-        files_to_copy = [
-            "manifest.json",
-            "content.js",
-            "background.js",
-            "injected_api.js",
-        ]
-        
-        copied_files = []
-        for file in files_to_copy:
-            src = extension_source / file
-            if src.exists():
-                # Verify source file is not empty
-                src_size = src.stat().st_size
-                if src_size == 0:
-                    raise ValueError(
-                        f"Extension file is empty: {src}\n"
-                        f"Extension source: {extension_source}\n"
-                        f"This suggests the extension files weren't synced correctly."
-                    )
-                dst = os.path.join(temp_dir, file)
-                shutil.copy2(src, dst)
-                # Verify copy succeeded
-                if not os.path.exists(dst) or os.path.getsize(dst) == 0:
-                    raise RuntimeError(
-                        f"Failed to copy {file} to temp directory\n"
-                        f"Source: {src} (size: {src_size} bytes)\n"
-                        f"Destination: {dst} (exists: {os.path.exists(dst)}, size: {os.path.getsize(dst) if os.path.exists(dst) else 0} bytes)"
-                    )
-                copied_files.append(file)
-            else:
-                raise FileNotFoundError(
-                    f"Extension file not found: {src}\n"
-                    f"Extension source: {extension_source}\n"
-                    f"Extension source exists: {extension_source.exists()}\n"
-                    f"Files in extension source: {list(extension_source.iterdir()) if extension_source.exists() else 'N/A'}"
-                )
-        
-        # Verify all required files were copied
-        if len(copied_files) != len(files_to_copy):
-            missing = set(files_to_copy) - set(copied_files)
-            raise FileNotFoundError(
-                f"Missing extension files: {missing}\n"
-                f"Extension source: {extension_source}"
-            )
-        
-        # Verify files are in temp directory
-        for file in files_to_copy:
-            temp_file = os.path.join(temp_dir, file)
-            if not os.path.exists(temp_file):
-                raise FileNotFoundError(
-                    f"File not copied to temp directory: {temp_file}\n"
-                    f"Temp dir: {temp_dir}\n"
-                    f"Files in temp dir: {os.listdir(temp_dir)}"
-                )
-        
-        # Copy pkg directory (WASM)
-        pkg_source = extension_source / "pkg"
-        if pkg_source.exists():
-            pkg_dest = os.path.join(temp_dir, "pkg")
-            shutil.copytree(pkg_source, pkg_dest, dirs_exist_ok=True)
-            # Verify WASM files were copied
-            wasm_file = os.path.join(pkg_dest, "sentience_core_bg.wasm")
-            js_file = os.path.join(pkg_dest, "sentience_core.js")
-            if not os.path.exists(wasm_file) or not os.path.exists(js_file):
-                raise FileNotFoundError(
-                    f"WASM files not found after copy. Expected:\n"
-                    f"  - {wasm_file}\n"
-                    f"  - {js_file}\n"
-                    f"Files in pkg_dest: {os.listdir(pkg_dest) if os.path.exists(pkg_dest) else 'directory does not exist'}\n"
-                    f"Files in pkg_source: {list(pkg_source.iterdir()) if pkg_source.exists() else 'directory does not exist'}"
-                )
-        else:
-            raise FileNotFoundError(
-                f"WASM files not found at {pkg_source}. "
-                f"Extension source: {extension_source}\n"
-                f"Extension source exists: {extension_source.exists()}\n"
-                f"Files in extension source: {list(extension_source.iterdir()) if extension_source.exists() else 'directory does not exist'}\n"
-                "Build the extension first: cd sentience-chrome && ./build.sh"
-            )
-        
-        # Verify manifest.json is valid JSON
-        manifest_path = os.path.join(temp_dir, "manifest.json")
-        if not os.path.exists(manifest_path):
-            raise FileNotFoundError(
-                f"manifest.json not found at {manifest_path}\n"
-                f"Temp dir: {temp_dir}\n"
-                f"Files in temp dir: {os.listdir(temp_dir)}"
-            )
-        
-        # Check file size
-        manifest_size = os.path.getsize(manifest_path)
-        if manifest_size == 0:
-            raise ValueError(
-                f"manifest.json is empty (0 bytes) at {manifest_path}\n"
-                f"Extension source: {extension_source}\n"
-                f"Source manifest exists: {(extension_source / 'manifest.json').exists()}\n"
-                f"Source manifest size: {os.path.getsize(extension_source / 'manifest.json') if (extension_source / 'manifest.json').exists() else 'N/A'}"
-            )
-        
-        try:
-            import json
-            with open(manifest_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                if not content.strip():
-                    raise ValueError(f"manifest.json is empty or contains only whitespace")
-                manifest = json.loads(content)
-            # Verify required manifest fields
-            if "manifest_version" not in manifest:
-                raise ValueError("manifest.json missing 'manifest_version' field")
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"manifest.json is not valid JSON: {e}\n"
-                f"File path: {manifest_path}\n"
-                f"File size: {manifest_size} bytes\n"
-                f"First 100 chars: {content[:100] if 'content' in locals() else 'N/A'}"
-            )
-        except Exception as e:
-            raise ValueError(
-                f"Error reading manifest.json: {e}\n"
-                f"File path: {manifest_path}\n"
-                f"File exists: {os.path.exists(manifest_path)}\n"
-                f"File size: {manifest_size} bytes"
-            )
-        
-        # Launch Playwright
+        # We copy it to a temp dir to avoid file locking issues and ensure clean state
+        self._extension_path = tempfile.mkdtemp(prefix="sentience-ext-")
+        shutil.copytree(extension_source, self._extension_path, dirs_exist_ok=True)
+
         self.playwright = sync_playwright().start()
-        
-        # Stealth arguments for bot evasion
-        stealth_args = [
-            f"--load-extension={temp_dir}",
-            f"--disable-extensions-except={temp_dir}",
-            "--disable-blink-features=AutomationControlled",  # Hide automation indicators
-            "--no-sandbox",  # Required for some environments
-            "--disable-infobars",  # Hide "Chrome is being controlled" message
+
+        # Build launch arguments
+        args = [
+            f"--disable-extensions-except={self._extension_path}",
+            f"--load-extension={self._extension_path}",
+            "--disable-blink-features=AutomationControlled", # Hides 'navigator.webdriver'
+            "--no-sandbox",
+            "--disable-infobars",
         ]
+
+        # Handle headless mode correctly for extensions
+        # 'headless=True' DOES NOT support extensions in standard Chrome
+        # We must use 'headless="new"' (Chrome 112+) or run visible
+        launch_headless_arg = False # Default to visible
+        if self.headless:
+            args.append("--headless=new") # Use new headless mode via args
         
-        # Realistic viewport and user-agent for better evasion
-        viewport_config = {"width": 1920, "height": 1080}
-        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        
-        # Launch browser with extension
-        # Note: channel="chrome" (system Chrome) has known issues with extension loading
-        # We use bundled Chromium for reliable extension loading, but still apply stealth features
-        user_data_dir = tempfile.mkdtemp(prefix="sentience-profile-")
-        use_chrome_channel = False  # Disable for now due to extension loading issues
-        
-        try:
-            if use_chrome_channel:
-                # Try with system Chrome first (better evasion, but may have extension issues)
-                self.context = self.playwright.chromium.launch_persistent_context(
-                    user_data_dir=user_data_dir,
-                    channel="chrome",  # Use system Chrome (better evasion)
-                    headless=self.headless,
-                    args=stealth_args,
-                    viewport=viewport_config,
-                    user_agent=user_agent,
-                    timeout=30000,
-                )
-            else:
-                # Use bundled Chromium (more reliable for extensions)
-                self.context = self.playwright.chromium.launch_persistent_context(
-                    user_data_dir=user_data_dir,
-                    headless=self.headless,
-                    args=stealth_args,
-                    viewport=viewport_config,
-                    user_agent=user_agent,
-                    timeout=30000,
-                )
-        except Exception as launch_error:
-            # Clean up on failure
-            if os.path.exists(user_data_dir):
-                try:
-                    shutil.rmtree(user_data_dir)
-                except Exception:
-                    pass
-            raise RuntimeError(
-                f"Failed to launch browser: {launch_error}\n"
-                "Make sure Playwright browsers are installed: playwright install chromium"
-            ) from launch_error
-        
-        # Get first page or create new one
-        pages = self.context.pages
-        if pages:
-            self.page = pages[0]
-        else:
-            self.page = self.context.new_page()
-        
-        # Apply stealth patches for bot evasion (if available)
+        # Launch persistent context (required for extensions)
+        # Note: We pass headless=False to launch_persistent_context because we handle
+        # headless mode via the --headless=new arg above. This is a Playwright workaround.
+        self.context = self.playwright.chromium.launch_persistent_context(
+            user_data_dir="", # Ephemeral temp dir
+            headless=False,   # IMPORTANT: See note above
+            args=args,
+            viewport={"width": 1280, "height": 800},
+            # Remove "HeadlessChrome" from User Agent automatically
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
+
+        self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+
+        # Apply stealth if available
         if STEALTH_AVAILABLE:
+            stealth_sync(self.page)
+            
+        # Wait a moment for extension to initialize
+        time.sleep(0.5)
+
+    def goto(self, url: str) -> None:
+        """Navigate to a URL and ensure extension is ready"""
+        if not self.page:
+            raise RuntimeError("Browser not started. Call start() first.")
+            
+        self.page.goto(url, wait_until="domcontentloaded")
+        
+        # Wait for extension to be ready (injected into page)
+        if not self._wait_for_extension():
+            # Gather diagnostic info before failing
             try:
-                stealth_sync(self.page)
-            except Exception:
-                # Silently fail if stealth application fails - not critical
-                # This is expected if playwright-stealth has compatibility issues
-                pass
-        
-        # Verify extension is loaded by checking background page
-        # This helps catch extension loading issues early
-        try:
-            background_pages = [p for p in self.context.background_pages]
-            if not background_pages:
-                # Extension might not have a background page, or it's not loaded yet
-                # Wait a bit for extension to initialize
-                self.page.wait_for_timeout(1000)
-        except Exception:
-            # Background pages might not be accessible, continue anyway
-            pass
-        
-        # Navigate to a real page so extension can inject
-        # Extension content scripts only run on actual pages (not about:blank)
-        # Use a simple page that loads quickly
-        self.page.goto("https://example.com", wait_until="domcontentloaded", timeout=15000)
-        
-        # Give extension time to initialize (WASM loading is async)
-        # Content scripts run at document_idle, so we need to wait for that
-        # Also wait for extension ID to be set by content.js
-        self.page.wait_for_timeout(3000)
-        
-        # Wait for extension to load
-        if not self._wait_for_extension(timeout=25000):
-            # Extension might need more time, try waiting a bit longer
-            self.page.wait_for_timeout(3000)
-            if not self._wait_for_extension(timeout=15000):
-                # Get diagnostic info before failing
-                try:
-                    diagnostic_info = self.page.evaluate("""
-                        () => {
-                            const info = {
-                                sentience_defined: typeof window.sentience !== 'undefined',
-                                registry_defined: typeof window.sentience_registry !== 'undefined',
-                                snapshot_defined: typeof window.sentience?.snapshot === 'function',
-                                extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
-                                url: window.location.href
-                            };
-                            if (window.sentience) {
-                                info.sentience_keys = Object.keys(window.sentience);
-                            }
-                            return info;
-                        }
-                    """)
-                    diagnostic_str = f"\n5. Diagnostic info: {diagnostic_info}"
-                except Exception:
-                    diagnostic_str = "\n5. Could not get diagnostic info"
-                
-                raise RuntimeError(
-                    "Extension failed to load after navigation. Make sure:\n"
-                    "1. Extension is built (cd sentience-chrome && ./build.sh)\n"
-                    "2. All files are present (manifest.json, content.js, injected_api.js, pkg/)\n"
-                    "3. Check browser console for errors (run with headless=False to see console)\n"
-                    f"4. Extension path: {temp_dir}"
-                    + diagnostic_str
-                )
-    
-    def _wait_for_extension(self, timeout: int = 20000) -> bool:
-        """Wait for window.sentience API to be available"""
-        import time
-        start = time.time()
+                diag = self.page.evaluate("""() => ({
+                    sentience_defined: typeof window.sentience !== 'undefined',
+                    registry_defined: typeof window.sentience_registry !== 'undefined',
+                    snapshot_defined: window.sentience && typeof window.sentience.snapshot === 'function',
+                    extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
+                    url: window.location.href
+                })""")
+            except Exception as e:
+                diag = f"Failed to get diagnostics: {str(e)}"
+
+            raise RuntimeError(
+                "Extension failed to load after navigation. Make sure:\n"
+                "1. Extension is built (cd sentience-chrome && ./build.sh)\n"
+                "2. All files are present (manifest.json, content.js, injected_api.js, pkg/)\n"
+                "3. Check browser console for errors (run with headless=False to see console)\n"
+                f"4. Extension path: {self._extension_path}\n"
+                f"5. Diagnostic info: {diag}"
+            )
+
+    def _wait_for_extension(self, timeout_sec: float = 5.0) -> bool:
+        """Poll for window.sentience to be available"""
+        start_time = time.time()
         last_error = None
         
-        while time.time() - start < timeout / 1000:
+        while time.time() - start_time < timeout_sec:
             try:
-                result = self.page.evaluate("""
-                    () => {
-                        // Check if sentience API exists
+                # Check if API exists and WASM is ready (optional check for _wasmModule)
+                result = self.page.evaluate("""() => {
                         if (typeof window.sentience === 'undefined') {
-                            return { ready: false, reason: 'window.sentience not defined' };
+                            return { ready: false, reason: 'window.sentience undefined' };
                         }
-                        // Check if snapshot function exists
-                        if (typeof window.sentience.snapshot !== 'function') {
-                            return { ready: false, reason: 'snapshot function not available' };
-                        }
-                        // Check if registry is initialized
-                        if (window.sentience_registry === undefined) {
-                            return { ready: false, reason: 'registry not initialized' };
-                        }
-                        // Check if WASM module is loaded (check internal _wasmModule if available)
-                        const sentience = window.sentience;
-                        if (sentience._wasmModule && !sentience._wasmModule.analyze_page) {
-                            return { ready: false, reason: 'WASM module not fully loaded' };
+                        // Check if WASM loaded (if exposed) or if basic API works
+                        // Note: injected_api.js defines window.sentience immediately, 
+                        // but _wasmModule might take a few ms to load.
+                        if (window.sentience._wasmModule === null) {
+                             // It's defined but WASM isn't linked yet
+                             return { ready: false, reason: 'WASM module not fully loaded' };
                         }
                         // If _wasmModule is not exposed, that's okay - it might be internal
                         // Just verify the API structure is correct
@@ -413,4 +217,3 @@ class SentienceBrowser:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
         self.close()
-
