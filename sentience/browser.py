@@ -100,21 +100,77 @@ class SentienceBrowser:
             "injected_api.js",
         ]
         
+        copied_files = []
         for file in files_to_copy:
             src = extension_source / file
             if src.exists():
-                shutil.copy2(src, os.path.join(temp_dir, file))
+                dst = os.path.join(temp_dir, file)
+                shutil.copy2(src, dst)
+                copied_files.append(file)
+            else:
+                raise FileNotFoundError(
+                    f"Extension file not found: {src}\n"
+                    f"Extension source: {extension_source}\n"
+                    f"Extension source exists: {extension_source.exists()}\n"
+                    f"Files in extension source: {list(extension_source.iterdir()) if extension_source.exists() else 'N/A'}"
+                )
+        
+        # Verify all required files were copied
+        if len(copied_files) != len(files_to_copy):
+            missing = set(files_to_copy) - set(copied_files)
+            raise FileNotFoundError(
+                f"Missing extension files: {missing}\n"
+                f"Extension source: {extension_source}"
+            )
+        
+        # Verify files are in temp directory
+        for file in files_to_copy:
+            temp_file = os.path.join(temp_dir, file)
+            if not os.path.exists(temp_file):
+                raise FileNotFoundError(
+                    f"File not copied to temp directory: {temp_file}\n"
+                    f"Temp dir: {temp_dir}\n"
+                    f"Files in temp dir: {os.listdir(temp_dir)}"
+                )
         
         # Copy pkg directory (WASM)
         pkg_source = extension_source / "pkg"
         if pkg_source.exists():
             pkg_dest = os.path.join(temp_dir, "pkg")
             shutil.copytree(pkg_source, pkg_dest, dirs_exist_ok=True)
+            # Verify WASM files were copied
+            wasm_file = os.path.join(pkg_dest, "sentience_core_bg.wasm")
+            js_file = os.path.join(pkg_dest, "sentience_core.js")
+            if not os.path.exists(wasm_file) or not os.path.exists(js_file):
+                raise FileNotFoundError(
+                    f"WASM files not found after copy. Expected:\n"
+                    f"  - {wasm_file}\n"
+                    f"  - {js_file}\n"
+                    f"Files in pkg_dest: {os.listdir(pkg_dest) if os.path.exists(pkg_dest) else 'directory does not exist'}\n"
+                    f"Files in pkg_source: {list(pkg_source.iterdir()) if pkg_source.exists() else 'directory does not exist'}"
+                )
         else:
             raise FileNotFoundError(
                 f"WASM files not found at {pkg_source}. "
+                f"Extension source: {extension_source}\n"
+                f"Extension source exists: {extension_source.exists()}\n"
+                f"Files in extension source: {list(extension_source.iterdir()) if extension_source.exists() else 'directory does not exist'}\n"
                 "Build the extension first: cd sentience-chrome && ./build.sh"
             )
+        
+        # Verify manifest.json is valid JSON
+        manifest_path = os.path.join(temp_dir, "manifest.json")
+        try:
+            import json
+            with open(manifest_path, 'r') as f:
+                manifest = json.load(f)
+            # Verify required manifest fields
+            if "manifest_version" not in manifest:
+                raise ValueError("manifest.json missing 'manifest_version' field")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"manifest.json is not valid JSON: {e}")
+        except Exception as e:
+            raise ValueError(f"Error reading manifest.json: {e}")
         
         # Launch Playwright
         self.playwright = sync_playwright().start()
