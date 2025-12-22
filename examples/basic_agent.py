@@ -1,15 +1,18 @@
 """
-Day 3 Example: Basic snapshot functionality
+Example: Basic snapshot functionality
 """
 
 from sentience import SentienceBrowser, snapshot
+import os
 
 
 def main():
-    with SentienceBrowser(headless=False) as browser:
+    # Get API key from environment variable (optional - uses free tier if not set)
+    api_key = os.environ.get("SENTIENCE_API_KEY")
+
+    with SentienceBrowser(api_key=api_key, headless=False) as browser:
         # Navigate to a test page
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         # Take snapshot
         snap = snapshot(browser)

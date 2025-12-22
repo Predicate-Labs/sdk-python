@@ -1,15 +1,18 @@
 """
-Day 4 Example: Query engine demonstration
+Example: Query engine demonstration
 """
 
 from sentience import SentienceBrowser, snapshot, query, find
+import os
 
 
 def main():
-    with SentienceBrowser(headless=False) as browser:
+    # Get API key from environment variable (optional - uses free tier if not set)
+    api_key = os.environ.get("SENTIENCE_API_KEY")
+
+    with SentienceBrowser(api_key=api_key, headless=False) as browser:
         # Navigate to a page with links
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.goto("https://example.com", wait_until="domcontentloaded")
         
         snap = snapshot(browser)
         

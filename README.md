@@ -2,12 +2,11 @@
 
 **📜 License**: Apache License 2.0
 
-Python SDK for Sentience AI Agent Browser Automation.
+Python SDK for Sentience AI Agent Browser Automation. Build intelligent web automation agents that can see, understand, and interact with web pages like humans do.
 
 ## Installation
 
 ```bash
-cd sdk-python
 pip install -e .
 
 # Install Playwright browsers (required)
@@ -21,130 +20,367 @@ from sentience import SentienceBrowser, snapshot, find, click
 
 # Start browser with extension
 with SentienceBrowser(headless=False) as browser:
-    browser.page.goto("https://example.com")
+    browser.goto("https://example.com")
     browser.page.wait_for_load_state("networkidle")
-    
-    # Take snapshot
+
+    # Take snapshot - captures all interactive elements
     snap = snapshot(browser)
     print(f"Found {len(snap.elements)} elements")
-    
-    # Find and click a link
-    link = find(snap, "role=link")
+
+    # Find and click a link using semantic selectors
+    link = find(snap, "role=link text~'More information'")
     if link:
         result = click(browser, link.id)
         print(f"Click success: {result.success}")
 ```
 
-## Features
+## Real-World Example: Amazon Shopping Bot
 
-### Day 2: Browser Harness
-- `SentienceBrowser` - Launch Playwright with extension loaded
-- Automatic extension loading and verification
+This example demonstrates navigating Amazon, finding products, and adding items to cart:
 
-### Day 3: Snapshot
-- `snapshot(browser, options)` - Capture page state
+```python
+from sentience import SentienceBrowser, snapshot, find, click
+import time
+
+with SentienceBrowser(headless=False) as browser:
+    # Navigate to Amazon Best Sellers
+    browser.goto("https://www.amazon.com/gp/bestsellers/")
+    browser.page.wait_for_load_state("networkidle")
+    time.sleep(2)  # Wait for dynamic content
+
+    # Take snapshot and find products
+    snap = snapshot(browser)
+    print(f"Found {len(snap.elements)} elements")
+
+    # Find first product in viewport using spatial filtering
+    products = [
+        el for el in snap.elements
+        if el.role == "link"
+        and el.visual_cues.is_clickable
+        and el.in_viewport
+        and not el.is_occluded
+        and el.bbox.y < 600  # First row
+    ]
+
+    if products:
+        # Sort by position (left to right, top to bottom)
+        products.sort(key=lambda e: (e.bbox.y, e.bbox.x))
+        first_product = products[0]
+
+        print(f"Clicking: {first_product.text}")
+        result = click(browser, first_product.id)
+
+        # Wait for product page
+        browser.page.wait_for_load_state("networkidle")
+        time.sleep(2)
+
+        # Find and click "Add to Cart" button
+        product_snap = snapshot(browser)
+        add_to_cart = find(product_snap, "role=button text~'add to cart'")
+
+        if add_to_cart:
+            cart_result = click(browser, add_to_cart.id)
+            print(f"Added to cart: {cart_result.success}")
+```
+
+**See the complete tutorial**: [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)
+
+## Core Features
+
+### Browser Control
+- **`SentienceBrowser`** - Playwright browser with Sentience extension pre-loaded
+- **`browser.goto(url)`** - Navigate with automatic extension readiness checks
+- Automatic bot evasion and stealth mode
+- Configurable headless/headed mode
+
+### Snapshot - Intelligent Page Analysis
+- **`snapshot(browser, screenshot=True)`** - Capture page state with AI-ranked elements
+- Returns semantic elements with roles, text, importance scores, and bounding boxes
+- Optional screenshot capture (PNG/JPEG)
 - Pydantic models for type safety
-- `snapshot.save(filepath)` - Save to JSON
+- **`snapshot.save(filepath)`** - Export to JSON
 
-### Content Reading & Screenshots
-- `read(browser, format="text|markdown")` - Read page content as text or markdown
-  - Enhanced markdown conversion using `markdownify` (better than extension's lightweight conversion)
-  - Supports `enhance_markdown=True` to use improved conversion
-- `screenshot(browser, format="png|jpeg", quality=80)` - Capture standalone screenshot
-  - Returns base64-encoded data URL
-  - Supports PNG and JPEG formats with quality control
+**Example:**
+```python
+snap = snapshot(browser, screenshot=True)
 
-### Day 4: Query Engine
-- `query(snapshot, selector)` - Find elements matching selector
-- `find(snapshot, selector)` - Find single best match
-- String DSL: `"role=button text~'Sign in'"`
-- **📖 [Complete DSL Query Guide](docs/QUERY_DSL.md)** - Comprehensive documentation with all operators, fields, and examples
+# Access structured data
+print(f"URL: {snap.url}")
+print(f"Viewport: {snap.viewport.width}x{snap.viewport.height}")
+print(f"Elements: {len(snap.elements)}")
 
-### Day 5: Actions
-- `click(browser, element_id)` - Click element
-- `type_text(browser, element_id, text)` - Type into element
-- `press(browser, key)` - Press keyboard key
+# Iterate over elements
+for element in snap.elements:
+    print(f"{element.role}: {element.text} (importance: {element.importance})")
+```
 
-### Day 6: Wait & Assert
-- `wait_for(browser, selector, timeout)` - Wait for element
-- `expect(browser, selector)` - Assertion helper
-  - `.to_exist()`
-  - `.to_be_visible()`
-  - `.to_have_text(text)`
-  - `.to_have_count(n)`
+### Query Engine - Semantic Element Selection
+- **`query(snapshot, selector)`** - Find all matching elements
+- **`find(snapshot, selector)`** - Find single best match (by importance)
+- Powerful query DSL with multiple operators
+
+**Query Examples:**
+```python
+# Find by role and text
+button = find(snap, "role=button text='Sign in'")
+
+# Substring match (case-insensitive)
+link = find(snap, "role=link text~'more info'")
+
+# Spatial filtering
+top_left = find(snap, "bbox.x<=100 bbox.y<=200")
+
+# Multiple conditions (AND logic)
+primary_btn = find(snap, "role=button clickable=true visible=true importance>800")
+
+# Prefix/suffix matching
+starts_with = find(snap, "text^='Add'")
+ends_with = find(snap, "text$='Cart'")
+
+# Numeric comparisons
+important = query(snap, "importance>=700")
+first_row = query(snap, "bbox.y<600")
+```
+
+**📖 [Complete Query DSL Guide](docs/QUERY_DSL.md)** - All operators, fields, and advanced patterns
+
+### Actions - Interact with Elements
+- **`click(browser, element_id)`** - Click element by ID
+- **`type_text(browser, element_id, text)`** - Type into input fields
+- **`press(browser, key)`** - Press keyboard keys (Enter, Escape, Tab, etc.)
+
+All actions return `ActionResult` with success status, timing, and outcome:
+
+```python
+result = click(browser, element.id)
+
+print(f"Success: {result.success}")
+print(f"Outcome: {result.outcome}")  # "navigated", "dom_updated", "error"
+print(f"Duration: {result.duration_ms}ms")
+print(f"URL changed: {result.url_changed}")
+```
+
+### Wait & Assertions
+- **`wait_for(browser, selector, timeout=5.0)`** - Wait for element to appear
+- **`expect(browser, selector)`** - Assertion helper with fluent API
+
+**Examples:**
+```python
+# Wait for element
+result = wait_for(browser, "role=button text='Submit'", timeout=10.0)
+if result.found:
+    print(f"Found after {result.duration_ms}ms")
+
+# Assertions
+expect(browser, "role=button text='Submit'").to_exist(timeout=5.0)
+expect(browser, "role=heading").to_be_visible()
+expect(browser, "role=button").to_have_text("Submit")
+expect(browser, "role=link").to_have_count(10)
+```
 
 ### Content Reading
-- `read(browser, format="raw|text|markdown")` - Read page content
-  - **Default format: `"raw"`** - Returns HTML suitable for Turndown/markdownify
-  - `format="raw"` - Get cleaned HTML
-  - `format="markdown"` - Get high-quality markdown (uses markdownify internally)
-  - `format="text"` - Get plain text
-  
-  **Examples:**
-  ```python
-  from sentience import read
-  
-  # Get raw HTML (default)
-  result = read(browser)
-  html = result["content"]
-  
-  # Get high-quality markdown (uses markdownify automatically)
-  result = read(browser, format="markdown")
-  markdown = result["content"]
-  ```
-  
-  See `examples/read_markdown.py` for complete examples.
+- **`read(browser, format="text|markdown|raw")`** - Extract page content
+  - `format="text"` - Plain text extraction
+  - `format="markdown"` - High-quality markdown conversion (uses markdownify)
+  - `format="raw"` - Cleaned HTML (default)
+
+**Example:**
+```python
+from sentience import read
+
+# Get markdown content
+result = read(browser, format="markdown")
+print(result["content"])  # Markdown text
+
+# Get plain text
+result = read(browser, format="text")
+print(result["content"])  # Plain text
+```
+
+### Screenshots
+- **`screenshot(browser, format="png|jpeg", quality=80)`** - Standalone screenshot capture
+  - Returns base64-encoded data URL
+  - PNG or JPEG format
+  - Quality control for JPEG (1-100)
+
+**Example:**
+```python
+from sentience import screenshot
+import base64
+
+# Capture PNG screenshot
+data_url = screenshot(browser, format="png")
+
+# Save to file
+image_data = base64.b64decode(data_url.split(",")[1])
+with open("screenshot.png", "wb") as f:
+    f.write(image_data)
+
+# JPEG with quality control (smaller file size)
+data_url = screenshot(browser, format="jpeg", quality=85)
+```
+
+## Element Properties
+
+Elements returned by `snapshot()` have the following properties:
+
+```python
+element.id              # Unique identifier for interactions
+element.role            # ARIA role (button, link, textbox, heading, etc.)
+element.text            # Visible text content
+element.importance      # AI importance score (0-1000)
+element.bbox            # Bounding box (x, y, width, height)
+element.visual_cues     # Visual analysis (is_primary, is_clickable, background_color)
+element.in_viewport     # Is element visible in current viewport?
+element.is_occluded     # Is element covered by other elements?
+element.z_index         # CSS stacking order
+```
+
+## Query DSL Reference
+
+### Basic Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `=` | Exact match | `role=button` |
+| `!=` | Exclusion | `role!=link` |
+| `~` | Substring (case-insensitive) | `text~'sign in'` |
+| `^=` | Prefix match | `text^='Add'` |
+| `$=` | Suffix match | `text$='Cart'` |
+| `>`, `>=` | Greater than | `importance>500` |
+| `<`, `<=` | Less than | `bbox.y<600` |
+
+### Supported Fields
+
+- **Role**: `role=button|link|textbox|heading|...`
+- **Text**: `text`, `text~`, `text^=`, `text$=`
+- **Visibility**: `clickable=true|false`, `visible=true|false`
+- **Importance**: `importance`, `importance>=N`, `importance<N`
+- **Position**: `bbox.x`, `bbox.y`, `bbox.width`, `bbox.height`
+- **Layering**: `z_index`
 
 ## Examples
 
-See `examples/` directory:
-- `hello.py` - Extension bridge verification
-- `basic_agent.py` - Basic snapshot
-- `query_demo.py` - Query engine
-- `wait_and_click.py` - Wait and actions
-- `read_markdown.py` - Reading page content and converting to markdown
+See the `examples/` directory for complete working examples:
 
-### Content Reading Example
-
-```python
-from sentience import SentienceBrowser, read
-
-with SentienceBrowser() as browser:
-    browser.page.goto("https://example.com")
-    browser.page.wait_for_load_state("networkidle")
-    
-    # Read as enhanced markdown (better quality)
-    result = read(browser, format="markdown", enhance_markdown=True)
-    print(result["content"])  # High-quality markdown
-```
-
-### Screenshot Example
-
-```python
-from sentience import SentienceBrowser, screenshot
-import base64
-
-with SentienceBrowser() as browser:
-    browser.page.goto("https://example.com")
-    browser.page.wait_for_load_state("networkidle")
-    
-    # Capture PNG screenshot
-    data_url = screenshot(browser, format="png")
-    
-    # Save to file
-    image_data = base64.b64decode(data_url.split(",")[1])
-    with open("screenshot.png", "wb") as f:
-        f.write(image_data)
-```
+- **`hello.py`** - Extension bridge verification
+- **`basic_agent.py`** - Basic snapshot and element inspection
+- **`query_demo.py`** - Query engine demonstrations
+- **`wait_and_click.py`** - Waiting for elements and performing actions
+- **`read_markdown.py`** - Content extraction and markdown conversion
 
 ## Testing
 
 ```bash
+# Run all tests
 pytest tests/
+
+# Run specific test file
+pytest tests/test_snapshot.py
+
+# Run with verbose output
+pytest -v tests/
 ```
+
+## Configuration
+
+### Viewport Size
+
+Default viewport is **1280x800** pixels. You can customize it using Playwright's API:
+
+```python
+with SentienceBrowser(headless=False) as browser:
+    # Set custom viewport before navigating
+    browser.page.set_viewport_size({"width": 1920, "height": 1080})
+
+    browser.goto("https://example.com")
+```
+
+### Headless Mode
+
+```python
+# Headed mode (default in dev, shows browser window)
+browser = SentienceBrowser(headless=False)
+
+# Headless mode (default in CI environments)
+browser = SentienceBrowser(headless=True)
+
+# Auto-detect based on environment
+browser = SentienceBrowser()  # headless=True if CI=true, else False
+```
+
+## Best Practices
+
+### 1. Wait for Dynamic Content
+```python
+browser.goto("https://example.com")
+browser.page.wait_for_load_state("networkidle")
+time.sleep(1)  # Extra buffer for AJAX/animations
+```
+
+### 2. Use Multiple Strategies for Finding Elements
+```python
+# Try exact match first
+btn = find(snap, "role=button text='Add to Cart'")
+
+# Fallback to fuzzy match
+if not btn:
+    btn = find(snap, "role=button text~='cart'")
+```
+
+### 3. Check Element Visibility Before Clicking
+```python
+if element.in_viewport and not element.is_occluded:
+    click(browser, element.id)
+```
+
+### 4. Handle Navigation
+```python
+result = click(browser, link_id)
+if result.url_changed:
+    browser.page.wait_for_load_state("networkidle")
+```
+
+### 5. Use Screenshots Sparingly
+```python
+# Fast - no screenshot (only element data)
+snap = snapshot(browser)
+
+# Slower - with screenshot (for debugging/verification)
+snap = snapshot(browser, screenshot=True)
+```
+
+## Troubleshooting
+
+### "Extension failed to load"
+**Solution:** Build the extension first:
+```bash
+cd sentience-chrome
+./build.sh
+```
+
+### "Element not found"
+**Solutions:**
+- Ensure page is loaded: `browser.page.wait_for_load_state("networkidle")`
+- Use `wait_for()`: `wait_for(browser, "role=button", timeout=10)`
+- Debug elements: `print([el.text for el in snap.elements])`
+
+### Button not clickable
+**Solutions:**
+- Check visibility: `element.in_viewport and not element.is_occluded`
+- Scroll to element: `browser.page.evaluate(f"window.sentience_registry[{element.id}].scrollIntoView()")`
 
 ## Documentation
 
-- **📖 [Query DSL Guide](docs/QUERY_DSL.md)** - Complete guide to the semantic query language
-- API Contract: `../spec/SNAPSHOT_V1.md`
-- Type Definitions: `../spec/sdk-types.md`
+- **📖 [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)** - Complete tutorial with real-world example
+- **📖 [Query DSL Guide](docs/QUERY_DSL.md)** - Advanced query patterns and operators
+- **📄 [API Contract](../spec/SNAPSHOT_V1.md)** - Snapshot API specification
+- **📄 [Type Definitions](../spec/sdk-types.md)** - TypeScript/Python type definitions
+
+## License
+
+**📜 License**
+
+This SDK is licensed under the Apache License 2.0.
+
+Note: The SDK communicates with proprietary Sentience services and browser components that are not open source. Access to those components is governed by Sentience's Terms of Service.

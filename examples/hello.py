@@ -1,16 +1,19 @@
 """
-Day 2 Example: Verify extension bridge is loaded
+Example: Verify extension bridge is loaded
 """
 
 from sentience import SentienceBrowser
+import os
 
 
 def main():
+    # Get API key from environment variable (optional - uses free tier if not set)
+    api_key = os.environ.get("SENTIENCE_API_KEY")
+
     try:
-        with SentienceBrowser(headless=False) as browser:
+        with SentienceBrowser(api_key=api_key, headless=False) as browser:
             # Navigate to a page to ensure extension is active
-            browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.goto("https://example.com", wait_until="domcontentloaded")
             
             # Check if extension API is available
             bridge_ok = browser.page.evaluate("""
