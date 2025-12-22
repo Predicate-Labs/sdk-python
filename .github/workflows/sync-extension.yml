@@ -42,7 +42,7 @@ jobs:
         else
           # Scheduled check - get latest release
           TAG=$(curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
-            "[https://api.github.com/repos/$](https://api.github.com/repos/$){{ secrets.SENTIENCE_CHROME_REPO }}/releases/latest" | jq -r '.tag_name // empty')
+            "https://api.github.com/repos/${{ secrets.SENTIENCE_CHROME_REPO }}/releases/latest" | jq -r '.tag_name // empty')
           
           # Check if we already processed this tag
           if git ls-remote --exit-code --heads origin "sync-extension-$TAG"; then
@@ -70,27 +70,47 @@ jobs:
         mkdir -p extension-temp
         cd extension-temp
         
-        echo "⬇️ Fetching release assets for $TAG from $REPO..."
+        echo "⬇️ Fetching release info for $TAG from $REPO..."
         
-        ASSET_URL=$(curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
-          "[https://api.github.com/repos/$REPO/releases/tags/$TAG](https://api.github.com/repos/$REPO/releases/tags/$TAG)" | \
-          jq -r '.assets[] | select(.name == "extension-files.tar.gz") | .browser_download_url')
+        # Capture response to file for debugging
+        # Use -f to fail on HTTP errors (404/403) so we don't parse error HTML
+        curl -s -f -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG" > release.json || {
+            echo "❌ Failed to fetch release info. Response:"
+            cat release.json || echo "(No response body)"
+            exit 1
+          }
           
-        if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" == "null" ]; then
-          echo "❌ Critical Error: extension-files.tar.gz not found in release assets!"
-          curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
-            "[https://api.github.com/repos/$REPO/releases/tags/$TAG](https://api.github.com/repos/$REPO/releases/tags/$TAG)" | jq -r '.assets[].name'
+        # Check if we got a valid release object (sanity check)
+        if grep -q "Not Found" release.json; then
+          echo "❌ Critical Error: Release tag $TAG not found in repo $REPO"
           exit 1
         fi
 
+        # Robust extraction with safe navigation operator
+        ASSET_URL=$(cat release.json | jq -r '.assets[]? | select(.name == "extension-files.tar.gz") | .browser_download_url')
+          
+        if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" == "null" ]; then
+          echo "❌ Critical Error: extension-files.tar.gz not found in release assets!"
+          echo "Available assets:"
+          cat release.json | jq -r '.assets[].name' || echo "No assets found or invalid JSON"
+          exit 1
+        fi
+
+        # 2. Download the tarball
         echo "📦 Downloading tarball from $ASSET_URL..."
         curl -L -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
              -H "Accept: application/octet-stream" \
              "$ASSET_URL" -o extension.tar.gz
 
+        # 3. Extract it
         echo "📂 Extracting..."
         tar -xzf extension.tar.gz
         rm extension.tar.gz
+        
+        # 4. Verify extraction
+        echo "✅ Extraction complete. Contents:"
+        ls -la
         
         if [ ! -f "manifest.json" ]; then
           echo "❌ Error: manifest.json missing after extraction"
@@ -101,11 +121,11 @@ jobs:
       if: steps.release.outputs.skip != 'true'
       run: |
         # Target directory in sdk-python (inside the package source)
-        # Assuming structure: sdk-python/sentience/extension
         TARGET_DIR="sentience/extension"
         
         # Ensure target directory exists and is clean
         # Note: We preserve the directory structure, just update contents
+        rm -rf "$TARGET_DIR"
         mkdir -p "$TARGET_DIR"
         
         # Copy files from temp directory
