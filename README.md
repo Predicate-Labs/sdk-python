@@ -1,5 +1,7 @@
 # Sentience Python SDK
 
+The SDK is open under ELv2; the core semantic geometry and reliability logic runs in Sentience-hosted services.
+
 ## Installation
 
 ```bash
