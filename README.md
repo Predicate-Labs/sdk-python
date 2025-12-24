@@ -9,16 +9,66 @@ pip install -e .
 
 # Install Playwright browsers (required)
 playwright install chromium
+
+# For LLM Agent features (optional)
+pip install openai  # For OpenAI models
+pip install anthropic  # For Claude models
+pip install transformers torch  # For local LLMs
 ```
 
-## Quick Start
+## Quick Start: Choose Your Abstraction Level
+
+Sentience SDK offers **three abstraction levels** - use what fits your needs:
+
+### 🎯 **Level 3: Natural Language (Easiest)** - For non-technical users
+
+```python
+from sentience import SentienceBrowser, ConversationalAgent
+from sentience.llm_provider import OpenAIProvider
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+agent = ConversationalAgent(browser, llm)
+
+with browser:
+    response = agent.execute("Search for magic mouse on google.com")
+    print(response)
+    # → "I searched for 'magic mouse' and found several results.
+    #    The top result is from amazon.com selling Magic Mouse 2 for $79."
+```
+
+**Best for:** End users, chatbots, no-code platforms
+**Code required:** 3-5 lines
+**Technical knowledge:** None
+
+### ⚙️ **Level 2: Technical Commands (Recommended)** - For AI developers
+
+```python
+from sentience import SentienceBrowser, SentienceAgent
+from sentience.llm_provider import OpenAIProvider
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+agent = SentienceAgent(browser, llm)
+
+with browser:
+    browser.page.goto("https://google.com")
+    agent.act("Click the search box")
+    agent.act("Type 'magic mouse' into the search field")
+    agent.act("Press Enter key")
+```
+
+**Best for:** Building AI agents, automation scripts
+**Code required:** 10-15 lines
+**Technical knowledge:** Medium (Python basics)
+
+### 🔧 **Level 1: Direct SDK (Most Control)** - For production automation
 
 ```python
 from sentience import SentienceBrowser, snapshot, find, click
 
-# Start browser with extension
 with SentienceBrowser(headless=False) as browser:
-    browser.goto("https://example.com", wait_until="domcontentloaded")
+    browser.page.goto("https://example.com")
 
     # Take snapshot - captures all interactive elements
     snap = snapshot(browser)
@@ -30,6 +80,10 @@ with SentienceBrowser(headless=False) as browser:
         result = click(browser, link.id)
         print(f"Click success: {result.success}")
 ```
+
+**Best for:** Maximum control, performance-critical apps
+**Code required:** 20-50 lines
+**Technical knowledge:** High (SDK API, selectors)
 
 ## Real-World Example: Amazon Shopping Bot
 
