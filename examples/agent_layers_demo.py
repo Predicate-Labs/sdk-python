@@ -85,7 +85,9 @@ def demo_layer2_sentience_agent():
         print("   Code required: ~10 lines")
         print("   Technical knowledge: Medium")
         print("   Flexibility: High")
-        print(f"   Tokens used: {agent.get_token_stats()['total_tokens']}")
+        # Use new TokenStats dataclass
+        stats = agent.get_token_stats()
+        print(f"   Tokens used: {stats.total_tokens}")
 
 
 def demo_layer3_conversational_agent():

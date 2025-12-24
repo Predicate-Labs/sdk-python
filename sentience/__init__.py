@@ -3,7 +3,22 @@ Sentience Python SDK - AI Agent Browser Automation
 """
 
 from .browser import SentienceBrowser
-from .models import Snapshot, Element, BBox, Viewport, ActionResult, WaitResult
+from .models import (
+    Snapshot,
+    Element,
+    BBox,
+    Viewport,
+    ActionResult,
+    WaitResult,
+    # Agent Layer Models
+    AgentActionResult,
+    TokenStats,
+    ActionHistory,
+    ActionTokenUsage,
+    SnapshotOptions,
+    SnapshotFilter,
+    ScreenshotConfig
+)
 from .snapshot import snapshot
 from .query import query, find
 from .actions import click, type_text, press, click_rect
@@ -16,6 +31,7 @@ from .read import read
 from .screenshot import screenshot
 
 # Agent Layer (Phase 1 & 2)
+from .base_agent import BaseAgent
 from .llm_provider import LLMProvider, LLMResponse, OpenAIProvider, AnthropicProvider, LocalLLMProvider
 from .agent import SentienceAgent
 from .conversational_agent import ConversationalAgent
@@ -51,6 +67,7 @@ __all__ = [
     "read",
     "screenshot",
     # Agent Layer (Phase 1 & 2)
+    "BaseAgent",
     "LLMProvider",
     "LLMResponse",
     "OpenAIProvider",
@@ -58,5 +75,13 @@ __all__ = [
     "LocalLLMProvider",
     "SentienceAgent",
     "ConversationalAgent",
+    # Agent Layer Models
+    "AgentActionResult",
+    "TokenStats",
+    "ActionHistory",
+    "ActionTokenUsage",
+    "SnapshotOptions",
+    "SnapshotFilter",
+    "ScreenshotConfig",
 ]
 
