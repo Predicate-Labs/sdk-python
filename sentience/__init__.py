@@ -18,6 +18,7 @@ from .screenshot import screenshot
 # Agent Layer (Phase 1 & 2)
 from .llm_provider import LLMProvider, LLMResponse, OpenAIProvider, AnthropicProvider, LocalLLMProvider
 from .agent import SentienceAgent
+from .conversational_agent import ConversationalAgent
 
 __version__ = "0.10.7"
 
@@ -49,12 +50,13 @@ __all__ = [
     "generate",
     "read",
     "screenshot",
-    # Agent Layer
+    # Agent Layer (Phase 1 & 2)
     "LLMProvider",
     "LLMResponse",
     "OpenAIProvider",
     "AnthropicProvider",
     "LocalLLMProvider",
     "SentienceAgent",
+    "ConversationalAgent",
 ]
 
