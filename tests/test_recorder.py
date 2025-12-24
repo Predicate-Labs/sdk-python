@@ -2,10 +2,12 @@
 Tests for recorder functionality
 """
 
-import pytest
-import tempfile
 import os
-from sentience import SentienceBrowser, record, Trace, TraceStep
+import tempfile
+
+import pytest
+
+from sentience import SentienceBrowser, Trace, TraceStep, record
 from sentience.recorder import Recorder
 
 
@@ -14,12 +16,12 @@ def test_recorder_start_stop():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         rec = record(browser)
         rec.start()
         assert rec._active is True
         assert rec.trace is not None
-        
+
         rec.stop()
         assert rec._active is False
 
@@ -29,11 +31,11 @@ def test_recorder_context_manager():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             assert rec._active is True
             assert rec.trace is not None
-        
+
         assert rec._active is False
 
 
@@ -42,10 +44,10 @@ def test_recorder_navigation():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_navigation("https://example.com/page2")
-        
+
         assert len(rec.trace.steps) == 1
         assert rec.trace.steps[0].type == "navigation"
         assert rec.trace.steps[0].url == "https://example.com/page2"
@@ -56,10 +58,10 @@ def test_recorder_click():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_click(42, "role=button text~'Click'")
-        
+
         assert len(rec.trace.steps) == 1
         assert rec.trace.steps[0].type == "click"
         assert rec.trace.steps[0].element_id == 42
@@ -71,10 +73,10 @@ def test_recorder_type():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_type(10, "hello world", "role=textbox")
-        
+
         assert len(rec.trace.steps) == 1
         assert rec.trace.steps[0].type == "type"
         assert rec.trace.steps[0].element_id == 10
@@ -87,11 +89,11 @@ def test_recorder_type_masking():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.add_mask_pattern("password")
             rec.record_type(10, "mypassword123", "role=textbox")
-        
+
         assert len(rec.trace.steps) == 1
         assert rec.trace.steps[0].text == "***"  # Should be masked
 
@@ -101,10 +103,10 @@ def test_recorder_press():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_press("Enter")
-        
+
         assert len(rec.trace.steps) == 1
         assert rec.trace.steps[0].type == "press"
         assert rec.trace.steps[0].key == "Enter"
@@ -115,20 +117,20 @@ def test_trace_save_load():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_navigation("https://example.com")
             rec.record_click(1, "role=button")
             rec.record_type(2, "text", "role=textbox")
-        
+
         # Save trace
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             rec.save(temp_path)
             assert os.path.exists(temp_path)
-            
+
             # Load trace
             loaded_trace = Trace.load(temp_path)
             assert loaded_trace.version == "1.0.0"
@@ -145,16 +147,15 @@ def test_trace_format():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_click(1)
-        
+
         trace_dict = rec.trace.steps[0].to_dict()
-        
+
         # Verify required fields
         assert "ts" in trace_dict
         assert "type" in trace_dict
         assert trace_dict["type"] == "click"
         assert "element_id" in trace_dict
         assert trace_dict["element_id"] == 1
-

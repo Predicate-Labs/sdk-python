@@ -5,11 +5,12 @@ Demonstrates using a local LLM with SentienceAgent
 
 from sentience.llm_provider import LocalLLMProvider
 
+
 def test_local_llm_basic():
     """Test basic LLM response generation"""
-    print("="*70)
+    print("=" * 70)
     print("Testing LocalLLMProvider with Qwen2.5-3B-Instruct")
-    print("="*70)
+    print("=" * 70)
 
     # Initialize local LLM
     # Using the model from your local cache
@@ -17,26 +18,28 @@ def test_local_llm_basic():
         model_name="Qwen/Qwen2.5-3B-Instruct",
         device="auto",  # Will use CUDA if available, else CPU
         load_in_4bit=False,  # Set to True to save memory
-        torch_dtype="auto"
+        torch_dtype="auto",
     )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Test 1: Simple question")
-    print("="*70)
+    print("=" * 70)
 
     response = llm.generate(
         system_prompt="You are a helpful web automation assistant.",
         user_prompt="What is 2+2?",
         max_new_tokens=50,
-        temperature=0.1
+        temperature=0.1,
     )
 
     print(f"Response: {response.content}")
-    print(f"Tokens: {response.total_tokens} (prompt: {response.prompt_tokens}, completion: {response.completion_tokens})")
+    print(
+        f"Tokens: {response.total_tokens} (prompt: {response.prompt_tokens}, completion: {response.completion_tokens})"
+    )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Test 2: Action parsing (for agent)")
-    print("="*70)
+    print("=" * 70)
 
     system_prompt = """You are an AI web automation agent.
 
@@ -62,10 +65,7 @@ RESPONSE FORMAT (return ONLY the function call):
     user_prompt = "What is the next step to achieve the goal?"
 
     response = llm.generate(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        max_new_tokens=20,
-        temperature=0.0
+        system_prompt=system_prompt, user_prompt=user_prompt, max_new_tokens=20, temperature=0.0
     )
 
     print(f"Agent Response: {response.content}")
@@ -77,9 +77,9 @@ RESPONSE FORMAT (return ONLY the function call):
     else:
         print(f"\n⚠️  Response may need adjustment: {response.content}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LocalLLMProvider Test Complete!")
-    print("="*70)
+    print("=" * 70)
 
 
 if __name__ == "__main__":

@@ -5,12 +5,13 @@ Enables end users to control web automation using plain English
 
 import json
 import time
-from typing import Dict, Any, List, Optional
-from .llm_provider import LLMProvider, LLMResponse
-from .browser import SentienceBrowser
+from typing import Any, Dict, List, Optional
+
 from .agent import SentienceAgent
-from .snapshot import snapshot
+from .browser import SentienceBrowser
+from .llm_provider import LLMProvider, LLMResponse
 from .models import Snapshot
+from .snapshot import snapshot
 
 
 class ConversationalAgent:
@@ -28,12 +29,7 @@ class ConversationalAgent:
          The top result is from amazon.com selling the Apple Magic Mouse 2 for $79."
     """
 
-    def __init__(
-        self,
-        browser: SentienceBrowser,
-        llm: LLMProvider,
-        verbose: bool = True
-    ):
+    def __init__(self, browser: SentienceBrowser, llm: LLMProvider, verbose: bool = True):
         """
         Initialize conversational agent
 
@@ -50,12 +46,12 @@ class ConversationalAgent:
         self.technical_agent = SentienceAgent(browser, llm, verbose=False)
 
         # Conversation history and context
-        self.conversation_history: List[Dict[str, Any]] = []
-        self.execution_context: Dict[str, Any] = {
+        self.conversation_history: list[dict[str, Any]] = []
+        self.execution_context: dict[str, Any] = {
             "current_url": None,
             "last_action": None,
             "discovered_elements": [],
-            "session_data": {}
+            "session_data": {},
         }
 
     def execute(self, user_input: str) -> str:
@@ -85,16 +81,16 @@ class ConversationalAgent:
 
         if self.verbose:
             print(f"\n📋 Execution Plan:")
-            for i, step in enumerate(plan['steps'], 1):
+            for i, step in enumerate(plan["steps"], 1):
                 print(f"  {i}. {step['description']}")
 
         # Step 2: Execute each step
         execution_results = []
-        for step in plan['steps']:
+        for step in plan["steps"]:
             step_result = self._execute_step(step)
             execution_results.append(step_result)
 
-            if not step_result.get('success', False):
+            if not step_result.get("success", False):
                 # Early exit on failure
                 if self.verbose:
                     print(f"⚠️  Step failed: {step['description']}")
@@ -106,13 +102,15 @@ class ConversationalAgent:
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Step 4: Update conversation history
-        self.conversation_history.append({
-            "user_input": user_input,
-            "plan": plan,
-            "results": execution_results,
-            "response": response,
-            "duration_ms": duration_ms
-        })
+        self.conversation_history.append(
+            {
+                "user_input": user_input,
+                "plan": plan,
+                "results": execution_results,
+                "response": response,
+                "duration_ms": duration_ms,
+            }
+        )
 
         if self.verbose:
             print(f"\n🤖 Agent: {response}")
@@ -120,7 +118,7 @@ class ConversationalAgent:
 
         return response
 
-    def _create_plan(self, user_input: str) -> Dict[str, Any]:
+    def _create_plan(self, user_input: str) -> dict[str, Any]:
         """
         Use LLM to break down user input into atomic executable steps
 
@@ -178,10 +176,7 @@ Create a step-by-step execution plan."""
 
         try:
             response = self.llm.generate(
-                system_prompt,
-                user_prompt,
-                json_mode=self.llm.supports_json_mode(),
-                temperature=0.0
+                system_prompt, user_prompt, json_mode=self.llm.supports_json_mode(), temperature=0.0
             )
 
             # Parse JSON response
@@ -199,13 +194,13 @@ Create a step-by-step execution plan."""
                     {
                         "action": "FIND_AND_CLICK",
                         "description": user_input,
-                        "parameters": {"element_description": user_input}
+                        "parameters": {"element_description": user_input},
                     }
                 ],
-                "expected_outcome": "Complete user request"
+                "expected_outcome": "Complete user request",
             }
 
-    def _execute_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_step(self, step: dict[str, Any]) -> dict[str, Any]:
         """
         Execute a single atomic step from the plan
 
@@ -215,70 +210,62 @@ Create a step-by-step execution plan."""
         Returns:
             Execution result with success status and data
         """
-        action = step['action']
-        params = step.get('parameters', {})
+        action = step["action"]
+        params = step.get("parameters", {})
 
         if self.verbose:
             print(f"\n⚙️  Executing: {step['description']}")
 
         try:
             if action == "NAVIGATE":
-                url = params['url']
+                url = params["url"]
                 # Add https:// if missing
-                if not url.startswith(('http://', 'https://')):
-                    url = 'https://' + url
+                if not url.startswith(("http://", "https://")):
+                    url = "https://" + url
 
                 self.browser.page.goto(url, wait_until="domcontentloaded")
-                self.execution_context['current_url'] = url
+                self.execution_context["current_url"] = url
                 time.sleep(1)  # Brief wait for page to settle
 
-                return {
-                    "success": True,
-                    "action": action,
-                    "data": {"url": url}
-                }
+                return {"success": True, "action": action, "data": {"url": url}}
 
             elif action == "FIND_AND_CLICK":
-                element_desc = params['element_description']
+                element_desc = params["element_description"]
                 # Use technical agent to find and click (returns AgentActionResult)
                 result = self.technical_agent.act(f"Click the {element_desc}")
                 return {
                     "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": result.model_dump()  # Convert to dict for flexibility
+                    "data": result.model_dump(),  # Convert to dict for flexibility
                 }
 
             elif action == "FIND_AND_TYPE":
-                element_desc = params['element_description']
-                text = params['text']
+                element_desc = params["element_description"]
+                text = params["text"]
                 # Use technical agent to find input and type (returns AgentActionResult)
                 result = self.technical_agent.act(f"Type '{text}' into {element_desc}")
                 return {
                     "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": {"text": text, "result": result.model_dump()}
+                    "data": {"text": text, "result": result.model_dump()},
                 }
 
             elif action == "PRESS_KEY":
-                key = params['key']
+                key = params["key"]
                 result = self.technical_agent.act(f"Press {key} key")
                 return {
                     "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": {"key": key, "result": result.model_dump()}
+                    "data": {"key": key, "result": result.model_dump()},
                 }
 
             elif action == "WAIT":
-                duration = params.get('duration', 2.0)
+                duration = params.get("duration", 2.0)
                 time.sleep(duration)
-                return {
-                    "success": True,
-                    "action": action,
-                    "data": {"duration": duration}
-                }
+                return {"success": True, "action": action, "data": {"duration": duration}}
 
             elif action == "EXTRACT_INFO":
-                info_type = params['info_type']
+                info_type = params["info_type"]
                 # Get current page snapshot and extract info
                 snap = snapshot(self.browser, limit=50)
 
@@ -288,17 +275,17 @@ Create a step-by-step execution plan."""
                 return {
                     "success": True,
                     "action": action,
-                    "data": {"extracted": extracted, "info_type": info_type}
+                    "data": {"extracted": extracted, "info_type": info_type},
                 }
 
             elif action == "VERIFY":
-                condition = params['condition']
+                condition = params["condition"]
                 # Verify condition using current page state
                 is_verified = self._verify_condition(condition)
                 return {
                     "success": is_verified,
                     "action": action,
-                    "data": {"condition": condition, "verified": is_verified}
+                    "data": {"condition": condition, "verified": is_verified},
                 }
 
             else:
@@ -307,13 +294,9 @@ Create a step-by-step execution plan."""
         except Exception as e:
             if self.verbose:
                 print(f"❌ Step failed: {e}")
-            return {
-                "success": False,
-                "action": action,
-                "error": str(e)
-            }
+            return {"success": False, "action": action, "error": str(e)}
 
-    def _extract_information(self, snap: Snapshot, info_type: str) -> Dict[str, Any]:
+    def _extract_information(self, snap: Snapshot, info_type: str) -> dict[str, Any]:
         """
         Extract specific information from snapshot using LLM
 
@@ -325,10 +308,12 @@ Create a step-by-step execution plan."""
             Extracted information dictionary
         """
         # Build context from snapshot
-        elements_text = "\n".join([
-            f"[{el.id}] {el.role}: {el.text} (importance: {el.importance})"
-            for el in snap.elements[:30]  # Top 30 elements
-        ])
+        elements_text = "\n".join(
+            [
+                f"[{el.id}] {el.role}: {el.text} (importance: {el.importance})"
+                for el in snap.elements[:30]  # Top 30 elements
+            ]
+        )
 
         system_prompt = f"""Extract {info_type} from the following page elements.
 
@@ -348,9 +333,7 @@ Return JSON with extracted information:
 
         try:
             response = self.llm.generate(
-                system_prompt,
-                user_prompt,
-                json_mode=self.llm.supports_json_mode()
+                system_prompt, user_prompt, json_mode=self.llm.supports_json_mode()
             )
             return json.loads(response.content)
         except:
@@ -370,10 +353,7 @@ Return JSON with extracted information:
             snap = snapshot(self.browser, limit=30)
 
             # Build context
-            elements_text = "\n".join([
-                f"{el.role}: {el.text}"
-                for el in snap.elements[:20]
-            ])
+            elements_text = "\n".join([f"{el.role}: {el.text}" for el in snap.elements[:20]])
 
             system_prompt = f"""Verify if the following condition is met based on page elements.
 
@@ -388,21 +368,14 @@ Return JSON:
   "reasoning": "explanation"
 }}"""
 
-            response = self.llm.generate(
-                system_prompt,
-                "",
-                json_mode=self.llm.supports_json_mode()
-            )
+            response = self.llm.generate(system_prompt, "", json_mode=self.llm.supports_json_mode())
             result = json.loads(response.content)
-            return result.get('verified', False)
+            return result.get("verified", False)
         except:
             return False
 
     def _synthesize_response(
-        self,
-        user_input: str,
-        plan: Dict[str, Any],
-        execution_results: List[Dict[str, Any]]
+        self, user_input: str, plan: dict[str, Any], execution_results: list[dict[str, Any]]
     ) -> str:
         """
         Synthesize a natural language response from execution results
@@ -416,14 +389,14 @@ Return JSON:
             Human-readable response string
         """
         # Build summary of what happened
-        successful_steps = [r for r in execution_results if r.get('success')]
-        failed_steps = [r for r in execution_results if not r.get('success')]
+        successful_steps = [r for r in execution_results if r.get("success")]
+        failed_steps = [r for r in execution_results if not r.get("success")]
 
         # Extract key data
         extracted_data = []
         for result in execution_results:
-            if result.get('action') == 'EXTRACT_INFO':
-                extracted_data.append(result.get('data', {}).get('extracted', {}))
+            if result.get("action") == "EXTRACT_INFO":
+                extracted_data.append(result.get("data", {}).get("extracted", {}))
 
         # Use LLM to create natural response
         system_prompt = """You are a helpful assistant that summarizes web automation results
@@ -439,12 +412,12 @@ IMPORTANT: Return only the natural language response, no JSON, no markdown."""
 
         results_summary = {
             "user_request": user_input,
-            "plan_intent": plan.get('intent'),
+            "plan_intent": plan.get("intent"),
             "total_steps": len(execution_results),
             "successful_steps": len(successful_steps),
             "failed_steps": len(failed_steps),
             "extracted_data": extracted_data,
-            "final_url": self.browser.page.url if self.browser.page else None
+            "final_url": self.browser.page.url if self.browser.page else None,
         }
 
         user_prompt = f"""Summarize these automation results in 1-3 natural sentences:
@@ -497,12 +470,9 @@ Focus on what was accomplished and key findings."""
         session_data = {
             "total_interactions": len(self.conversation_history),
             "actions": [
-                {
-                    "request": h['user_input'],
-                    "outcome": h['response']
-                }
+                {"request": h["user_input"], "outcome": h["response"]}
                 for h in self.conversation_history
-            ]
+            ],
         }
 
         user_prompt = f"Summarize this session:\n{json.dumps(session_data, indent=2)}"
@@ -510,8 +480,8 @@ Focus on what was accomplished and key findings."""
         try:
             summary = self.llm.generate(system_prompt, user_prompt)
             return summary.content.strip()
-        except:
-            return f"Session with {len(self.conversation_history)} interactions completed."
+        except Exception as ex:
+            return f"Session with {len(self.conversation_history)} interactions completed with exception: {ex}"
 
     def clear_history(self):
         """Clear conversation history"""
@@ -521,5 +491,5 @@ Focus on what was accomplished and key findings."""
             "current_url": None,
             "last_action": None,
             "discovered_elements": [],
-            "session_data": {}
+            "session_data": {},
         }

@@ -2,39 +2,44 @@
 Sentience Python SDK - AI Agent Browser Automation
 """
 
-from .browser import SentienceBrowser
-from .models import (
-    Snapshot,
-    Element,
-    BBox,
-    Viewport,
-    ActionResult,
-    WaitResult,
-    # Agent Layer Models
-    AgentActionResult,
-    TokenStats,
-    ActionHistory,
-    ActionTokenUsage,
-    SnapshotOptions,
-    SnapshotFilter,
-    ScreenshotConfig
-)
-from .snapshot import snapshot
-from .query import query, find
-from .actions import click, type_text, press, click_rect
-from .wait import wait_for
-from .expect import expect
-from .inspector import Inspector, inspect
-from .recorder import Recorder, Trace, TraceStep, record
-from .generator import ScriptGenerator, generate
-from .read import read
-from .screenshot import screenshot
+from .actions import click, click_rect, press, type_text
+from .agent import SentienceAgent
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
-from .llm_provider import LLMProvider, LLMResponse, OpenAIProvider, AnthropicProvider, LocalLLMProvider
-from .agent import SentienceAgent
+from .browser import SentienceBrowser
 from .conversational_agent import ConversationalAgent
+from .expect import expect
+from .generator import ScriptGenerator, generate
+from .inspector import Inspector, inspect
+from .llm_provider import (
+    AnthropicProvider,
+    LLMProvider,
+    LLMResponse,
+    LocalLLMProvider,
+    OpenAIProvider,
+)
+from .models import (  # Agent Layer Models
+    ActionHistory,
+    ActionResult,
+    ActionTokenUsage,
+    AgentActionResult,
+    BBox,
+    Element,
+    ScreenshotConfig,
+    Snapshot,
+    SnapshotFilter,
+    SnapshotOptions,
+    TokenStats,
+    Viewport,
+    WaitResult,
+)
+from .query import find, query
+from .read import read
+from .recorder import Recorder, Trace, TraceStep, record
+from .screenshot import screenshot
+from .snapshot import snapshot
+from .wait import wait_for
 
 __version__ = "0.10.7"
 
@@ -84,4 +89,3 @@ __all__ = [
     "SnapshotFilter",
     "ScreenshotConfig",
 ]
-

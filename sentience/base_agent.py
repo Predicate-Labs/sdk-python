@@ -4,14 +4,8 @@ Defines the interface that all agent implementations must follow
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
-from .models import (
-    Snapshot,
-    Element,
-    AgentActionResult,
-    TokenStats,
-    ActionHistory
-)
+
+from .models import ActionHistory, AgentActionResult, Element, Snapshot, TokenStats
 
 
 class BaseAgent(ABC):
@@ -35,11 +29,7 @@ class BaseAgent(ABC):
     """
 
     @abstractmethod
-    def act(
-        self,
-        goal: str,
-        **kwargs
-    ) -> AgentActionResult:
+    def act(self, goal: str, **kwargs) -> AgentActionResult:
         """
         Execute a natural language goal using the agent.
 
@@ -56,7 +46,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def get_history(self) -> List[ActionHistory]:
+    def get_history(self) -> list[ActionHistory]:
         """
         Get the execution history of all actions taken.
 
@@ -84,11 +74,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def filter_elements(
-        self,
-        snapshot: Snapshot,
-        goal: Optional[str] = None
-    ) -> List[Element]:
+    def filter_elements(self, snapshot: Snapshot, goal: str | None = None) -> list[Element]:
         """
         Filter elements from a snapshot based on goal context.
 

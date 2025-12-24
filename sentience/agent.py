@@ -5,24 +5,23 @@ Implements observe-think-act loop for natural language commands
 
 import re
 import time
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
+from .actions import click, press, type_text
 from .base_agent import BaseAgent
-from .llm_provider import LLMProvider, LLMResponse
 from .browser import SentienceBrowser
-from .snapshot import snapshot
-from .actions import click, type_text, press
+from .llm_provider import LLMProvider, LLMResponse
 from .models import (
-    Snapshot,
-    Element,
-    ActionResult,
-    AgentActionResult,
-    TokenStats,
     ActionHistory,
     ActionTokenUsage,
+    AgentActionResult,
+    Element,
+    ScreenshotConfig,
+    Snapshot,
     SnapshotOptions,
-    SnapshotFilter,
-    ScreenshotConfig
+    TokenStats,
 )
+from .snapshot import snapshot
 
 
 class SentienceAgent(BaseAgent):
@@ -54,7 +53,7 @@ class SentienceAgent(BaseAgent):
         browser: SentienceBrowser,
         llm: LLMProvider,
         default_snapshot_limit: int = 50,
-        verbose: bool = True
+        verbose: bool = True,
     ):
         """
         Initialize Sentience Agent
@@ -71,21 +70,18 @@ class SentienceAgent(BaseAgent):
         self.verbose = verbose
 
         # Execution history
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
 
         # Token usage tracking (will be converted to TokenStats on get_token_stats())
         self._token_usage_raw = {
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
             "total_tokens": 0,
-            "by_action": []
+            "by_action": [],
         }
 
     def act(
-        self,
-        goal: str,
-        max_retries: int = 2,
-        snapshot_options: Optional[SnapshotOptions] = None
+        self, goal: str, max_retries: int = 2, snapshot_options: SnapshotOptions | None = None
     ) -> AgentActionResult:
         """
         Execute a high-level goal using observe → think → act loop
@@ -123,8 +119,8 @@ class SentienceAgent(BaseAgent):
                 screenshot_param = snap_opts.screenshot
                 if isinstance(snap_opts.screenshot, ScreenshotConfig):
                     screenshot_param = {
-                        'format': snap_opts.screenshot.format,
-                        'quality': snap_opts.screenshot.quality
+                        "format": snap_opts.screenshot.format,
+                        "quality": snap_opts.screenshot.quality,
                     }
 
                 # Call snapshot with converted parameters
@@ -133,7 +129,7 @@ class SentienceAgent(BaseAgent):
                     screenshot=screenshot_param,
                     limit=snap_opts.limit,
                     filter=snap_opts.filter.model_dump() if snap_opts.filter else None,
-                    use_api=snap_opts.use_api
+                    use_api=snap_opts.use_api,
                 )
 
                 if snap.status != "success":
@@ -151,7 +147,7 @@ class SentienceAgent(BaseAgent):
                     elements=filtered_elements,
                     screenshot=snap.screenshot,
                     screenshot_format=snap.screenshot_format,
-                    error=snap.error
+                    error=snap.error,
                 )
 
                 # 2. GROUND: Format elements for LLM context
@@ -187,18 +183,20 @@ class SentienceAgent(BaseAgent):
                     outcome=result_dict.get("outcome"),
                     url_changed=result_dict.get("url_changed"),
                     error=result_dict.get("error"),
-                    message=result_dict.get("message")
+                    message=result_dict.get("message"),
                 )
 
                 # 5. RECORD: Track history
-                self.history.append({
-                    "goal": goal,
-                    "action": action_str,
-                    "result": result.model_dump(),  # Store as dict
-                    "success": result.success,
-                    "attempt": attempt,
-                    "duration_ms": duration_ms
-                })
+                self.history.append(
+                    {
+                        "goal": goal,
+                        "action": action_str,
+                        "result": result.model_dump(),  # Store as dict
+                        "success": result.success,
+                        "attempt": attempt,
+                        "duration_ms": duration_ms,
+                    }
+                )
 
                 if self.verbose:
                     status = "✅" if result.success else "❌"
@@ -220,16 +218,18 @@ class SentienceAgent(BaseAgent):
                         goal=goal,
                         duration_ms=0,
                         attempt=attempt,
-                        error=str(e)
+                        error=str(e),
                     )
-                    self.history.append({
-                        "goal": goal,
-                        "action": "error",
-                        "result": error_result.model_dump(),
-                        "success": False,
-                        "attempt": attempt,
-                        "duration_ms": 0
-                    })
+                    self.history.append(
+                        {
+                            "goal": goal,
+                            "action": "error",
+                            "result": error_result.model_dump(),
+                            "success": False,
+                            "attempt": attempt,
+                            "duration_ms": 0,
+                        }
+                    )
                     raise RuntimeError(f"Failed after {max_retries} retries: {e}")
 
     def _build_context(self, snap: Snapshot, goal: str) -> str:
@@ -259,10 +259,12 @@ class SentienceAgent(BaseAgent):
 
             # Format element line
             cues_str = f" {{{','.join(cues)}}}" if cues else ""
-            text_preview = (el.text[:50] + "...") if el.text and len(el.text) > 50 else (el.text or "")
+            text_preview = (
+                (el.text[:50] + "...") if el.text and len(el.text) > 50 else (el.text or "")
+            )
 
             lines.append(
-                f"[{el.id}] <{el.role}> \"{text_preview}\"{cues_str} "
+                f'[{el.id}] <{el.role}> "{text_preview}"{cues_str} '
                 f"@ ({int(el.bbox.x)},{int(el.bbox.y)}) (Imp:{el.importance})"
             )
 
@@ -311,7 +313,7 @@ Examples:
 
         return self.llm.generate(system_prompt, user_prompt, temperature=0.0)
 
-    def _execute_action(self, action_str: str, snap: Snapshot) -> Dict[str, Any]:
+    def _execute_action(self, action_str: str, snap: Snapshot) -> dict[str, Any]:
         """
         Parse action string and execute SDK call
 
@@ -323,7 +325,7 @@ Examples:
             Execution result dictionary
         """
         # Parse CLICK(42)
-        if match := re.match(r'CLICK\s*\(\s*(\d+)\s*\)', action_str, re.IGNORECASE):
+        if match := re.match(r"CLICK\s*\(\s*(\d+)\s*\)", action_str, re.IGNORECASE):
             element_id = int(match.group(1))
             result = click(self.browser, element_id)
             return {
@@ -331,11 +333,13 @@ Examples:
                 "action": "click",
                 "element_id": element_id,
                 "outcome": result.outcome,
-                "url_changed": result.url_changed
+                "url_changed": result.url_changed,
             }
 
         # Parse TYPE(42, "hello world")
-        elif match := re.match(r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)', action_str, re.IGNORECASE):
+        elif match := re.match(
+            r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)', action_str, re.IGNORECASE
+        ):
             element_id = int(match.group(1))
             text = match.group(2)
             result = type_text(self.browser, element_id, text)
@@ -344,7 +348,7 @@ Examples:
                 "action": "type",
                 "element_id": element_id,
                 "text": text,
-                "outcome": result.outcome
+                "outcome": result.outcome,
             }
 
         # Parse PRESS("Enter")
@@ -355,21 +359,17 @@ Examples:
                 "success": result.success,
                 "action": "press",
                 "key": key,
-                "outcome": result.outcome
+                "outcome": result.outcome,
             }
 
         # Parse FINISH()
-        elif re.match(r'FINISH\s*\(\s*\)', action_str, re.IGNORECASE):
-            return {
-                "success": True,
-                "action": "finish",
-                "message": "Task marked as complete"
-            }
+        elif re.match(r"FINISH\s*\(\s*\)", action_str, re.IGNORECASE):
+            return {"success": True, "action": "finish", "message": "Task marked as complete"}
 
         else:
             raise ValueError(
                 f"Unknown action format: {action_str}\n"
-                f"Expected: CLICK(id), TYPE(id, \"text\"), PRESS(\"key\"), or FINISH()"
+                f'Expected: CLICK(id), TYPE(id, "text"), PRESS("key"), or FINISH()'
             )
 
     def _track_tokens(self, goal: str, llm_response: LLMResponse):
@@ -387,13 +387,15 @@ Examples:
         if llm_response.total_tokens:
             self._token_usage_raw["total_tokens"] += llm_response.total_tokens
 
-        self._token_usage_raw["by_action"].append({
-            "goal": goal,
-            "prompt_tokens": llm_response.prompt_tokens or 0,
-            "completion_tokens": llm_response.completion_tokens or 0,
-            "total_tokens": llm_response.total_tokens or 0,
-            "model": llm_response.model_name
-        })
+        self._token_usage_raw["by_action"].append(
+            {
+                "goal": goal,
+                "prompt_tokens": llm_response.prompt_tokens or 0,
+                "completion_tokens": llm_response.completion_tokens or 0,
+                "total_tokens": llm_response.total_tokens or 0,
+                "model": llm_response.model_name,
+            }
+        )
 
     def get_token_stats(self) -> TokenStats:
         """
@@ -402,18 +404,15 @@ Examples:
         Returns:
             TokenStats with token usage breakdown
         """
-        by_action = [
-            ActionTokenUsage(**action)
-            for action in self._token_usage_raw["by_action"]
-        ]
+        by_action = [ActionTokenUsage(**action) for action in self._token_usage_raw["by_action"]]
         return TokenStats(
             total_prompt_tokens=self._token_usage_raw["total_prompt_tokens"],
             total_completion_tokens=self._token_usage_raw["total_completion_tokens"],
             total_tokens=self._token_usage_raw["total_tokens"],
-            by_action=by_action
+            by_action=by_action,
         )
 
-    def get_history(self) -> List[ActionHistory]:
+    def get_history(self) -> list[ActionHistory]:
         """
         Get execution history
 
@@ -429,14 +428,10 @@ Examples:
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
             "total_tokens": 0,
-            "by_action": []
+            "by_action": [],
         }
 
-    def filter_elements(
-        self,
-        snapshot: Snapshot,
-        goal: Optional[str] = None
-    ) -> List[Element]:
+    def filter_elements(self, snapshot: Snapshot, goal: str | None = None) -> list[Element]:
         """
         Filter elements from snapshot based on goal context.
 
@@ -454,7 +449,7 @@ Examples:
 
         # If no goal provided, return all elements (up to limit)
         if not goal:
-            return elements[:self.default_snapshot_limit]
+            return elements[: self.default_snapshot_limit]
 
         goal_lower = goal.lower()
 
@@ -486,9 +481,9 @@ Examples:
         scored_elements.sort(key=lambda x: x[0], reverse=True)
         elements = [el for _, el in scored_elements]
 
-        return elements[:self.default_snapshot_limit]
+        return elements[: self.default_snapshot_limit]
 
-    def _extract_keywords(self, text: str) -> List[str]:
+    def _extract_keywords(self, text: str) -> list[str]:
         """
         Extract meaningful keywords from goal text
 
@@ -499,8 +494,24 @@ Examples:
             List of keywords
         """
         stopwords = {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at",
-            "to", "for", "of", "with", "by", "from", "as", "is", "was"
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
         }
         words = text.split()
         return [w for w in words if w not in stopwords and len(w) > 2]

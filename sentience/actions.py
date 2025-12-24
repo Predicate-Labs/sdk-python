@@ -3,9 +3,10 @@ Actions v1 - click, type, press
 """
 
 import time
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from .browser import SentienceBrowser
-from .models import ActionResult, Snapshot, BBox
+from .models import ActionResult, BBox, Snapshot
 from .snapshot import snapshot
 
 
@@ -17,23 +18,23 @@ def click(
 ) -> ActionResult:
     """
     Click an element by ID using hybrid approach (mouse simulation by default)
-    
+
     Args:
         browser: SentienceBrowser instance
         element_id: Element ID from snapshot
         use_mouse: If True, use Playwright's mouse.click() at element center (hybrid approach).
                    If False, use JS-based window.sentience.click() (legacy).
         take_snapshot: Whether to take snapshot after action
-    
+
     Returns:
         ActionResult
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
-    
+
     start_time = time.time()
     url_before = browser.page.url
-    
+
     if use_mouse:
         # Hybrid approach: Get element bbox from snapshot, calculate center, use mouse.click()
         try:
@@ -43,7 +44,7 @@ def click(
                 if el.id == element_id:
                     element = el
                     break
-            
+
             if element:
                 # Calculate center of element bbox
                 center_x = element.bbox.x + element.bbox.width / 2
@@ -93,17 +94,17 @@ def click(
             }
             """,
             element_id,
-            )
-    
+        )
+
     # Wait a bit for navigation/DOM updates
     try:
         browser.page.wait_for_timeout(500)
     except Exception:
         # Navigation might have happened, context destroyed
         pass
-    
+
     duration_ms = int((time.time() - start_time) * 1000)
-    
+
     # Check if URL changed (handle navigation gracefully)
     try:
         url_after = browser.page.url
@@ -112,54 +113,60 @@ def click(
         # Context destroyed due to navigation - assume URL changed
         url_after = url_before
         url_changed = True
-    
+
     # Determine outcome
-    outcome: Optional[str] = None
+    outcome: str | None = None
     if url_changed:
         outcome = "navigated"
     elif success:
         outcome = "dom_updated"
     else:
         outcome = "error"
-    
+
     # Optional snapshot after
-    snapshot_after: Optional[Snapshot] = None
+    snapshot_after: Snapshot | None = None
     if take_snapshot:
         try:
             snapshot_after = snapshot(browser)
         except Exception:
             # Navigation might have destroyed context
             pass
-    
+
     return ActionResult(
         success=success,
         duration_ms=duration_ms,
         outcome=outcome,
         url_changed=url_changed,
         snapshot_after=snapshot_after,
-        error=None if success else {"code": "click_failed", "reason": "Element not found or not clickable"},
+        error=(
+            None
+            if success
+            else {"code": "click_failed", "reason": "Element not found or not clickable"}
+        ),
     )
 
 
-def type_text(browser: SentienceBrowser, element_id: int, text: str, take_snapshot: bool = False) -> ActionResult:
+def type_text(
+    browser: SentienceBrowser, element_id: int, text: str, take_snapshot: bool = False
+) -> ActionResult:
     """
     Type text into an element (focus then input)
-    
+
     Args:
         browser: SentienceBrowser instance
         element_id: Element ID from snapshot
         text: Text to type
         take_snapshot: Whether to take snapshot after action
-    
+
     Returns:
         ActionResult
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
-    
+
     start_time = time.time()
     url_before = browser.page.url
-    
+
     # Focus element first using extension registry
     focused = browser.page.evaluate(
         """
@@ -174,7 +181,7 @@ def type_text(browser: SentienceBrowser, element_id: int, text: str, take_snapsh
         """,
         element_id,
     )
-    
+
     if not focused:
         return ActionResult(
             success=False,
@@ -182,20 +189,20 @@ def type_text(browser: SentienceBrowser, element_id: int, text: str, take_snapsh
             outcome="error",
             error={"code": "focus_failed", "reason": "Element not found"},
         )
-    
+
     # Type using Playwright keyboard
     browser.page.keyboard.type(text)
-    
+
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
     url_changed = url_before != url_after
-    
+
     outcome = "navigated" if url_changed else "dom_updated"
-    
-    snapshot_after: Optional[Snapshot] = None
+
+    snapshot_after: Snapshot | None = None
     if take_snapshot:
         snapshot_after = snapshot(browser)
-    
+
     return ActionResult(
         success=True,
         duration_ms=duration_ms,
@@ -208,37 +215,37 @@ def type_text(browser: SentienceBrowser, element_id: int, text: str, take_snapsh
 def press(browser: SentienceBrowser, key: str, take_snapshot: bool = False) -> ActionResult:
     """
     Press a keyboard key
-    
+
     Args:
         browser: SentienceBrowser instance
         key: Key to press (e.g., "Enter", "Escape", "Tab")
         take_snapshot: Whether to take snapshot after action
-    
+
     Returns:
         ActionResult
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
-    
+
     start_time = time.time()
     url_before = browser.page.url
-    
+
     # Press key using Playwright
     browser.page.keyboard.press(key)
-    
+
     # Wait a bit for navigation/DOM updates
     browser.page.wait_for_timeout(500)
-    
+
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
     url_changed = url_before != url_after
-    
+
     outcome = "navigated" if url_changed else "dom_updated"
-    
-    snapshot_after: Optional[Snapshot] = None
+
+    snapshot_after: Snapshot | None = None
     if take_snapshot:
         snapshot_after = snapshot(browser)
-    
+
     return ActionResult(
         success=True,
         duration_ms=duration_ms,
@@ -248,10 +255,12 @@ def press(browser: SentienceBrowser, key: str, take_snapshot: bool = False) -> A
     )
 
 
-def _highlight_rect(browser: SentienceBrowser, rect: Dict[str, float], duration_sec: float = 2.0) -> None:
+def _highlight_rect(
+    browser: SentienceBrowser, rect: dict[str, float], duration_sec: float = 2.0
+) -> None:
     """
     Highlight a rectangle with a red border overlay
-    
+
     Args:
         browser: SentienceBrowser instance
         rect: Dictionary with x, y, width (w), height (h) keys
@@ -259,10 +268,10 @@ def _highlight_rect(browser: SentienceBrowser, rect: Dict[str, float], duration_
     """
     if not browser.page:
         return
-    
+
     # Create a unique ID for this highlight
     highlight_id = f"sentience_highlight_{int(time.time() * 1000)}"
-    
+
     # Combine all arguments into a single object for Playwright
     args = {
         "rect": {
@@ -274,7 +283,7 @@ def _highlight_rect(browser: SentienceBrowser, rect: Dict[str, float], duration_
         "highlightId": highlight_id,
         "durationSec": duration_sec,
     }
-    
+
     # Inject CSS and create overlay element
     browser.page.evaluate(
         """
@@ -295,9 +304,9 @@ def _highlight_rect(browser: SentienceBrowser, rect: Dict[str, float], duration_
             overlay.style.zIndex = '999999';
             overlay.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
             overlay.style.transition = 'opacity 0.3s ease-out';
-            
+
             document.body.appendChild(overlay);
-            
+
             // Remove after duration
             setTimeout(() => {
                 overlay.style.opacity = '0';
@@ -315,7 +324,7 @@ def _highlight_rect(browser: SentienceBrowser, rect: Dict[str, float], duration_
 
 def click_rect(
     browser: SentienceBrowser,
-    rect: Dict[str, float],
+    rect: dict[str, float],
     highlight: bool = True,
     highlight_duration: float = 2.0,
     take_snapshot: bool = False,
@@ -324,17 +333,17 @@ def click_rect(
     Click at the center of a rectangle using Playwright's native mouse simulation.
     This uses a hybrid approach: calculates center coordinates and uses mouse.click()
     for realistic event simulation (triggers hover, focus, mousedown, mouseup).
-    
+
     Args:
         browser: SentienceBrowser instance
         rect: Dictionary with x, y, width (w), height (h) keys, or BBox object
         highlight: Whether to show a red border highlight when clicking (default: True)
         highlight_duration: How long to show the highlight in seconds (default: 2.0)
         take_snapshot: Whether to take snapshot after action
-    
+
     Returns:
         ActionResult
-    
+
     Example:
         >>> click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30})
         >>> # Or using BBox object
@@ -344,7 +353,7 @@ def click_rect(
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
-    
+
     # Handle BBox object or dict
     if isinstance(rect, BBox):
         x = rect.x
@@ -356,7 +365,7 @@ def click_rect(
         y = rect.get("y", 0)
         w = rect.get("w") or rect.get("width", 0)
         h = rect.get("h") or rect.get("height", 0)
-    
+
     if w <= 0 or h <= 0:
         return ActionResult(
             success=False,
@@ -364,20 +373,20 @@ def click_rect(
             outcome="error",
             error={"code": "invalid_rect", "reason": "Rectangle width and height must be positive"},
         )
-    
+
     start_time = time.time()
     url_before = browser.page.url
-    
+
     # Calculate center of rectangle
     center_x = x + w / 2
     center_y = y + h / 2
-    
+
     # Show highlight before clicking (if enabled)
     if highlight:
         _highlight_rect(browser, {"x": x, "y": y, "w": w, "h": h}, highlight_duration)
         # Small delay to ensure highlight is visible
         browser.page.wait_for_timeout(50)
-    
+
     # Use Playwright's native mouse click for realistic simulation
     # This triggers hover, focus, mousedown, mouseup sequences
     try:
@@ -386,34 +395,37 @@ def click_rect(
     except Exception as e:
         success = False
         error_msg = str(e)
-    
+
     # Wait a bit for navigation/DOM updates
     browser.page.wait_for_timeout(500)
-    
+
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
     url_changed = url_before != url_after
-    
+
     # Determine outcome
-    outcome: Optional[str] = None
+    outcome: str | None = None
     if url_changed:
         outcome = "navigated"
     elif success:
         outcome = "dom_updated"
     else:
         outcome = "error"
-    
+
     # Optional snapshot after
-    snapshot_after: Optional[Snapshot] = None
+    snapshot_after: Snapshot | None = None
     if take_snapshot:
         snapshot_after = snapshot(browser)
-    
+
     return ActionResult(
         success=success,
         duration_ms=duration_ms,
         outcome=outcome,
         url_changed=url_changed,
         snapshot_after=snapshot_after,
-        error=None if success else {"code": "click_failed", "reason": error_msg if not success else "Click failed"},
+        error=(
+            None
+            if success
+            else {"code": "click_failed", "reason": error_msg if not success else "Click failed"}
+        ),
     )
-

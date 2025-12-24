@@ -3,7 +3,8 @@ Tests for actions (click, type, press, click_rect)
 """
 
 import pytest
-from sentience import SentienceBrowser, snapshot, find, click, type_text, press, click_rect, BBox
+
+from sentience import BBox, SentienceBrowser, click, click_rect, find, press, snapshot, type_text
 
 
 def test_click():
@@ -11,10 +12,10 @@ def test_click():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         snap = snapshot(browser)
         link = find(snap, "role=link")
-        
+
         if link:
             result = click(browser, link.id)
             assert result.success is True
@@ -28,11 +29,11 @@ def test_type_text():
         # Use a page with a text input
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         # Find textbox if available
         snap = snapshot(browser)
         textbox = find(snap, "role=textbox")
-        
+
         if textbox:
             result = type_text(browser, textbox.id, "hello")
             assert result.success is True
@@ -44,7 +45,7 @@ def test_press():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         result = press(browser, "Enter")
         assert result.success is True
         assert result.duration_ms > 0
@@ -55,7 +56,7 @@ def test_click_rect():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         # Click at a specific rectangle (top-left area)
         result = click_rect(browser, {"x": 100, "y": 100, "w": 50, "h": 30})
         assert result.success is True
@@ -68,18 +69,16 @@ def test_click_rect_with_bbox():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         # Get an element and click its bbox
         snap = snapshot(browser)
         link = find(snap, "role=link")
-        
+
         if link:
-            result = click_rect(browser, {
-                "x": link.bbox.x,
-                "y": link.bbox.y,
-                "w": link.bbox.width,
-                "h": link.bbox.height
-            })
+            result = click_rect(
+                browser,
+                {"x": link.bbox.x, "y": link.bbox.y, "w": link.bbox.width, "h": link.bbox.height},
+            )
             assert result.success is True
             assert result.duration_ms > 0
 
@@ -89,7 +88,7 @@ def test_click_rect_without_highlight():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         result = click_rect(browser, {"x": 100, "y": 100, "w": 50, "h": 30}, highlight=False)
         assert result.success is True
         assert result.duration_ms > 0
@@ -100,13 +99,13 @@ def test_click_rect_invalid_rect():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         # Invalid: zero width
         result = click_rect(browser, {"x": 100, "y": 100, "w": 0, "h": 30})
         assert result.success is False
         assert result.error is not None
         assert result.error["code"] == "invalid_rect"
-        
+
         # Invalid: negative height
         result = click_rect(browser, {"x": 100, "y": 100, "w": 50, "h": -10})
         assert result.success is False
@@ -119,7 +118,7 @@ def test_click_rect_with_snapshot():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         result = click_rect(browser, {"x": 100, "y": 100, "w": 50, "h": 30}, take_snapshot=True)
         assert result.success is True
         assert result.snapshot_after is not None
@@ -132,10 +131,10 @@ def test_click_hybrid_approach():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         snap = snapshot(browser)
         link = find(snap, "role=link")
-        
+
         if link:
             # Test hybrid approach (mouse.click at center)
             result = click(browser, link.id, use_mouse=True)
@@ -150,10 +149,10 @@ def test_click_js_approach():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         snap = snapshot(browser)
         link = find(snap, "role=link")
-        
+
         if link:
             # Test JS-based click (legacy approach)
             result = click(browser, link.id, use_mouse=False)
@@ -161,4 +160,3 @@ def test_click_js_approach():
             assert result.duration_ms > 0
             # Navigation may happen, which is expected for links
             assert result.outcome in ["navigated", "dom_updated"]
-

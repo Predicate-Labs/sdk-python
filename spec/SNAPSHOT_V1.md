@@ -1,7 +1,7 @@
 # Sentience Snapshot API Contract v1
 
-**Version**: 1.0.0  
-**Last Updated**: [Current Date]  
+**Version**: 1.0.0
+**Last Updated**: [Current Date]
 **Status**: Stable
 
 This document defines the **single source of truth** for the snapshot data structure returned by `window.sentience.snapshot()`. Both Python and TypeScript SDKs must implement this contract exactly.
@@ -205,4 +205,3 @@ Both Python and TypeScript SDKs must:
 - `snapshot.schema.json` - JSON Schema validation
 - Extension implementation: `sentience-chrome/injected_api.js`
 - WASM implementation: `sentience-chrome/src/lib.rs`
-

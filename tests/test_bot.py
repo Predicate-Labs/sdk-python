@@ -1,5 +1,6 @@
 from sentience.browser import SentienceBrowser
 
+
 def test_bot():
     browser = SentienceBrowser()
     browser.start()
