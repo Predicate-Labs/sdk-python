@@ -240,32 +240,32 @@ Create a step-by-step execution plan."""
 
             elif action == "FIND_AND_CLICK":
                 element_desc = params['element_description']
-                # Use technical agent to find and click
+                # Use technical agent to find and click (returns AgentActionResult)
                 result = self.technical_agent.act(f"Click the {element_desc}")
                 return {
-                    "success": result.get('success', False),
+                    "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": result
+                    "data": result.model_dump()  # Convert to dict for flexibility
                 }
 
             elif action == "FIND_AND_TYPE":
                 element_desc = params['element_description']
                 text = params['text']
-                # Use technical agent to find input and type
+                # Use technical agent to find input and type (returns AgentActionResult)
                 result = self.technical_agent.act(f"Type '{text}' into {element_desc}")
                 return {
-                    "success": result.get('success', False),
+                    "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": {"text": text}
+                    "data": {"text": text, "result": result.model_dump()}
                 }
 
             elif action == "PRESS_KEY":
                 key = params['key']
                 result = self.technical_agent.act(f"Press {key} key")
                 return {
-                    "success": result.get('success', False),
+                    "success": result.success,  # Use attribute access
                     "action": action,
-                    "data": {"key": key}
+                    "data": {"key": key, "result": result.model_dump()}
                 }
 
             elif action == "WAIT":

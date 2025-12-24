@@ -161,14 +161,16 @@ def test_agent_initialization():
     browser = create_mock_browser()
     llm = MockLLMProvider()
 
-    agent = SentienceAgent(browser, llm, snapshot_limit=50, verbose=False)
+    agent = SentienceAgent(browser, llm, default_snapshot_limit=50, verbose=False)
 
     assert agent.browser == browser
     assert agent.llm == llm
-    assert agent.snapshot_limit == 50
+    assert agent.default_snapshot_limit == 50
     assert agent.verbose is False
     assert len(agent.history) == 0
-    assert agent.token_usage["total_tokens"] == 0
+    # Test new get_token_stats() method
+    stats = agent.get_token_stats()
+    assert stats.total_tokens == 0
 
 
 def test_agent_build_context():
@@ -314,17 +316,23 @@ def test_agent_act_full_cycle():
 
         result = agent.act("Click the button", max_retries=0)
 
+        # Test new dataclass return type (with backward compatible dict access)
+        assert result.success is True
+        assert result.action == "click"
+        assert result.element_id == 1
+        assert result.goal == "Click the button"
+
+        # Also test backward compatible dict-style access (shows deprecation warning)
         assert result["success"] is True
         assert result["action"] == "click"
-        assert result["element_id"] == 1
-        assert result["goal"] == "Click the button"
 
         # Check history was recorded
         assert len(agent.history) == 1
         assert agent.history[0]["goal"] == "Click the button"
 
-        # Check tokens were tracked
-        assert agent.token_usage["total_tokens"] > 0
+        # Check tokens were tracked using new method
+        stats = agent.get_token_stats()
+        assert stats.total_tokens > 0
 
 
 def test_agent_token_tracking():
@@ -334,17 +342,20 @@ def test_agent_token_tracking():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Simulate multiple actions
-    response1 = LLMResponse(content="CLICK(1)", prompt_tokens=100, completion_tokens=20, total_tokens=120)
-    response2 = LLMResponse(content="TYPE(2, \"test\")", prompt_tokens=150, completion_tokens=30, total_tokens=180)
+    response1 = LLMResponse(content="CLICK(1)", prompt_tokens=100, completion_tokens=20, total_tokens=120, model_name="mock-model")
+    response2 = LLMResponse(content="TYPE(2, \"test\")", prompt_tokens=150, completion_tokens=30, total_tokens=180, model_name="mock-model")
 
     agent._track_tokens("goal 1", response1)
     agent._track_tokens("goal 2", response2)
 
+    # Test new TokenStats dataclass return type
     stats = agent.get_token_stats()
-    assert stats["total_prompt_tokens"] == 250
-    assert stats["total_completion_tokens"] == 50
-    assert stats["total_tokens"] == 300
-    assert len(stats["by_action"]) == 2
+    assert stats.total_prompt_tokens == 250
+    assert stats.total_completion_tokens == 50
+    assert stats.total_tokens == 300
+    assert len(stats.by_action) == 2
+    assert stats.by_action[0].goal == "goal 1"
+    assert stats.by_action[0].model == "mock-model"
 
 
 def test_agent_clear_history():
@@ -354,13 +365,14 @@ def test_agent_clear_history():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Add some history
-    agent.history.append({"goal": "test"})
-    agent.token_usage["total_tokens"] = 100
+    agent.history.append({"goal": "test", "action": "test", "result": {}, "success": True, "attempt": 0, "duration_ms": 0})
+    agent._token_usage_raw["total_tokens"] = 100
 
     agent.clear_history()
 
     assert len(agent.history) == 0
-    assert agent.token_usage["total_tokens"] == 0
+    stats = agent.get_token_stats()
+    assert stats.total_tokens == 0
 
 
 def test_agent_retry_on_failure():
