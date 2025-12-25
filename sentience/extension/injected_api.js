@@ -3,7 +3,7 @@
     // 1. Get Extension ID (Wait for content.js to set it)
     const getExtensionId = () => document.documentElement.dataset.sentienceExtensionId;
     let extId = getExtensionId();
-
+    
     // Safety poller for async loading race conditions
     if (!extId) {
         await new Promise(resolve => {
@@ -39,7 +39,7 @@
                 return NodeFilter.FILTER_ACCEPT;
             }
         };
-
+        
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, filter);
         while(walker.nextNode()) {
             const node = walker.currentNode;
@@ -100,13 +100,13 @@
         // Fast center-point check
         const cx = rect.x + rect.width / 2;
         const cy = rect.y + rect.height / 2;
-
+        
         // If point is off-screen, elementFromPoint returns null, assume NOT occluded for safety
         if (cx < 0 || cx > window.innerWidth || cy < 0 || cy > window.innerHeight) return false;
 
         const topEl = document.elementFromPoint(cx, cy);
         if (!topEl) return false;
-
+        
         // It's visible if the top element is us, or contains us, or we contain it
         return !(el === topEl || el.contains(topEl) || topEl.contains(el));
     }
@@ -131,7 +131,7 @@
     function getRawHTML(root) {
         const sourceRoot = root || document.body;
         const clone = sourceRoot.cloneNode(true);
-
+        
         // Remove unwanted elements by tag name (simple and reliable)
         const unwantedTags = ['nav', 'footer', 'header', 'script', 'style', 'noscript', 'iframe', 'svg'];
         unwantedTags.forEach(tag => {
@@ -157,7 +157,7 @@
         while (node = walker.nextNode()) {
             const tag = node.tagName.toLowerCase();
             if (tag === 'head' || tag === 'title') continue;
-
+            
             const style = window.getComputedStyle(node);
             if (style.display === 'none' || style.visibility === 'hidden' ||
                 (node.offsetWidth === 0 && node.offsetHeight === 0)) {
@@ -222,11 +222,11 @@
     function convertToMarkdown(root) {
         // Get cleaned HTML first
         const rawHTML = getRawHTML(root);
-
+        
         // Create a temporary container to parse the HTML
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = rawHTML;
-
+        
         let markdown = '';
         let insideLink = false; // Track if we're inside an <a> tag
 
@@ -279,7 +279,7 @@
         }
 
         walk(tempDiv);
-
+        
         // Cleanup: remove excessive newlines
         return markdown.replace(/\n{3,}/g, '\n\n').trim();
     }
@@ -299,17 +299,17 @@
 
                 const style = window.getComputedStyle(node);
                 if (style.display === 'none' || style.visibility === 'hidden') return;
-
+                
                 // Block level elements get a newline
                 const isBlock = style.display === 'block' || style.display === 'flex' || node.tagName === 'P' || node.tagName === 'DIV';
                 if (isBlock) text += ' ';
-
+                
                 if (node.shadowRoot) {
                     Array.from(node.shadowRoot.childNodes).forEach(walk);
                 } else {
                     node.childNodes.forEach(walk);
                 }
-
+                
                 if (isBlock) text += '\n';
             }
         }
@@ -331,7 +331,7 @@
         };
         await module.default(undefined, imports);
         wasmModule = module;
-
+        
         // Verify functions are available
         if (!wasmModule.analyze_page) {
             console.error('[SentienceAPI.com] available');
@@ -354,16 +354,16 @@
             const rawData = [];
             // Remove textMap as we include text in rawData
             window.sentience_registry = [];
-
+            
             const nodes = getAllElements();
-
+            
             nodes.forEach((el, idx) => {
                 if (!el.getBoundingClientRect) return;
                 const rect = el.getBoundingClientRect();
                 if (rect.width < 5 || rect.height < 5) return;
 
                 window.sentience_registry[idx] = el;
-
+                
                 // Calculate properties for Fat Payload
                 const textVal = getText(el);
                 const inView = isInViewport(rect);
@@ -453,7 +453,7 @@
             // Prune raw elements using WASM before sending to API
             // This prevents 413 errors on large sites (Amazon: 5000+ -> ~200-400)
             const prunedRawData = wasmModule.prune_for_api(rawData);
-
+            
             // Clean up null/undefined fields in raw_elements as well
             const cleanedRawElements = cleanElement(prunedRawData);
 
@@ -469,7 +469,7 @@
         read: (options = {}) => {
             const format = options.format || 'raw'; // 'raw', 'text', or 'markdown'
             let content;
-
+            
             if (format === 'raw') {
                 // Return raw HTML suitable for Turndown or other Node.js libraries
                 content = getRawHTML(document.body);
@@ -480,7 +480,7 @@
                 // Default to text
                 content = convertToText(document.body);
             }
-
+            
             return {
                 status: "success",
                 url: window.location.href,
