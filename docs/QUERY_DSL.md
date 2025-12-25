@@ -23,15 +23,15 @@ from sentience import SentienceBrowser, snapshot, query, find
 with SentienceBrowser() as browser:
     browser.page.goto("https://example.com")
     browser.page.wait_for_load_state("networkidle")
-    
+
     snap = snapshot(browser)
-    
+
     # Find all buttons
     buttons = query(snap, "role=button")
-    
+
     # Find button with specific text
     sign_in = find(snap, "role=button text~'Sign in'")
-    
+
     # Find high-importance elements (Pro/Enterprise only)
     important = query(snap, "importance>500")
 ```
@@ -312,33 +312,33 @@ snap = snapshot(browser)  # Uses server-side API
 
 ### 1. Use Semantic Roles
 
-✅ **Good**: `role=button text~'Submit'`  
+✅ **Good**: `role=button text~'Submit'`
 ❌ **Avoid**: CSS selectors (not supported)
 
 ### 2. Combine Multiple Conditions
 
-✅ **Good**: `role=button clickable=true text~'Sign in'`  
+✅ **Good**: `role=button clickable=true text~'Sign in'`
 ❌ **Avoid**: Single condition if multiple elements match
 
 ### 3. Use Text Matching Wisely
 
-✅ **Good**: `text~'Sign in'` (case-insensitive, flexible)  
-✅ **Good**: `text^='Sign'` (prefix matching)  
+✅ **Good**: `text~'Sign in'` (case-insensitive, flexible)
+✅ **Good**: `text^='Sign'` (prefix matching)
 ❌ **Avoid**: `text='Sign In'` (exact match, too brittle)
 
 ### 4. Filter by Visibility
 
-✅ **Good**: `visible=true` or `in_viewport=true` for actionable elements  
+✅ **Good**: `visible=true` or `in_viewport=true` for actionable elements
 ✅ **Good**: `is_occluded=false` to exclude covered elements
 
 ### 5. Use Importance (Pro/Enterprise)
 
-✅ **Good**: `importance>500` to find high-priority elements  
+✅ **Good**: `importance>500` to find high-priority elements
 ✅ **Good**: Combine with role: `role=button importance>800`
 
 ### 6. Spatial Filtering
 
-✅ **Good**: `bbox.x>100` to find elements in specific regions  
+✅ **Good**: `bbox.x>100` to find elements in specific regions
 ✅ **Good**: Combine with other conditions: `role=button bbox.x>400`
 
 ### 7. Query Performance
@@ -499,4 +499,3 @@ center = query(snap, "bbox.x>400 bbox.x<600 bbox.y>300 bbox.y<500")
 - [Examples](../examples/query_demo.py)
 - [Type Definitions](../../spec/sdk-types.md)
 - [Snapshot Schema](../../spec/snapshot.schema.json)
-

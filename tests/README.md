@@ -144,4 +144,3 @@ Make sure the package is installed in development mode:
 ```bash
 pip install -e ".[dev]"
 ```
-

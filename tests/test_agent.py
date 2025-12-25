@@ -3,11 +3,13 @@ Unit tests for Sentience Agent Layer (Phase 1)
 Tests LLM providers and SentienceAgent without requiring browser
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from sentience.llm_provider import LLMProvider, LLMResponse, OpenAIProvider, AnthropicProvider
+
 from sentience.agent import SentienceAgent
-from sentience.models import Snapshot, Element, BBox, VisualCues, Viewport
+from sentience.llm_provider import AnthropicProvider, LLMProvider, LLMResponse, OpenAIProvider
+from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
 
 
 class MockLLMProvider(LLMProvider):
@@ -19,11 +21,7 @@ class MockLLMProvider(LLMProvider):
         self.calls = []
 
     def generate(self, system_prompt: str, user_prompt: str, **kwargs):
-        self.calls.append({
-            "system": system_prompt,
-            "user": user_prompt,
-            "kwargs": kwargs
-        })
+        self.calls.append({"system": system_prompt, "user": user_prompt, "kwargs": kwargs})
 
         if self.responses:
             response = self.responses[self.call_count % len(self.responses)]
@@ -37,7 +35,7 @@ class MockLLMProvider(LLMProvider):
             prompt_tokens=100,
             completion_tokens=20,
             total_tokens=120,
-            model_name="mock-model"
+            model_name="mock-model",
         )
 
     def supports_json_mode(self) -> bool:
@@ -50,6 +48,7 @@ class MockLLMProvider(LLMProvider):
 
 # ========== LLM Provider Tests ==========
 
+
 def test_llm_response_dataclass():
     """Test LLMResponse dataclass creation"""
     response = LLMResponse(
@@ -57,7 +56,7 @@ def test_llm_response_dataclass():
         prompt_tokens=100,
         completion_tokens=20,
         total_tokens=120,
-        model_name="gpt-4o"
+        model_name="gpt-4o",
     )
 
     assert response.content == "CLICK(42)"
@@ -69,7 +68,7 @@ def test_llm_response_dataclass():
 
 def test_mock_llm_provider():
     """Test mock LLM provider"""
-    provider = MockLLMProvider(responses=["CLICK(1)", "TYPE(2, \"test\")"])
+    provider = MockLLMProvider(responses=["CLICK(1)", 'TYPE(2, "test")'])
 
     # First call
     response1 = provider.generate("system", "user")
@@ -78,7 +77,7 @@ def test_mock_llm_provider():
 
     # Second call
     response2 = provider.generate("system", "user")
-    assert response2.content == "TYPE(2, \"test\")"
+    assert response2.content == 'TYPE(2, "test")'
     assert provider.call_count == 2
 
     # Check calls were recorded
@@ -104,6 +103,7 @@ def test_anthropic_provider_init():
 
 # ========== SentienceAgent Tests ==========
 
+
 def create_mock_browser():
     """Create mock browser for testing"""
     browser = Mock()
@@ -122,13 +122,11 @@ def create_mock_snapshot():
             importance=900,
             bbox=BBox(x=100, y=200, width=80, height=30),
             visual_cues=VisualCues(
-                is_primary=True,
-                is_clickable=True,
-                background_color_name="blue"
+                is_primary=True, is_clickable=True, background_color_name="blue"
             ),
             in_viewport=True,
             is_occluded=False,
-            z_index=10
+            z_index=10,
         ),
         Element(
             id=2,
@@ -136,15 +134,11 @@ def create_mock_snapshot():
             text="",
             importance=850,
             bbox=BBox(x=100, y=100, width=200, height=40),
-            visual_cues=VisualCues(
-                is_primary=False,
-                is_clickable=True,
-                background_color_name=None
-            ),
+            visual_cues=VisualCues(is_primary=False, is_clickable=True, background_color_name=None),
             in_viewport=True,
             is_occluded=False,
-            z_index=5
-        )
+            z_index=5,
+        ),
     ]
 
     return Snapshot(
@@ -152,7 +146,7 @@ def create_mock_snapshot():
         timestamp="2024-12-24T10:00:00Z",
         url="https://example.com",
         viewport=Viewport(width=1920, height=1080),
-        elements=elements
+        elements=elements,
     )
 
 
@@ -161,14 +155,16 @@ def test_agent_initialization():
     browser = create_mock_browser()
     llm = MockLLMProvider()
 
-    agent = SentienceAgent(browser, llm, snapshot_limit=50, verbose=False)
+    agent = SentienceAgent(browser, llm, default_snapshot_limit=50, verbose=False)
 
     assert agent.browser == browser
     assert agent.llm == llm
-    assert agent.snapshot_limit == 50
+    assert agent.default_snapshot_limit == 50
     assert agent.verbose is False
     assert len(agent.history) == 0
-    assert agent.token_usage["total_tokens"] == 0
+    # Test new get_token_stats() method
+    stats = agent.get_token_stats()
+    assert stats.total_tokens == 0
 
 
 def test_agent_build_context():
@@ -201,13 +197,11 @@ def test_agent_execute_click_action():
     snap = create_mock_snapshot()
 
     # Mock click function
-    with patch('sentience.agent.click') as mock_click:
+    with patch("sentience.agent.click") as mock_click:
         from sentience.models import ActionResult
+
         mock_click.return_value = ActionResult(
-            success=True,
-            duration_ms=150,
-            outcome="dom_updated",
-            url_changed=False
+            success=True, duration_ms=150, outcome="dom_updated", url_changed=False
         )
 
         result = agent._execute_action("CLICK(1)", snap)
@@ -227,13 +221,10 @@ def test_agent_execute_type_action():
     snap = create_mock_snapshot()
 
     # Mock type_text function
-    with patch('sentience.agent.type_text') as mock_type:
+    with patch("sentience.agent.type_text") as mock_type:
         from sentience.models import ActionResult
-        mock_type.return_value = ActionResult(
-            success=True,
-            duration_ms=200,
-            outcome="dom_updated"
-        )
+
+        mock_type.return_value = ActionResult(success=True, duration_ms=200, outcome="dom_updated")
 
         result = agent._execute_action('TYPE(2, "hello world")', snap)
 
@@ -253,13 +244,10 @@ def test_agent_execute_press_action():
     snap = create_mock_snapshot()
 
     # Mock press function
-    with patch('sentience.agent.press') as mock_press:
+    with patch("sentience.agent.press") as mock_press:
         from sentience.models import ActionResult
-        mock_press.return_value = ActionResult(
-            success=True,
-            duration_ms=50,
-            outcome="dom_updated"
-        )
+
+        mock_press.return_value = ActionResult(success=True, duration_ms=50, outcome="dom_updated")
 
         result = agent._execute_action('PRESS("Enter")', snap)
 
@@ -301,30 +289,35 @@ def test_agent_act_full_cycle():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Mock snapshot and click
-    with patch('sentience.agent.snapshot') as mock_snapshot, \
-         patch('sentience.agent.click') as mock_click:
+    with (
+        patch("sentience.agent.snapshot") as mock_snapshot,
+        patch("sentience.agent.click") as mock_click,
+    ):
 
         from sentience.models import ActionResult
+
         mock_snapshot.return_value = create_mock_snapshot()
-        mock_click.return_value = ActionResult(
-            success=True,
-            duration_ms=150,
-            outcome="dom_updated"
-        )
+        mock_click.return_value = ActionResult(success=True, duration_ms=150, outcome="dom_updated")
 
         result = agent.act("Click the button", max_retries=0)
 
+        # Test new dataclass return type (with backward compatible dict access)
+        assert result.success is True
+        assert result.action == "click"
+        assert result.element_id == 1
+        assert result.goal == "Click the button"
+
+        # Also test backward compatible dict-style access (shows deprecation warning)
         assert result["success"] is True
         assert result["action"] == "click"
-        assert result["element_id"] == 1
-        assert result["goal"] == "Click the button"
 
         # Check history was recorded
         assert len(agent.history) == 1
         assert agent.history[0]["goal"] == "Click the button"
 
-        # Check tokens were tracked
-        assert agent.token_usage["total_tokens"] > 0
+        # Check tokens were tracked using new method
+        stats = agent.get_token_stats()
+        assert stats.total_tokens > 0
 
 
 def test_agent_token_tracking():
@@ -334,17 +327,32 @@ def test_agent_token_tracking():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Simulate multiple actions
-    response1 = LLMResponse(content="CLICK(1)", prompt_tokens=100, completion_tokens=20, total_tokens=120)
-    response2 = LLMResponse(content="TYPE(2, \"test\")", prompt_tokens=150, completion_tokens=30, total_tokens=180)
+    response1 = LLMResponse(
+        content="CLICK(1)",
+        prompt_tokens=100,
+        completion_tokens=20,
+        total_tokens=120,
+        model_name="mock-model",
+    )
+    response2 = LLMResponse(
+        content='TYPE(2, "test")',
+        prompt_tokens=150,
+        completion_tokens=30,
+        total_tokens=180,
+        model_name="mock-model",
+    )
 
     agent._track_tokens("goal 1", response1)
     agent._track_tokens("goal 2", response2)
 
+    # Test new TokenStats dataclass return type
     stats = agent.get_token_stats()
-    assert stats["total_prompt_tokens"] == 250
-    assert stats["total_completion_tokens"] == 50
-    assert stats["total_tokens"] == 300
-    assert len(stats["by_action"]) == 2
+    assert stats.total_prompt_tokens == 250
+    assert stats.total_completion_tokens == 50
+    assert stats.total_tokens == 300
+    assert len(stats.by_action) == 2
+    assert stats.by_action[0].goal == "goal 1"
+    assert stats.by_action[0].model == "mock-model"
 
 
 def test_agent_clear_history():
@@ -354,13 +362,23 @@ def test_agent_clear_history():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Add some history
-    agent.history.append({"goal": "test"})
-    agent.token_usage["total_tokens"] = 100
+    agent.history.append(
+        {
+            "goal": "test",
+            "action": "test",
+            "result": {},
+            "success": True,
+            "attempt": 0,
+            "duration_ms": 0,
+        }
+    )
+    agent._token_usage_raw["total_tokens"] = 100
 
     agent.clear_history()
 
     assert len(agent.history) == 0
-    assert agent.token_usage["total_tokens"] == 0
+    stats = agent.get_token_stats()
+    assert stats.total_tokens == 0
 
 
 def test_agent_retry_on_failure():
@@ -370,8 +388,10 @@ def test_agent_retry_on_failure():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Mock snapshot and click (click will fail)
-    with patch('sentience.agent.snapshot') as mock_snapshot, \
-         patch('sentience.agent.click') as mock_click:
+    with (
+        patch("sentience.agent.snapshot") as mock_snapshot,
+        patch("sentience.agent.click") as mock_click,
+    ):
 
         mock_snapshot.return_value = create_mock_snapshot()
         # Simulate click failure
@@ -392,11 +412,14 @@ def test_agent_action_parsing_variations():
 
     snap = create_mock_snapshot()
 
-    with patch('sentience.agent.click') as mock_click, \
-         patch('sentience.agent.type_text') as mock_type, \
-         patch('sentience.agent.press') as mock_press:
+    with (
+        patch("sentience.agent.click") as mock_click,
+        patch("sentience.agent.type_text") as mock_type,
+        patch("sentience.agent.press") as mock_press,
+    ):
 
         from sentience.models import ActionResult
+
         mock_result = ActionResult(success=True, duration_ms=100, outcome="dom_updated")
         mock_click.return_value = mock_result
         mock_type.return_value = mock_result

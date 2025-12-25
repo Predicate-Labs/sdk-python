@@ -9,10 +9,12 @@ This script shows how the same task can be accomplished at different abstraction
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
 
 def demo_layer1_direct_sdk():
     """
@@ -21,11 +23,11 @@ def demo_layer1_direct_sdk():
     - Requires knowing exact element selectors
     - 50+ lines of code for typical automation
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LAYER 1: Direct SDK Usage (Full Control)")
-    print("="*70)
+    print("=" * 70)
 
-    from sentience import SentienceBrowser, snapshot, find, click, type_text, press
+    from sentience import SentienceBrowser, click, find, press, snapshot, type_text
 
     with SentienceBrowser(headless=False) as browser:
         # Navigate
@@ -61,11 +63,11 @@ def demo_layer2_sentience_agent():
     - No need to know selectors
     - 15 lines of code for typical automation
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LAYER 2: SentienceAgent (Technical Commands)")
-    print("="*70)
+    print("=" * 70)
 
-    from sentience import SentienceBrowser, SentienceAgent
+    from sentience import SentienceAgent, SentienceBrowser
     from sentience.llm_provider import OpenAIProvider
 
     # Initialize
@@ -85,7 +87,9 @@ def demo_layer2_sentience_agent():
         print("   Code required: ~10 lines")
         print("   Technical knowledge: Medium")
         print("   Flexibility: High")
-        print(f"   Tokens used: {agent.get_token_stats()['total_tokens']}")
+        # Use new TokenStats dataclass
+        stats = agent.get_token_stats()
+        print(f"   Tokens used: {stats.total_tokens}")
 
 
 def demo_layer3_conversational_agent():
@@ -95,11 +99,11 @@ def demo_layer3_conversational_agent():
     - Automatic planning and execution
     - 3 lines of code for typical automation
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LAYER 3: ConversationalAgent (Natural Language)")
-    print("="*70)
+    print("=" * 70)
 
-    from sentience import SentienceBrowser, ConversationalAgent
+    from sentience import ConversationalAgent, SentienceBrowser
     from sentience.llm_provider import OpenAIProvider
 
     # Initialize
@@ -125,11 +129,11 @@ def demo_layer3_with_local_llm():
     - No API costs
     - Runs on your hardware
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LAYER 3: ConversationalAgent with Local LLM (Zero Cost)")
-    print("="*70)
+    print("=" * 70)
 
-    from sentience import SentienceBrowser, ConversationalAgent
+    from sentience import ConversationalAgent, SentienceBrowser
     from sentience.llm_provider import LocalLLMProvider
 
     # Initialize with local LLM
@@ -137,7 +141,7 @@ def demo_layer3_with_local_llm():
     llm = LocalLLMProvider(
         model_name="Qwen/Qwen2.5-3B-Instruct",
         device="auto",  # Use CUDA if available
-        load_in_4bit=True  # Save memory with quantization
+        load_in_4bit=True,  # Save memory with quantization
     )
     agent = ConversationalAgent(browser, llm, verbose=True)
 
@@ -155,9 +159,9 @@ def demo_comparison():
     """
     Side-by-side comparison of all layers
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPARISON: All Three Layers")
-    print("="*70)
+    print("=" * 70)
 
     comparison_table = """
     | Feature                  | Layer 1 (SDK)    | Layer 2 (Agent)  | Layer 3 (Conversational) |
@@ -179,9 +183,9 @@ def demo_comparison():
 
 def main():
     """Run all demos"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SENTIENCE SDK: Multi-Layer Abstraction Demo")
-    print("="*70)
+    print("=" * 70)
     print("\nThis demo shows how to use the SDK at different abstraction levels:")
     print("  1. Layer 1: Direct SDK (maximum control)")
     print("  2. Layer 2: SentienceAgent (technical commands)")
