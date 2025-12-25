@@ -2,4 +2,3 @@ include README.md
 include LICENSE
 recursive-include spec *
 recursive-include sentience *.py
-

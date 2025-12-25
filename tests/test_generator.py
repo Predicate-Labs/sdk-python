@@ -2,12 +2,14 @@
 Tests for script generator functionality
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
+
+import pytest
+
 from sentience import SentienceBrowser, record
-from sentience.recorder import Trace, TraceStep
 from sentience.generator import ScriptGenerator, generate
+from sentience.recorder import Trace, TraceStep
 
 
 def test_generator_python():
@@ -15,16 +17,16 @@ def test_generator_python():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_navigation("https://example.com")
             rec.record_click(1, "role=button text~'Click'")
             rec.record_type(2, "hello", "role=textbox")
             rec.record_press("Enter")
-        
+
         generator = ScriptGenerator(rec.trace)
         code = generator.generate_python()
-        
+
         # Verify code contains expected elements
         assert "from sentience import" in code
         assert "def main():" in code
@@ -40,14 +42,14 @@ def test_generator_typescript():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_navigation("https://example.com")
             rec.record_click(1, "role=button")
-        
+
         generator = ScriptGenerator(rec.trace)
         code = generator.generate_typescript()
-        
+
         # Verify code contains expected elements
         assert "import" in code
         assert "async function main()" in code
@@ -60,19 +62,19 @@ def test_generator_save_python():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_click(1)
-        
+
         generator = ScriptGenerator(rec.trace)
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             generator.save_python(temp_path)
             assert os.path.exists(temp_path)
-            
+
             with open(temp_path) as f:
                 code = f.read()
                 assert "from sentience import" in code
@@ -85,19 +87,19 @@ def test_generator_save_typescript():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_click(1)
-        
+
         generator = ScriptGenerator(rec.trace)
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ts", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             generator.save_typescript(temp_path)
             assert os.path.exists(temp_path)
-            
+
             with open(temp_path) as f:
                 code = f.read()
                 assert "import" in code
@@ -110,21 +112,16 @@ def test_generator_without_selector():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         # Create a trace manually with a step that has no selector
         # (The recorder automatically infers selectors, so we create the step directly)
         trace = Trace("https://example.com")
-        step = TraceStep(
-            ts=0,
-            type="click",
-            element_id=1,
-            selector=None  # Explicitly no selector
-        )
+        step = TraceStep(ts=0, type="click", element_id=1, selector=None)  # Explicitly no selector
         trace.add_step(step)
-        
+
         generator = ScriptGenerator(trace)
         code = generator.generate_python()
-        
+
         # Should include TODO comment for missing selector
         assert "TODO: replace with semantic selector" in code
         assert "click(browser, 1)" in code
@@ -135,15 +132,14 @@ def test_generate_helper():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         with record(browser) as rec:
             rec.record_click(1)
-        
-        # Test Python generation
-        py_code = generate(rec.trace, 'py')
-        assert "from sentience import" in py_code
-        
-        # Test TypeScript generation
-        ts_code = generate(rec.trace, 'ts')
-        assert "import" in ts_code
 
+        # Test Python generation
+        py_code = generate(rec.trace, "py")
+        assert "from sentience import" in py_code
+
+        # Test TypeScript generation
+        ts_code = generate(rec.trace, "ts")
+        assert "import" in ts_code

@@ -2,8 +2,9 @@
 Example: Verify extension bridge is loaded
 """
 
-from sentience import SentienceBrowser
 import os
+
+from sentience import SentienceBrowser
 
 
 def main():
@@ -14,16 +15,18 @@ def main():
         with SentienceBrowser(api_key=api_key, headless=False) as browser:
             # Navigate to a page to ensure extension is active
             browser.page.goto("https://example.com", wait_until="domcontentloaded")
-            
+
             # Check if extension API is available
-            bridge_ok = browser.page.evaluate("""
+            bridge_ok = browser.page.evaluate(
+                """
                 () => {
-                    return typeof window.sentience !== 'undefined' && 
+                    return typeof window.sentience !== 'undefined' &&
                            typeof window.sentience.snapshot === 'function';
                 }
-            """)
+            """
+            )
             print(f"bridge_ok={bridge_ok}")
-            
+
             if bridge_ok:
                 print("✅ Extension loaded successfully!")
                 # Try a quick snapshot to verify it works
@@ -38,7 +41,8 @@ def main():
             else:
                 print("❌ Extension not loaded")
                 # Debug info
-                debug_info = browser.page.evaluate("""
+                debug_info = browser.page.evaluate(
+                    """
                     () => {
                         return {
                             sentience_defined: typeof window.sentience !== 'undefined',
@@ -46,14 +50,15 @@ def main():
                             snapshot_defined: typeof window.sentience?.snapshot !== 'undefined'
                         };
                     }
-                """)
+                """
+                )
                 print(f"Debug info: {debug_info}")
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 
 if __name__ == "__main__":
     main()
-

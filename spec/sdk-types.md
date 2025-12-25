@@ -256,4 +256,3 @@ class Trace(BaseModel):
 - SDKs should handle missing optional fields gracefully
 - Default values should match extension behavior
 - Type coercion should be minimal (prefer validation errors)
-

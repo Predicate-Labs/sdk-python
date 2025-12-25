@@ -5,9 +5,11 @@ This example shows how to use the read() function to get page content
 and convert it to high-quality markdown using markdownify.
 """
 
-from sentience import SentienceBrowser, read
-from markdownify import markdownify
 import os
+
+from markdownify import markdownify
+
+from sentience import SentienceBrowser, read
 
 
 def main():
@@ -18,23 +20,23 @@ def main():
     with SentienceBrowser(api_key=api_key, headless=True) as browser:
         # Navigate to a page
         browser.page.goto("https://example.com", wait_until="domcontentloaded")
-        
+
         # Method 1: Get raw HTML (default) and convert with markdownify
         print("=== Method 1: Raw HTML + markdownify (Recommended) ===")
         result = read(browser)  # format="raw" is default
         html_content = result["content"]
-        
+
         # Convert to markdown using markdownify (better quality)
         markdown = markdownify(
             html_content,
             heading_style="ATX",  # Use # for headings
             bullets="-",  # Use - for lists
-            strip=['script', 'style', 'nav', 'footer', 'header'],  # Strip unwanted tags
+            strip=["script", "style", "nav", "footer", "header"],  # Strip unwanted tags
         )
         print(f"Markdown length: {len(markdown)} characters")
         print(markdown[:500])  # Print first 500 chars
         print("\n")
-        
+
         # Method 2: Get high-quality markdown directly (uses markdownify internally)
         print("=== Method 2: Direct markdown (High-quality via markdownify) ===")
         result = read(browser, format="markdown")
@@ -42,7 +44,7 @@ def main():
         print(f"Markdown length: {len(high_quality_markdown)} characters")
         print(high_quality_markdown[:500])  # Print first 500 chars
         print("\n")
-        
+
         # Method 3: Get plain text
         print("=== Method 3: Plain text ===")
         result = read(browser, format="text")
@@ -53,4 +55,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
