@@ -2,7 +2,7 @@
 Pydantic models for Sentience SDK - matches spec/snapshot.schema.json
 """
 
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -114,6 +114,8 @@ class SnapshotOptions(BaseModel):
     limit: int = Field(50, ge=1, le=500)
     filter: SnapshotFilter | None = None
     use_api: bool | None = None  # Force API vs extension
+    save_trace: bool = False  # Save raw_elements to JSON for benchmarking/training
+    trace_path: str | None = None  # Path to save trace (default: "trace_{timestamp}.json")
 
     class Config:
         arbitrary_types_allowed = True
