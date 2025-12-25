@@ -2,8 +2,7 @@
 Snapshot functionality - calls window.sentience.snapshot() or server-side API
 """
 
-import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -53,6 +52,31 @@ def _snapshot_via_extension(
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
 
+    # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
+    # The new architecture loads injected_api.js asynchronously, so window.sentience
+    # may not be immediately available after page load
+    try:
+        browser.page.wait_for_function(
+            "typeof window.sentience !== 'undefined'", timeout=5000  # 5 second timeout
+        )
+    except Exception as e:
+        # Gather diagnostics if wait fails
+        try:
+            diag = browser.page.evaluate(
+                """() => ({
+                    sentience_defined: typeof window.sentience !== 'undefined',
+                    extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
+                    url: window.location.href
+                })"""
+            )
+        except Exception:
+            diag = {"error": "Could not gather diagnostics"}
+
+        raise RuntimeError(
+            f"Sentience extension failed to inject window.sentience API. "
+            f"Is the extension loaded? Diagnostics: {diag}"
+        ) from e
+
     # Build options
     options: dict[str, Any] = {}
     if screenshot is not None:
@@ -92,6 +116,15 @@ def _snapshot_via_api(
 
     if not browser.api_url:
         raise ValueError("API URL required for server-side processing")
+
+    # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
+    # Even for API mode, we need the extension to collect raw data locally
+    try:
+        browser.page.wait_for_function("typeof window.sentience !== 'undefined'", timeout=5000)
+    except Exception as e:
+        raise RuntimeError(
+            "Sentience extension failed to inject. Cannot collect raw data for API processing."
+        ) from e
 
     # Step 1: Get raw data from local extension (always happens locally)
     raw_options: dict[str, Any] = {}
