@@ -41,7 +41,7 @@ from .screenshot import screenshot
 from .snapshot import snapshot
 from .wait import wait_for
 
-__version__ = "0.10.7"
+__version__ = "0.10.8"
 
 __all__ = [
     # Core SDK
