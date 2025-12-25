@@ -3,6 +3,7 @@ Tests for snapshot functionality
 """
 
 import pytest
+
 from sentience import SentienceBrowser, snapshot
 from sentience.models import Snapshot
 
@@ -13,15 +14,28 @@ def test_snapshot_basic():
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         snap = snapshot(browser)
-        
+
         assert snap.status == "success"
         assert snap.url == "https://example.com/"
         assert len(snap.elements) > 0
         assert all(el.id >= 0 for el in snap.elements)
-        assert all(el.role in ["button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox", "image", "generic"] 
-                   for el in snap.elements)
+        assert all(
+            el.role
+            in [
+                "button",
+                "link",
+                "textbox",
+                "searchbox",
+                "checkbox",
+                "radio",
+                "combobox",
+                "image",
+                "generic",
+            ]
+            for el in snap.elements
+        )
 
 
 @pytest.mark.requires_extension
@@ -31,20 +45,20 @@ def test_snapshot_roundtrip():
     sites = [
         "https://example.com",
     ]
-    
+
     for site in sites:
         with SentienceBrowser() as browser:
             browser.page.goto(site)
             browser.page.wait_for_load_state("networkidle")
-            
+
             # Wait a bit more for dynamic content and extension processing
             browser.page.wait_for_timeout(1000)
-            
+
             snap = snapshot(browser)
-            
+
             assert snap.status == "success"
             assert snap.url is not None
-            
+
             # Most pages should have at least some elements
             # But we'll be lenient - at least verify structure is valid
             if len(snap.elements) > 0:
@@ -62,23 +76,23 @@ def test_snapshot_roundtrip():
 @pytest.mark.requires_extension
 def test_snapshot_save():
     """Test snapshot save functionality"""
-    import tempfile
-    import os
     import json
-    
+    import os
+    import tempfile
+
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
-        
+
         snap = snapshot(browser)
-        
+
         # Save to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             snap.save(temp_path)
-            
+
             # Verify file exists and is valid JSON
             assert os.path.exists(temp_path)
             with open(temp_path) as f:
@@ -87,4 +101,3 @@ def test_snapshot_save():
                 assert "elements" in data
         finally:
             os.unlink(temp_path)
-

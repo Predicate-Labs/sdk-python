@@ -4,19 +4,20 @@ Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 
 @dataclass
 class LLMResponse:
     """Standardized LLM response across all providers"""
+
     content: str
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    model_name: Optional[str] = None
-    finish_reason: Optional[str] = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    model_name: str | None = None
+    finish_reason: str | None = None
 
 
 class LLMProvider(ABC):
@@ -32,12 +33,7 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def generate(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        **kwargs
-    ) -> LLMResponse:
+    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
         """
         Generate a response from the LLM
 
@@ -86,10 +82,10 @@ class OpenAIProvider(LLMProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gpt-4o",
-        base_url: Optional[str] = None,
-        organization: Optional[str] = None
+        base_url: str | None = None,
+        organization: str | None = None,
     ):
         """
         Initialize OpenAI provider
@@ -103,15 +99,9 @@ class OpenAIProvider(LLMProvider):
         try:
             from openai import OpenAI
         except ImportError:
-            raise ImportError(
-                "OpenAI package not installed. Install with: pip install openai"
-            )
+            raise ImportError("OpenAI package not installed. Install with: pip install openai")
 
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            organization=organization
-        )
+        self.client = OpenAI(api_key=api_key, base_url=base_url, organization=organization)
         self._model_name = model
 
     def generate(
@@ -119,9 +109,9 @@ class OpenAIProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate response using OpenAI API
@@ -170,7 +160,7 @@ class OpenAIProvider(LLMProvider):
             completion_tokens=usage.completion_tokens if usage else None,
             total_tokens=usage.total_tokens if usage else None,
             model_name=response.model,
-            finish_reason=choice.finish_reason
+            finish_reason=choice.finish_reason,
         )
 
     def supports_json_mode(self) -> bool:
@@ -194,11 +184,7 @@ class AnthropicProvider(LLMProvider):
         >>> print(response.content)
     """
 
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        model: str = "claude-3-5-sonnet-20241022"
-    ):
+    def __init__(self, api_key: str | None = None, model: str = "claude-3-5-sonnet-20241022"):
         """
         Initialize Anthropic provider
 
@@ -222,7 +208,7 @@ class AnthropicProvider(LLMProvider):
         user_prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 1024,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate response using Anthropic API
@@ -242,7 +228,7 @@ class AnthropicProvider(LLMProvider):
             "model": self._model_name,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "messages": [{"role": "user", "content": user_prompt}]
+            "messages": [{"role": "user", "content": user_prompt}],
         }
 
         if system_prompt:
@@ -258,11 +244,15 @@ class AnthropicProvider(LLMProvider):
 
         return LLMResponse(
             content=content,
-            prompt_tokens=response.usage.input_tokens if hasattr(response, 'usage') else None,
-            completion_tokens=response.usage.output_tokens if hasattr(response, 'usage') else None,
-            total_tokens=(response.usage.input_tokens + response.usage.output_tokens) if hasattr(response, 'usage') else None,
+            prompt_tokens=response.usage.input_tokens if hasattr(response, "usage") else None,
+            completion_tokens=response.usage.output_tokens if hasattr(response, "usage") else None,
+            total_tokens=(
+                (response.usage.input_tokens + response.usage.output_tokens)
+                if hasattr(response, "usage")
+                else None
+            ),
             model_name=response.model,
-            finish_reason=response.stop_reason
+            finish_reason=response.stop_reason,
         )
 
     def supports_json_mode(self) -> bool:
@@ -291,7 +281,7 @@ class LocalLLMProvider(LLMProvider):
         device: str = "auto",
         load_in_4bit: bool = False,
         load_in_8bit: bool = False,
-        torch_dtype: str = "auto"
+        torch_dtype: str = "auto",
     ):
         """
         Initialize local LLM using HuggingFace Transformers
@@ -310,7 +300,7 @@ class LocalLLMProvider(LLMProvider):
         """
         try:
             import torch
-            from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         except ImportError:
             raise ImportError(
                 "transformers and torch required for local LLM. "
@@ -320,10 +310,7 @@ class LocalLLMProvider(LLMProvider):
         self._model_name = model_name
 
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
-            trust_remote_code=True
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
         # Set padding token if not present
         if self.tokenizer.pad_token is None:
@@ -336,7 +323,7 @@ class LocalLLMProvider(LLMProvider):
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
+                bnb_4bit_quant_type="nf4",
             )
         elif load_in_8bit:
             quantization_config = BitsAndBytesConfig(load_in_8bit=True)
@@ -354,7 +341,7 @@ class LocalLLMProvider(LLMProvider):
             torch_dtype=dtype if quantization_config is None else None,
             device_map=device,
             trust_remote_code=True,
-            low_cpu_mem_usage=True
+            low_cpu_mem_usage=True,
         )
         self.model.eval()
 
@@ -365,7 +352,7 @@ class LocalLLMProvider(LLMProvider):
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         top_p: float = 0.9,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate response using local model
@@ -393,11 +380,9 @@ class LocalLLMProvider(LLMProvider):
         messages.append({"role": "user", "content": user_prompt})
 
         # Use model's native chat template if available
-        if hasattr(self.tokenizer, 'apply_chat_template'):
+        if hasattr(self.tokenizer, "apply_chat_template"):
             formatted_prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
+                messages, tokenize=False, add_generation_prompt=True
             )
         else:
             # Fallback formatting
@@ -407,13 +392,11 @@ class LocalLLMProvider(LLMProvider):
             formatted_prompt += f"User: {user_prompt}\n\nAssistant:"
 
         # Tokenize
-        inputs = self.tokenizer(
-            formatted_prompt,
-            return_tensors="pt",
-            truncation=True
-        ).to(self.model.device)
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt", truncation=True).to(
+            self.model.device
+        )
 
-        input_length = inputs['input_ids'].shape[1]
+        input_length = inputs["input_ids"].shape[1]
 
         # Generate
         with torch.no_grad():
@@ -425,22 +408,19 @@ class LocalLLMProvider(LLMProvider):
                 do_sample=do_sample,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
-                **kwargs
+                **kwargs,
             )
 
         # Decode only the new tokens
         generated_tokens = outputs[0][input_length:]
-        response_text = self.tokenizer.decode(
-            generated_tokens,
-            skip_special_tokens=True
-        ).strip()
+        response_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
 
         return LLMResponse(
             content=response_text,
             prompt_tokens=input_length,
             completion_tokens=len(generated_tokens),
             total_tokens=input_length + len(generated_tokens),
-            model_name=self._model_name
+            model_name=self._model_name,
         )
 
     def supports_json_mode(self) -> bool:

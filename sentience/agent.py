@@ -5,15 +5,26 @@ Implements observe-think-act loop for natural language commands
 
 import re
 import time
-from typing import Dict, Any, List, Optional
-from .llm_provider import LLMProvider, LLMResponse
+from typing import Any, Dict, List, Optional, Union
+
+from .actions import click, press, type_text
+from .base_agent import BaseAgent
 from .browser import SentienceBrowser
+from .llm_provider import LLMProvider, LLMResponse
+from .models import (
+    ActionHistory,
+    ActionTokenUsage,
+    AgentActionResult,
+    Element,
+    ScreenshotConfig,
+    Snapshot,
+    SnapshotOptions,
+    TokenStats,
+)
 from .snapshot import snapshot
-from .actions import click, type_text, press
-from .models import Snapshot, Element, ActionResult
 
 
-class SentienceAgent:
+class SentienceAgent(BaseAgent):
     """
     High-level agent that combines Sentience SDK with any LLM provider.
 
@@ -41,8 +52,8 @@ class SentienceAgent:
         self,
         browser: SentienceBrowser,
         llm: LLMProvider,
-        snapshot_limit: int = 50,
-        verbose: bool = True
+        default_snapshot_limit: int = 50,
+        verbose: bool = True,
     ):
         """
         Initialize Sentience Agent
@@ -50,46 +61,46 @@ class SentienceAgent:
         Args:
             browser: SentienceBrowser instance
             llm: LLM provider (OpenAIProvider, AnthropicProvider, etc.)
-            snapshot_limit: Maximum elements to include in context (default: 50)
+            default_snapshot_limit: Default maximum elements to include in context (default: 50)
             verbose: Print execution logs (default: True)
         """
         self.browser = browser
         self.llm = llm
-        self.snapshot_limit = snapshot_limit
+        self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
 
         # Execution history
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
 
-        # Token usage tracking
-        self.token_usage = {
+        # Token usage tracking (will be converted to TokenStats on get_token_stats())
+        self._token_usage_raw = {
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
             "total_tokens": 0,
-            "by_action": []
+            "by_action": [],
         }
 
     def act(
-        self,
-        goal: str,
-        max_retries: int = 2,
-        snapshot_options: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, goal: str, max_retries: int = 2, snapshot_options: SnapshotOptions | None = None
+    ) -> AgentActionResult:
         """
         Execute a high-level goal using observe → think → act loop
 
         Args:
             goal: Natural language instruction (e.g., "Click the Sign In button")
             max_retries: Number of retries on failure (default: 2)
-            snapshot_options: Optional snapshot parameters (limit, filter, etc.)
+            snapshot_options: Optional SnapshotOptions for this specific action
 
         Returns:
-            Result dict with status, action_taken, reasoning, and execution data
+            AgentActionResult with execution details
 
         Example:
             >>> result = agent.act("Click the search box")
-            >>> print(result)
-            {'success': True, 'action': 'click', 'element_id': 42, 'reasoning': '...'}
+            >>> print(result.success, result.action, result.element_id)
+            True click 42
+            >>> # Backward compatible dict access
+            >>> print(result["element_id"])  # Works but shows deprecation warning
+            42
         """
         if self.verbose:
             print(f"\n{'='*70}")
@@ -101,16 +112,46 @@ class SentienceAgent:
                 # 1. OBSERVE: Get refined semantic snapshot
                 start_time = time.time()
 
-                snap_opts = snapshot_options or {}
-                snap_opts.setdefault('limit', self.snapshot_limit)
+                # Use provided options or create default
+                snap_opts = snapshot_options or SnapshotOptions(limit=self.default_snapshot_limit)
 
-                snap = snapshot(self.browser, **snap_opts)
+                # Convert screenshot config to dict if needed
+                screenshot_param = snap_opts.screenshot
+                if isinstance(snap_opts.screenshot, ScreenshotConfig):
+                    screenshot_param = {
+                        "format": snap_opts.screenshot.format,
+                        "quality": snap_opts.screenshot.quality,
+                    }
+
+                # Call snapshot with converted parameters
+                snap = snapshot(
+                    self.browser,
+                    screenshot=screenshot_param,
+                    limit=snap_opts.limit,
+                    filter=snap_opts.filter.model_dump() if snap_opts.filter else None,
+                    use_api=snap_opts.use_api,
+                )
 
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
+                # Apply element filtering based on goal
+                filtered_elements = self.filter_elements(snap, goal)
+
+                # Create filtered snapshot
+                filtered_snap = Snapshot(
+                    status=snap.status,
+                    timestamp=snap.timestamp,
+                    url=snap.url,
+                    viewport=snap.viewport,
+                    elements=filtered_elements,
+                    screenshot=snap.screenshot,
+                    screenshot_format=snap.screenshot_format,
+                    error=snap.error,
+                )
+
                 # 2. GROUND: Format elements for LLM context
-                context = self._build_context(snap, goal)
+                context = self._build_context(filtered_snap, goal)
 
                 # 3. THINK: Query LLM for next action
                 llm_response = self._query_llm(context, goal)
@@ -125,25 +166,40 @@ class SentienceAgent:
                 action_str = llm_response.content.strip()
 
                 # 4. EXECUTE: Parse and run action
-                result = self._execute_action(action_str, snap)
+                result_dict = self._execute_action(action_str, filtered_snap)
 
                 duration_ms = int((time.time() - start_time) * 1000)
-                result['duration_ms'] = duration_ms
-                result['attempt'] = attempt
-                result['goal'] = goal
+
+                # Create AgentActionResult from execution result
+                result = AgentActionResult(
+                    success=result_dict["success"],
+                    action=result_dict["action"],
+                    goal=goal,
+                    duration_ms=duration_ms,
+                    attempt=attempt,
+                    element_id=result_dict.get("element_id"),
+                    text=result_dict.get("text"),
+                    key=result_dict.get("key"),
+                    outcome=result_dict.get("outcome"),
+                    url_changed=result_dict.get("url_changed"),
+                    error=result_dict.get("error"),
+                    message=result_dict.get("message"),
+                )
 
                 # 5. RECORD: Track history
-                self.history.append({
-                    "goal": goal,
-                    "action": action_str,
-                    "result": result,
-                    "success": result.get("success", False),
-                    "attempt": attempt,
-                    "duration_ms": duration_ms
-                })
+                self.history.append(
+                    {
+                        "goal": goal,
+                        "action": action_str,
+                        "result": result.model_dump(),  # Store as dict
+                        "success": result.success,
+                        "attempt": attempt,
+                        "duration_ms": duration_ms,
+                    }
+                )
 
                 if self.verbose:
-                    status = "✅" if result.get("success") else "❌"
+                    status = "✅" if result.success else "❌"
                     print(f"{status} Completed in {duration_ms}ms")
 
                 return result
@@ -155,13 +211,25 @@ class SentienceAgent:
                     time.sleep(1.0)  # Brief delay before retry
                     continue
                 else:
-                    error_result = {
-                        "success": False,
-                        "goal": goal,
-                        "error": str(e),
-                        "attempt": attempt
-                    }
-                    self.history.append(error_result)
+                    # Create error result
+                    error_result = AgentActionResult(
+                        success=False,
+                        action="error",
+                        goal=goal,
+                        duration_ms=0,
+                        attempt=attempt,
+                        error=str(e),
+                    )
+                    self.history.append(
+                        {
+                            "goal": goal,
+                            "action": "error",
+                            "result": error_result.model_dump(),
+                            "success": False,
+                            "attempt": attempt,
+                            "duration_ms": 0,
+                        }
+                    )
                     raise RuntimeError(f"Failed after {max_retries} retries: {e}")
 
     def _build_context(self, snap: Snapshot, goal: str) -> str:
@@ -178,7 +246,8 @@ class SentienceAgent:
             Formatted element context string
         """
         lines = []
-        for el in snap.elements[:self.snapshot_limit]:
+        # Note: elements are already filtered by filter_elements() in act()
+        for el in snap.elements:
             # Extract visual cues
             cues = []
             if el.visual_cues.is_primary:
@@ -190,10 +259,12 @@ class SentienceAgent:
 
             # Format element line
             cues_str = f" {{{','.join(cues)}}}" if cues else ""
-            text_preview = (el.text[:50] + "...") if el.text and len(el.text) > 50 else (el.text or "")
+            text_preview = (
+                (el.text[:50] + "...") if el.text and len(el.text) > 50 else (el.text or "")
+            )
 
             lines.append(
-                f"[{el.id}] <{el.role}> \"{text_preview}\"{cues_str} "
+                f'[{el.id}] <{el.role}> "{text_preview}"{cues_str} '
                 f"@ ({int(el.bbox.x)},{int(el.bbox.y)}) (Imp:{el.importance})"
             )
 
@@ -214,7 +285,7 @@ class SentienceAgent:
 
 GOAL: {goal}
 
-VISIBLE ELEMENTS (sorted by importance, max {self.snapshot_limit}):
+VISIBLE ELEMENTS (sorted by importance):
 {dom_context}
 
 VISUAL CUES EXPLAINED:
@@ -242,7 +313,7 @@ Examples:
 
         return self.llm.generate(system_prompt, user_prompt, temperature=0.0)
 
-    def _execute_action(self, action_str: str, snap: Snapshot) -> Dict[str, Any]:
+    def _execute_action(self, action_str: str, snap: Snapshot) -> dict[str, Any]:
         """
         Parse action string and execute SDK call
 
@@ -254,7 +325,7 @@ Examples:
             Execution result dictionary
         """
         # Parse CLICK(42)
-        if match := re.match(r'CLICK\s*\(\s*(\d+)\s*\)', action_str, re.IGNORECASE):
+        if match := re.match(r"CLICK\s*\(\s*(\d+)\s*\)", action_str, re.IGNORECASE):
             element_id = int(match.group(1))
             result = click(self.browser, element_id)
             return {
@@ -262,11 +333,13 @@ Examples:
                 "action": "click",
                 "element_id": element_id,
                 "outcome": result.outcome,
-                "url_changed": result.url_changed
+                "url_changed": result.url_changed,
             }
 
         # Parse TYPE(42, "hello world")
-        elif match := re.match(r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)', action_str, re.IGNORECASE):
+        elif match := re.match(
+            r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)', action_str, re.IGNORECASE
+        ):
             element_id = int(match.group(1))
             text = match.group(2)
             result = type_text(self.browser, element_id, text)
@@ -275,7 +348,7 @@ Examples:
                 "action": "type",
                 "element_id": element_id,
                 "text": text,
-                "outcome": result.outcome
+                "outcome": result.outcome,
             }
 
         # Parse PRESS("Enter")
@@ -286,21 +359,17 @@ Examples:
                 "success": result.success,
                 "action": "press",
                 "key": key,
-                "outcome": result.outcome
+                "outcome": result.outcome,
             }
 
         # Parse FINISH()
-        elif re.match(r'FINISH\s*\(\s*\)', action_str, re.IGNORECASE):
-            return {
-                "success": True,
-                "action": "finish",
-                "message": "Task marked as complete"
-            }
+        elif re.match(r"FINISH\s*\(\s*\)", action_str, re.IGNORECASE):
+            return {"success": True, "action": "finish", "message": "Task marked as complete"}
 
         else:
             raise ValueError(
                 f"Unknown action format: {action_str}\n"
-                f"Expected: CLICK(id), TYPE(id, \"text\"), PRESS(\"key\"), or FINISH()"
+                f'Expected: CLICK(id), TYPE(id, "text"), PRESS("key"), or FINISH()'
             )
 
     def _track_tokens(self, goal: str, llm_response: LLMResponse):
@@ -312,44 +381,137 @@ Examples:
             llm_response: LLM response with token usage
         """
         if llm_response.prompt_tokens:
-            self.token_usage["total_prompt_tokens"] += llm_response.prompt_tokens
+            self._token_usage_raw["total_prompt_tokens"] += llm_response.prompt_tokens
         if llm_response.completion_tokens:
-            self.token_usage["total_completion_tokens"] += llm_response.completion_tokens
+            self._token_usage_raw["total_completion_tokens"] += llm_response.completion_tokens
         if llm_response.total_tokens:
-            self.token_usage["total_tokens"] += llm_response.total_tokens
+            self._token_usage_raw["total_tokens"] += llm_response.total_tokens
 
-        self.token_usage["by_action"].append({
-            "goal": goal,
-            "prompt_tokens": llm_response.prompt_tokens,
-            "completion_tokens": llm_response.completion_tokens,
-            "total_tokens": llm_response.total_tokens,
-            "model": llm_response.model_name
-        })
+        self._token_usage_raw["by_action"].append(
+            {
+                "goal": goal,
+                "prompt_tokens": llm_response.prompt_tokens or 0,
+                "completion_tokens": llm_response.completion_tokens or 0,
+                "total_tokens": llm_response.total_tokens or 0,
+                "model": llm_response.model_name,
+            }
+        )
 
-    def get_token_stats(self) -> Dict[str, Any]:
+    def get_token_stats(self) -> TokenStats:
         """
         Get token usage statistics
 
         Returns:
-            Dictionary with token usage breakdown
+            TokenStats with token usage breakdown
         """
-        return self.token_usage.copy()
+        by_action = [ActionTokenUsage(**action) for action in self._token_usage_raw["by_action"]]
+        return TokenStats(
+            total_prompt_tokens=self._token_usage_raw["total_prompt_tokens"],
+            total_completion_tokens=self._token_usage_raw["total_completion_tokens"],
+            total_tokens=self._token_usage_raw["total_tokens"],
+            by_action=by_action,
+        )
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[ActionHistory]:
         """
         Get execution history
 
         Returns:
-            List of all actions taken with results
+            List of ActionHistory entries
         """
-        return self.history.copy()
+        return [ActionHistory(**h) for h in self.history]
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear execution history and reset token counters"""
         self.history.clear()
-        self.token_usage = {
+        self._token_usage_raw = {
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
             "total_tokens": 0,
-            "by_action": []
+            "by_action": [],
         }
+
+    def filter_elements(self, snapshot: Snapshot, goal: str | None = None) -> list[Element]:
+        """
+        Filter elements from snapshot based on goal context.
+
+        This default implementation applies goal-based keyword matching to boost
+        relevant elements and filters out irrelevant ones.
+
+        Args:
+            snapshot: Current page snapshot
+            goal: User's goal (can inform filtering)
+
+        Returns:
+            Filtered list of elements
+        """
+        elements = snapshot.elements
+
+        # If no goal provided, return all elements (up to limit)
+        if not goal:
+            return elements[: self.default_snapshot_limit]
+
+        goal_lower = goal.lower()
+
+        # Extract keywords from goal
+        keywords = self._extract_keywords(goal_lower)
+
+        # Boost elements matching goal keywords
+        scored_elements = []
+        for el in elements:
+            score = el.importance
+
+            # Boost if element text matches goal
+            if el.text and any(kw in el.text.lower() for kw in keywords):
+                score += 0.3
+
+            # Boost if role matches goal intent
+            if "click" in goal_lower and el.visual_cues.is_clickable:
+                score += 0.2
+            if "type" in goal_lower and el.role in ["textbox", "searchbox"]:
+                score += 0.2
+            if "search" in goal_lower:
+                # Filter out non-interactive elements for search tasks
+                if el.role in ["link", "img"] and not el.visual_cues.is_primary:
+                    score -= 0.5
+
+            scored_elements.append((score, el))
+
+        # Re-sort by boosted score
+        scored_elements.sort(key=lambda x: x[0], reverse=True)
+        elements = [el for _, el in scored_elements]
+
+        return elements[: self.default_snapshot_limit]
+
+    def _extract_keywords(self, text: str) -> list[str]:
+        """
+        Extract meaningful keywords from goal text
+
+        Args:
+            text: Text to extract keywords from
+
+        Returns:
+            List of keywords
+        """
+        stopwords = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+        }
+        words = text.split()
+        return [w for w in words if w not in stopwords and len(w) > 2]
