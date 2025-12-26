@@ -2,8 +2,6 @@
 Tests for smart selector inference
 """
 
-import pytest
-
 from sentience import SentienceBrowser, record, snapshot
 
 
