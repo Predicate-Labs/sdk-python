@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sentience-python
-Version: 0.11.0
+Version: 0.12.0
 Summary: Python SDK for Sentience AI Agent Browser Automation
 Author: Sentience Team
 License: MIT
@@ -484,6 +484,86 @@ cd sentience-chrome
 **Solutions:**
 - Check visibility: `element.in_viewport and not element.is_occluded`
 - Scroll to element: `browser.page.evaluate(f"window.sentience_registry[{element.id}].scrollIntoView()")`
+
+## Advanced Features (v0.12.0+)
+
+### Agent Tracing & Debugging
+
+The SDK now includes built-in tracing infrastructure for debugging and analyzing agent behavior:
+
+```python
+from sentience import SentienceBrowser, SentienceAgent
+from sentience.llm_provider import OpenAIProvider
+from sentience.tracing import Tracer, JsonlTraceSink
+from sentience.agent_config import AgentConfig
+
+# Create tracer to record agent execution
+tracer = Tracer(
+    run_id="my-agent-run-123",
+    sink=JsonlTraceSink("trace.jsonl")
+)
+
+# Configure agent behavior
+config = AgentConfig(
+    snapshot_limit=50,
+    temperature=0.0,
+    max_retries=1,
+    capture_screenshots=True
+)
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+
+# Pass tracer and config to agent
+agent = SentienceAgent(browser, llm, tracer=tracer, config=config)
+
+with browser:
+    browser.page.goto("https://example.com")
+
+    # All actions are automatically traced
+    agent.act("Click the sign in button")
+    agent.act("Type 'user@example.com' into email field")
+
+# Trace events saved to trace.jsonl
+# Events: step_start, snapshot, llm_query, action, step_end, error
+```
+
+**Trace Events Captured:**
+- `step_start` - Agent begins executing a goal
+- `snapshot` - Page state captured
+- `llm_query` - LLM decision made (includes tokens, model, response)
+- `action` - Action executed (click, type, press)
+- `step_end` - Step completed successfully
+- `error` - Error occurred during execution
+
+**Use Cases:**
+- Debug why agent failed or got stuck
+- Analyze token usage and costs
+- Replay agent sessions
+- Train custom models from successful runs
+- Monitor production agents
+
+### Snapshot Utilities
+
+New utility functions for working with snapshots:
+
+```python
+from sentience import snapshot
+from sentience.utils import compute_snapshot_digests, canonical_snapshot_strict
+from sentience.formatting import format_snapshot_for_llm
+
+snap = snapshot(browser)
+
+# Compute snapshot fingerprints (detect page changes)
+digests = compute_snapshot_digests(snap.elements)
+print(f"Strict digest: {digests['strict']}")  # Changes when text changes
+print(f"Loose digest: {digests['loose']}")   # Only changes when layout changes
+
+# Format snapshot for LLM prompts
+llm_context = format_snapshot_for_llm(snap, limit=50)
+print(llm_context)
+# Output: [1] <button> "Sign In" {PRIMARY,CLICKABLE} @ (100,50) (Imp:10)
+```
 
 ## Documentation
 

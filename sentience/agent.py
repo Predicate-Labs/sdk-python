@@ -203,7 +203,7 @@ class SentienceAgent(BaseAgent):
                         {
                             "prompt_tokens": llm_response.prompt_tokens,
                             "completion_tokens": llm_response.completion_tokens,
-                            "model": llm_response.model,
+                            "model": llm_response.model_name,
                             "response": llm_response.content[:200],  # Truncate for brevity
                         },
                         step_id=step_id,
