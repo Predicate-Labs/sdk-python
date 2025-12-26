@@ -5,11 +5,13 @@ pyproject.toml
 sentience/__init__.py
 sentience/actions.py
 sentience/agent.py
+sentience/agent_config.py
 sentience/base_agent.py
 sentience/browser.py
 sentience/cli.py
 sentience/conversational_agent.py
 sentience/expect.py
+sentience/formatting.py
 sentience/generator.py
 sentience/inspector.py
 sentience/llm_provider.py
@@ -19,7 +21,10 @@ sentience/read.py
 sentience/recorder.py
 sentience/screenshot.py
 sentience/snapshot.py
+sentience/tracing.py
+sentience/utils.py
 sentience/wait.py
+sentience/schemas/trace_v1.json
 sentience_python.egg-info/PKG-INFO
 sentience_python.egg-info/SOURCES.txt
 sentience_python.egg-info/dependency_links.txt
@@ -32,8 +37,10 @@ spec/sdk-types.md
 spec/snapshot.schema.json
 tests/test_actions.py
 tests/test_agent.py
+tests/test_agent_config.py
 tests/test_bot.py
 tests/test_conversational_agent.py
+tests/test_formatting.py
 tests/test_generator.py
 tests/test_inspector.py
 tests/test_query.py
@@ -44,4 +51,6 @@ tests/test_smart_selector.py
 tests/test_snapshot.py
 tests/test_spec_validation.py
 tests/test_stealth.py
+tests/test_tracing.py
+tests/test_utils.py
 tests/test_wait.py
