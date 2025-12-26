@@ -4,7 +4,6 @@ CLI commands for Sentience SDK
 
 import argparse
 import sys
-from pathlib import Path
 
 from .browser import SentienceBrowser
 from .generator import ScriptGenerator
