@@ -75,10 +75,8 @@ class SentienceBrowser:
 
         if package_ext_path.exists() and (package_ext_path / "manifest.json").exists():
             extension_source = package_ext_path
-            print(f"[SentienceBrowser] Loading SDK extension from: {package_ext_path}")
         elif dev_ext_path.exists() and (dev_ext_path / "manifest.json").exists():
             extension_source = dev_ext_path
-            print(f"[SentienceBrowser] Loading SDK extension from (dev): {dev_ext_path}")
         else:
             raise FileNotFoundError(
                 f"Extension not found. Checked:\n"
@@ -86,18 +84,6 @@ class SentienceBrowser:
                 f"2. {dev_ext_path}\n"
                 "Make sure the extension is built and 'sentience/extension' directory exists."
             )
-
-        # Print extension version for debugging
-        import json
-
-        try:
-            with open(extension_source / "manifest.json") as f:
-                manifest = json.load(f)
-                print(
-                    f"[SentienceBrowser] SDK extension version: {manifest.get('version', 'unknown')}"
-                )
-        except Exception:
-            pass
 
         # Create temporary extension bundle
         # We copy it to a temp dir to avoid file locking issues and ensure clean state
