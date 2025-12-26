@@ -16,10 +16,10 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sentience.browser import SentienceBrowser
+from sentience.browser import SentienceBrowser  # noqa: E402
 
 
-def test_stealth_features():
+def test_stealth_features():  # noqa: C901
     """Test that stealth features are working correctly"""
     print("=" * 60)
     print("Bot Evasion / Stealth Mode Test")
@@ -41,9 +41,9 @@ def test_stealth_features():
         print("\n2. Testing window.chrome...")
         chrome_exists = page.evaluate("() => typeof window.chrome !== 'undefined'")
         if chrome_exists:
-            print(f"   ✅ window.chrome exists (stealth working)")
+            print("   ✅ window.chrome exists (stealth working)")
         else:
-            print(f"   ❌ window.chrome does not exist (detectable)")
+            print("   ❌ window.chrome does not exist (detectable)")
 
         print("\n3. Testing user-agent...")
         user_agent = page.evaluate("() => navigator.userAgent")

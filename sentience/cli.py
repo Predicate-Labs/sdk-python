@@ -75,11 +75,9 @@ def cmd_gen(args):
     generator = ScriptGenerator(trace)
 
     if args.lang == "py":
-        code = generator.generate_python()
         output = args.output or "generated.py"
         generator.save_python(output)
     elif args.lang == "ts":
-        code = generator.generate_typescript()
         output = args.output or "generated.ts"
         generator.save_typescript(output)
     else:

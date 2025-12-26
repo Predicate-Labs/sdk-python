@@ -4,12 +4,16 @@ Sentience Python SDK - AI Agent Browser Automation
 
 from .actions import click, click_rect, press, type_text
 from .agent import SentienceAgent
+from .agent_config import AgentConfig
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
 from .browser import SentienceBrowser
 from .conversational_agent import ConversationalAgent
 from .expect import expect
+
+# Formatting (v0.12.0+)
+from .formatting import format_snapshot_for_llm
 from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
 from .llm_provider import (
@@ -39,9 +43,20 @@ from .read import read
 from .recorder import Recorder, Trace, TraceStep, record
 from .screenshot import screenshot
 from .snapshot import snapshot
+
+# Tracing (v0.12.0+)
+from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
+
+# Utilities (v0.12.0+)
+from .utils import (
+    canonical_snapshot_loose,
+    canonical_snapshot_strict,
+    compute_snapshot_digests,
+    sha256_digest,
+)
 from .wait import wait_for
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 __all__ = [
     # Core SDK
@@ -88,4 +103,18 @@ __all__ = [
     "SnapshotOptions",
     "SnapshotFilter",
     "ScreenshotConfig",
+    # Tracing (v0.12.0+)
+    "Tracer",
+    "TraceSink",
+    "JsonlTraceSink",
+    "TraceEvent",
+    # Utilities (v0.12.0+)
+    "canonical_snapshot_strict",
+    "canonical_snapshot_loose",
+    "compute_snapshot_digests",
+    "sha256_digest",
+    # Formatting (v0.12.0+)
+    "format_snapshot_for_llm",
+    # Agent Config (v0.12.0+)
+    "AgentConfig",
 ]
