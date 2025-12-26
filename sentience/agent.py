@@ -5,7 +5,7 @@ Implements observe-think-act loop for natural language commands
 
 import re
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from .actions import click, press, type_text
 from .base_agent import BaseAgent
@@ -22,6 +22,10 @@ from .models import (
     TokenStats,
 )
 from .snapshot import snapshot
+
+if TYPE_CHECKING:
+    from .agent_config import AgentConfig
+    from .tracing import Tracer
 
 
 class SentienceAgent(BaseAgent):
@@ -54,6 +58,8 @@ class SentienceAgent(BaseAgent):
         llm: LLMProvider,
         default_snapshot_limit: int = 50,
         verbose: bool = True,
+        tracer: Optional["Tracer"] = None,
+        config: Optional["AgentConfig"] = None,
     ):
         """
         Initialize Sentience Agent
@@ -63,11 +69,15 @@ class SentienceAgent(BaseAgent):
             llm: LLM provider (OpenAIProvider, AnthropicProvider, etc.)
             default_snapshot_limit: Default maximum elements to include in context (default: 50)
             verbose: Print execution logs (default: True)
+            tracer: Optional Tracer instance for execution tracking (default: None)
+            config: Optional AgentConfig for advanced configuration (default: None)
         """
         self.browser = browser
         self.llm = llm
         self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
+        self.tracer = tracer
+        self.config = config
 
         # Execution history
         self.history: list[dict[str, Any]] = []
@@ -79,6 +89,9 @@ class SentienceAgent(BaseAgent):
             "total_tokens": 0,
             "by_action": [],
         }
+
+        # Step counter for tracing
+        self._step_count = 0
 
     def act(
         self, goal: str, max_retries: int = 2, snapshot_options: SnapshotOptions | None = None
@@ -106,6 +119,21 @@ class SentienceAgent(BaseAgent):
             print(f"\n{'='*70}")
             print(f"🤖 Agent Goal: {goal}")
             print(f"{'='*70}")
+
+        # Generate step ID for tracing
+        self._step_count += 1
+        step_id = f"step-{self._step_count}"
+
+        # Emit step_start trace event if tracer is enabled
+        if self.tracer:
+            pre_url = self.browser.page.url if self.browser.page else None
+            self.tracer.emit_step_start(
+                step_id=step_id,
+                step_index=self._step_count,
+                goal=goal,
+                attempt=0,
+                pre_url=pre_url,
+            )
 
         for attempt in range(max_retries + 1):
             try:
@@ -135,6 +163,18 @@ class SentienceAgent(BaseAgent):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
+                # Emit snapshot trace event if tracer is enabled
+                if self.tracer:
+                    self.tracer.emit(
+                        "snapshot",
+                        {
+                            "url": snap.url,
+                            "element_count": len(snap.elements),
+                            "timestamp": snap.timestamp,
+                        },
+                        step_id=step_id,
+                    )
+
                 # Apply element filtering based on goal
                 filtered_elements = self.filter_elements(snap, goal)
 
@@ -155,6 +195,19 @@ class SentienceAgent(BaseAgent):
 
                 # 3. THINK: Query LLM for next action
                 llm_response = self._query_llm(context, goal)
+
+                # Emit LLM query trace event if tracer is enabled
+                if self.tracer:
+                    self.tracer.emit(
+                        "llm_query",
+                        {
+                            "prompt_tokens": llm_response.prompt_tokens,
+                            "completion_tokens": llm_response.completion_tokens,
+                            "model": llm_response.model,
+                            "response": llm_response.content[:200],  # Truncate for brevity
+                        },
+                        step_id=step_id,
+                    )
 
                 if self.verbose:
                     print(f"🧠 LLM Decision: {llm_response.content}")
@@ -186,6 +239,22 @@ class SentienceAgent(BaseAgent):
                     message=result_dict.get("message"),
                 )
 
+                # Emit action execution trace event if tracer is enabled
+                if self.tracer:
+                    post_url = self.browser.page.url if self.browser.page else None
+                    self.tracer.emit(
+                        "action",
+                        {
+                            "action": result.action,
+                            "element_id": result.element_id,
+                            "success": result.success,
+                            "outcome": result.outcome,
+                            "duration_ms": duration_ms,
+                            "post_url": post_url,
+                        },
+                        step_id=step_id,
+                    )
+
                 # 5. RECORD: Track history
                 self.history.append(
                     {
@@ -202,9 +271,25 @@ class SentienceAgent(BaseAgent):
                     status = "✅" if result.success else "❌"
                     print(f"{status} Completed in {duration_ms}ms")
 
+                # Emit step completion trace event if tracer is enabled
+                if self.tracer:
+                    self.tracer.emit(
+                        "step_end",
+                        {
+                            "success": result.success,
+                            "duration_ms": duration_ms,
+                            "action": result.action,
+                        },
+                        step_id=step_id,
+                    )
+
                 return result
 
             except Exception as e:
+                # Emit error trace event if tracer is enabled
+                if self.tracer:
+                    self.tracer.emit_error(step_id=step_id, error=str(e), attempt=attempt)
+
                 if attempt < max_retries:
                     if self.verbose:
                         print(f"⚠️  Retry {attempt + 1}/{max_retries}: {e}")

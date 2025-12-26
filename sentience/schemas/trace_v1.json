@@ -1,0 +1,216 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sentience.ai/schemas/trace/v1",
+  "title": "Sentience Agent Trace Event",
+  "description": "Schema for Sentience agent trace events in JSONL format",
+  "type": "object",
+  "required": ["v", "type", "ts", "run_id", "seq", "data"],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["run_start", "step_start", "snapshot_taken", "llm_called", "action_executed", "verification", "recovery", "step_end", "run_end", "error"],
+      "description": "Event type"
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp"
+    },
+    "ts_ms": {
+      "type": "integer",
+      "description": "Unix timestamp in milliseconds"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "UUID for the agent run"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing sequence number"
+    },
+    "step_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "UUID for the step (present for step-scoped events)"
+    },
+    "data": {
+      "type": "object",
+      "description": "Event-specific payload",
+      "oneOf": [
+        {
+          "description": "run_start data",
+          "properties": {
+            "agent": {"type": "string"},
+            "llm_model": {"type": ["string", "null"]},
+            "config": {"type": "object"}
+          }
+        },
+        {
+          "description": "step_start data",
+          "required": ["step_id", "step_index", "goal", "attempt"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "step_index": {"type": "integer"},
+            "goal": {"type": "string"},
+            "attempt": {"type": "integer"},
+            "pre_url": {"type": ["string", "null"]}
+          }
+        },
+        {
+          "description": "snapshot_taken data",
+          "required": ["step_id", "snapshot_digest"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "snapshot_id": {"type": ["string", "null"]},
+            "snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "snapshot_digest_loose": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "url": {"type": ["string", "null"]},
+            "element_count": {"type": "integer"}
+          }
+        },
+        {
+          "description": "llm_called data",
+          "required": ["step_id", "response_text", "response_hash"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "model": {"type": ["string", "null"]},
+            "temperature": {"type": "number"},
+            "system_prompt_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "user_prompt_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "response_text": {"type": "string"},
+            "response_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "usage": {
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {"type": "integer"},
+                "completion_tokens": {"type": "integer"},
+                "total_tokens": {"type": "integer"}
+              }
+            }
+          }
+        },
+        {
+          "description": "step_end data (StepResult)",
+          "required": ["step_id", "step_index", "goal", "attempt", "pre", "llm", "exec", "post", "verify"],
+          "properties": {
+            "v": {"type": "integer", "const": 1},
+            "step_id": {"type": "string"},
+            "step_index": {"type": "integer"},
+            "goal": {"type": "string"},
+            "attempt": {"type": "integer"},
+            "pre": {
+              "type": "object",
+              "required": ["snapshot_digest"],
+              "properties": {
+                "url": {"type": ["string", "null"]},
+                "snapshot_digest": {"type": "string"},
+                "snapshot_digest_loose": {"type": "string"}
+              }
+            },
+            "llm": {
+              "type": "object",
+              "required": ["response_text", "response_hash"],
+              "properties": {
+                "response_text": {"type": "string"},
+                "response_hash": {"type": "string"}
+              }
+            },
+            "action": {
+              "type": "object",
+              "required": ["kind"],
+              "properties": {
+                "kind": {"type": "string", "enum": ["click", "type", "press", "finish", "navigate"]},
+                "element_id": {"type": "integer"},
+                "text": {"type": "string"},
+                "key": {"type": "string"},
+                "url": {"type": "string"},
+                "raw": {"type": "string"}
+              }
+            },
+            "exec": {
+              "type": "object",
+              "required": ["success", "outcome", "duration_ms"],
+              "properties": {
+                "success": {"type": "boolean"},
+                "outcome": {"type": "string"},
+                "action": {"type": "string"},
+                "element_id": {"type": "integer"},
+                "text": {"type": "string"},
+                "key": {"type": "string"},
+                "url_changed": {"type": ["boolean", "null"]},
+                "duration_ms": {"type": "integer"}
+              }
+            },
+            "post": {
+              "type": "object",
+              "properties": {
+                "url": {"type": ["string", "null"]},
+                "snapshot_digest": {"type": "string"},
+                "snapshot_digest_loose": {"type": "string"}
+              }
+            },
+            "verify": {
+              "type": "object",
+              "required": ["passed"],
+              "properties": {
+                "policy": {"type": "string"},
+                "passed": {"type": "boolean"},
+                "signals": {"type": "object"}
+              }
+            },
+            "recovery": {
+              "type": ["object", "null"],
+              "properties": {
+                "attempted": {"type": "boolean"},
+                "success": {"type": "boolean"},
+                "strategy": {"type": "string"},
+                "attempts": {"type": "array"}
+              }
+            }
+          }
+        },
+        {
+          "description": "verification data",
+          "required": ["step_id", "passed"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "passed": {"type": "boolean"},
+            "signals": {"type": "object"}
+          }
+        },
+        {
+          "description": "recovery data",
+          "required": ["step_id", "strategy"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "strategy": {"type": "string"},
+            "attempt": {"type": "integer"}
+          }
+        },
+        {
+          "description": "run_end data",
+          "required": ["steps"],
+          "properties": {
+            "steps": {"type": "integer"}
+          }
+        },
+        {
+          "description": "error data",
+          "required": ["step_id", "error"],
+          "properties": {
+            "step_id": {"type": "string"},
+            "attempt": {"type": "integer"},
+            "error": {"type": "string"}
+          }
+        }
+      ]
+    }
+  }
+}

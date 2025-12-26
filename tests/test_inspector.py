@@ -2,8 +2,6 @@
 Tests for inspector functionality
 """
 
-import pytest
-
 from sentience import SentienceBrowser, inspect
 
 

@@ -2,11 +2,7 @@
 Inspector tool - helps developers see what the agent "sees"
 """
 
-from typing import Optional
-
 from .browser import SentienceBrowser
-from .query import find
-from .snapshot import snapshot
 
 
 class Inspector:

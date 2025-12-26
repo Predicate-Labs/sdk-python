@@ -5,10 +5,7 @@ Tests for recorder functionality
 import os
 import tempfile
 
-import pytest
-
-from sentience import SentienceBrowser, Trace, TraceStep, record
-from sentience.recorder import Recorder
+from sentience import SentienceBrowser, Trace, record
 
 
 def test_recorder_start_stop():
