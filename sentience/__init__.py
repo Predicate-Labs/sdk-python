@@ -9,6 +9,9 @@ from .agent_config import AgentConfig
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
 from .browser import SentienceBrowser
+
+# Tracing (v0.12.0+)
+from .cloud_tracing import CloudTraceSink
 from .conversational_agent import ConversationalAgent
 from .expect import expect
 
@@ -43,8 +46,7 @@ from .read import read
 from .recorder import Recorder, Trace, TraceStep, record
 from .screenshot import screenshot
 from .snapshot import snapshot
-
-# Tracing (v0.12.0+)
+from .tracer_factory import create_tracer
 from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
 
 # Utilities (v0.12.0+)
@@ -107,7 +109,9 @@ __all__ = [
     "Tracer",
     "TraceSink",
     "JsonlTraceSink",
+    "CloudTraceSink",
     "TraceEvent",
+    "create_tracer",
     # Utilities (v0.12.0+)
     "canonical_snapshot_strict",
     "canonical_snapshot_loose",
