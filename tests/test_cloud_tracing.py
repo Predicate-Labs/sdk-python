@@ -177,7 +177,11 @@ class TestTracerFactory:
             # Verify local tracing message
             captured = capsys.readouterr()
             assert "💾 [Sentience] Local tracing:" in captured.out
-            assert "traces/test-run.jsonl" in captured.out
+            # Use os.path.join for platform-independent path checking
+            import os
+
+            expected_path = os.path.join("traces", "test-run.jsonl")
+            assert expected_path in captured.out
 
             # Verify tracer works
             assert tracer.run_id == "test-run"
