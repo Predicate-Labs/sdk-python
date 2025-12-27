@@ -21,6 +21,7 @@ SENTIENCE_API_URL = "https://api.sentienceapi.com"
 def create_tracer(
     api_key: str | None = None,
     run_id: str | None = None,
+    api_url: str | None = None,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -34,6 +35,7 @@ def create_tracer(
                  - Free tier: None or empty
                  - Pro/Enterprise: Valid API key
         run_id: Unique identifier for this agent run. If not provided, generates UUID.
+        api_url: Sentience API base URL (default: https://api.sentienceapi.com)
 
     Returns:
         Tracer configured with appropriate sink
@@ -55,16 +57,19 @@ def create_tracer(
     if run_id is None:
         run_id = str(uuid.uuid4())
 
+    if api_url is None:
+        api_url = SENTIENCE_API_URL
+
     # 0. Check for orphaned traces from previous crashes (if api_key provided)
     if api_key:
-        _recover_orphaned_traces(api_key, SENTIENCE_API_URL)
+        _recover_orphaned_traces(api_key, api_url)
 
     # 1. Try to initialize Cloud Sink (Pro/Enterprise tier)
     if api_key:
         try:
             # Request pre-signed upload URL from backend
             response = requests.post(
-                f"{SENTIENCE_API_URL}/v1/traces/init",
+                f"{api_url}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={"run_id": run_id},
                 timeout=10,

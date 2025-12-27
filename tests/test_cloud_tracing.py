@@ -381,6 +381,30 @@ class TestTracerFactory:
 
                 tracer.close()
 
+    def test_create_tracer_custom_api_url(self):
+        """Test create_tracer accepts custom api_url parameter."""
+        custom_api_url = "https://custom.api.example.com"
+
+        with patch("sentience.tracer_factory.requests.post") as mock_post:
+            with patch("sentience.cloud_tracing.requests.put") as mock_put:
+                # Mock API response
+                mock_response = Mock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"upload_url": "https://storage.com/upload"}
+                mock_post.return_value = mock_response
+                mock_put.return_value = Mock(status_code=200)
+
+                tracer = create_tracer(
+                    api_key="sk_test123", run_id="test-run", api_url=custom_api_url
+                )
+
+                # Verify custom API URL was used
+                assert mock_post.called
+                call_args = mock_post.call_args
+                assert call_args[0][0] == f"{custom_api_url}/v1/traces/init"
+
+                tracer.close()
+
     def test_create_tracer_missing_upload_url_in_response(self, capsys):
         """Test create_tracer handles missing upload_url gracefully."""
         with patch("sentience.tracer_factory.requests.post") as mock_post:
