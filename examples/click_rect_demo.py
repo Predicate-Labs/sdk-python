@@ -37,7 +37,12 @@ def main():
             print("   Clicking at center of element's bbox...")
             result = click_rect(
                 browser,
-                {"x": link.bbox.x, "y": link.bbox.y, "w": link.bbox.width, "h": link.bbox.height},
+                {
+                    "x": link.bbox.x,
+                    "y": link.bbox.y,
+                    "w": link.bbox.width,
+                    "h": link.bbox.height,
+                },
             )
             print(f"   Result: success={result.success}, outcome={result.outcome}")
             print(f"   URL changed: {result.url_changed}\n")

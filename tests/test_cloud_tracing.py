@@ -2,7 +2,9 @@
 
 import gzip
 import json
+import os
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -19,6 +21,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_upload_success(self):
         """Test CloudTraceSink successfully uploads trace to cloud."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-run-123"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Mock successful response
@@ -28,7 +31,7 @@ class TestCloudTraceSink:
             mock_put.return_value = mock_response
 
             # Create sink and emit events
-            sink = CloudTraceSink(upload_url)
+            sink = CloudTraceSink(upload_url, run_id=run_id)
             sink.emit({"v": 1, "type": "run_start", "seq": 1, "data": {"agent": "TestAgent"}})
             sink.emit({"v": 1, "type": "run_end", "seq": 2, "data": {"steps": 1}})
 
@@ -57,9 +60,15 @@ class TestCloudTraceSink:
             assert event1["type"] == "run_start"
             assert event2["type"] == "run_end"
 
+            # Verify file was deleted on successful upload
+            cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+            trace_path = cache_dir / f"{run_id}.jsonl"
+            assert not trace_path.exists(), "Trace file should be deleted after successful upload"
+
     def test_cloud_trace_sink_upload_failure_preserves_trace(self, capsys):
         """Test CloudTraceSink preserves trace locally on upload failure."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-run-456"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Mock failed response
@@ -69,7 +78,7 @@ class TestCloudTraceSink:
             mock_put.return_value = mock_response
 
             # Create sink and emit events
-            sink = CloudTraceSink(upload_url)
+            sink = CloudTraceSink(upload_url, run_id=run_id)
             sink.emit({"v": 1, "type": "run_start", "seq": 1})
 
             # Close triggers upload (which will fail)
@@ -81,10 +90,19 @@ class TestCloudTraceSink:
             assert "Upload failed: HTTP 500" in captured.out
             assert "Local trace preserved" in captured.out
 
+            # Verify file was preserved on failure
+            cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+            trace_path = cache_dir / f"{run_id}.jsonl"
+            assert trace_path.exists(), "Trace file should be preserved on upload failure"
+
+            # Cleanup
+            if trace_path.exists():
+                os.remove(trace_path)
+
     def test_cloud_trace_sink_emit_after_close_raises(self):
         """Test CloudTraceSink raises error when emitting after close."""
         upload_url = "https://test.com/upload"
-        sink = CloudTraceSink(upload_url)
+        sink = CloudTraceSink(upload_url, run_id="test-run-789")
         sink.close()
 
         with pytest.raises(RuntimeError, match="CloudTraceSink is closed"):
@@ -96,7 +114,7 @@ class TestCloudTraceSink:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
-            with CloudTraceSink(upload_url) as sink:
+            with CloudTraceSink(upload_url, run_id="test-run-context") as sink:
                 sink.emit({"v": 1, "type": "test", "seq": 1})
 
             # Verify upload was called
@@ -105,12 +123,13 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_network_error_graceful_degradation(self, capsys):
         """Test CloudTraceSink handles network errors gracefully."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-run-network-error"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Simulate network error
             mock_put.side_effect = Exception("Network error")
 
-            sink = CloudTraceSink(upload_url)
+            sink = CloudTraceSink(upload_url, run_id=run_id)
             sink.emit({"v": 1, "type": "test", "seq": 1})
 
             # Should not raise, just print warning
@@ -120,13 +139,22 @@ class TestCloudTraceSink:
             assert "❌" in captured.out
             assert "Error uploading trace" in captured.out
 
+            # Verify file was preserved
+            cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+            trace_path = cache_dir / f"{run_id}.jsonl"
+            assert trace_path.exists(), "Trace file should be preserved on network error"
+
+            # Cleanup
+            if trace_path.exists():
+                os.remove(trace_path)
+
     def test_cloud_trace_sink_multiple_close_safe(self):
         """Test CloudTraceSink.close() is idempotent."""
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
-            sink = CloudTraceSink(upload_url)
+            sink = CloudTraceSink(upload_url, run_id="test-run-multiple-close")
             sink.emit({"v": 1, "type": "test", "seq": 1})
 
             # Close multiple times
@@ -136,6 +164,72 @@ class TestCloudTraceSink:
 
             # Upload should only be called once
             assert mock_put.call_count == 1
+
+    def test_cloud_trace_sink_persistent_cache_directory(self):
+        """Test CloudTraceSink uses persistent cache directory instead of temp file."""
+        upload_url = "https://test.com/upload"
+        run_id = "test-run-persistent"
+
+        sink = CloudTraceSink(upload_url, run_id=run_id)
+        sink.emit({"v": 1, "type": "test", "seq": 1})
+
+        # Verify file is in persistent cache directory
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        assert trace_path.exists(), "Trace file should be in persistent cache directory"
+        assert cache_dir.exists(), "Cache directory should exist"
+
+        # Cleanup
+        sink.close()
+        if trace_path.exists():
+            os.remove(trace_path)
+
+    def test_cloud_trace_sink_non_blocking_close(self):
+        """Test CloudTraceSink.close(blocking=False) returns immediately."""
+        upload_url = "https://test.com/upload"
+        run_id = "test-run-nonblocking"
+
+        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+            mock_put.return_value = Mock(status_code=200)
+
+            sink = CloudTraceSink(upload_url, run_id=run_id)
+            sink.emit({"v": 1, "type": "test", "seq": 1})
+
+            # Non-blocking close should return immediately
+            start_time = time.time()
+            sink.close(blocking=False)
+            elapsed = time.time() - start_time
+
+            # Should return in < 0.1 seconds (much faster than upload)
+            assert elapsed < 0.1, "Non-blocking close should return immediately"
+
+            # Wait a bit for background thread to complete
+            time.sleep(0.5)
+
+            # Verify upload was called
+            assert mock_put.called
+
+    def test_cloud_trace_sink_progress_callback(self):
+        """Test CloudTraceSink.close() with progress callback."""
+        upload_url = "https://test.com/upload"
+        run_id = "test-run-progress"
+        progress_calls = []
+
+        def progress_callback(uploaded: int, total: int):
+            progress_calls.append((uploaded, total))
+
+        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+            mock_put.return_value = Mock(status_code=200)
+
+            sink = CloudTraceSink(upload_url, run_id=run_id)
+            sink.emit({"v": 1, "type": "test", "seq": 1})
+
+            sink.close(blocking=True, on_progress=progress_callback)
+
+            # Verify progress callback was called
+            assert len(progress_calls) > 0, "Progress callback should be called"
+            # Last call should have uploaded == total
+            assert progress_calls[-1][0] == progress_calls[-1][1], "Final progress should be 100%"
 
 
 class TestTracerFactory:
@@ -165,6 +259,7 @@ class TestTracerFactory:
                 # Verify tracer works
                 assert tracer.run_id == "test-run"
                 assert isinstance(tracer.sink, CloudTraceSink)
+                assert tracer.sink.run_id == "test-run"  # Verify run_id is passed
 
                 # Cleanup
                 tracer.close()
@@ -263,9 +358,9 @@ class TestTracerFactory:
 
             tracer.close()
 
-    def test_create_tracer_custom_api_url(self):
-        """Test create_tracer with custom API URL."""
-        custom_url = "https://custom.api.com"
+    def test_create_tracer_uses_constant_api_url(self):
+        """Test create_tracer uses constant SENTIENCE_API_URL."""
+        from sentience.tracer_factory import SENTIENCE_API_URL
 
         with patch("sentience.tracer_factory.requests.post") as mock_post:
             with patch("sentience.cloud_tracing.requests.put") as mock_put:
@@ -276,12 +371,13 @@ class TestTracerFactory:
                 mock_post.return_value = mock_response
                 mock_put.return_value = Mock(status_code=200)
 
-                tracer = create_tracer(api_key="sk_test123", run_id="test-run", api_url=custom_url)
+                tracer = create_tracer(api_key="sk_test123", run_id="test-run")
 
-                # Verify correct API URL was used
+                # Verify correct API URL was used (constant)
                 assert mock_post.called
                 call_args = mock_post.call_args
-                assert call_args[0][0] == f"{custom_url}/v1/traces/init"
+                assert call_args[0][0] == f"{SENTIENCE_API_URL}/v1/traces/init"
+                assert SENTIENCE_API_URL == "https://api.sentienceapi.com"
 
                 tracer.close()
 
@@ -305,6 +401,66 @@ class TestTracerFactory:
                 assert isinstance(tracer.sink, JsonlTraceSink)
 
                 tracer.close()
+
+    def test_create_tracer_orphaned_trace_recovery(self, capsys):
+        """Test create_tracer recovers and uploads orphaned traces from previous crashes."""
+        import gzip
+        from pathlib import Path
+
+        # Create orphaned trace file
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        orphaned_run_id = "orphaned-run-123"
+        orphaned_path = cache_dir / f"{orphaned_run_id}.jsonl"
+
+        # Write test trace data
+        with open(orphaned_path, "w") as f:
+            f.write('{"v": 1, "type": "run_start", "seq": 1}\n')
+
+        try:
+            with patch("sentience.tracer_factory.requests.post") as mock_post:
+                with patch("sentience.tracer_factory.requests.put") as mock_put:
+                    # Mock API response for orphaned trace recovery
+                    mock_recovery_response = Mock()
+                    mock_recovery_response.status_code = 200
+                    mock_recovery_response.json.return_value = {
+                        "upload_url": "https://storage.com/orphaned-upload"
+                    }
+
+                    # Mock API response for new tracer creation
+                    mock_new_response = Mock()
+                    mock_new_response.status_code = 200
+                    mock_new_response.json.return_value = {
+                        "upload_url": "https://storage.com/new-upload"
+                    }
+
+                    # First call for orphaned recovery, second for new tracer
+                    mock_post.side_effect = [mock_recovery_response, mock_new_response]
+                    mock_put.return_value = Mock(status_code=200)
+
+                    # Create tracer - should trigger orphaned trace recovery
+                    tracer = create_tracer(api_key="sk_test123", run_id="new-run-456")
+
+                    # Verify recovery messages
+                    captured = capsys.readouterr()
+                    assert "Found" in captured.out and "un-uploaded trace" in captured.out
+                    assert "Uploaded orphaned trace" in captured.out or "Failed" in captured.out
+
+                    # Verify orphaned file was processed (either uploaded and deleted, or failed)
+                    # If successful, file should be deleted
+                    # If failed, file should still exist
+                    # We check that recovery was attempted
+                    assert mock_post.call_count >= 1, "Orphaned trace recovery should be attempted"
+
+                    # Verify new tracer was created
+                    assert tracer.run_id == "new-run-456"
+
+                    tracer.close()
+
+        finally:
+            # Cleanup orphaned file if it still exists
+            if orphaned_path.exists():
+                os.remove(orphaned_path)
 
 
 class TestRegressionTests:

@@ -217,7 +217,6 @@ def test_execute_find_and_click_step():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.click") as mock_click,
     ):
-
         from sentience.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
@@ -247,7 +246,6 @@ def test_execute_find_and_type_step():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.type_text") as mock_type,
     ):
-
         from sentience.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
@@ -342,7 +340,11 @@ def test_synthesize_response():
 
     agent = ConversationalAgent(browser, llm, verbose=False)
 
-    plan = {"intent": "Search for magic mouse", "steps": [], "expected_outcome": "Success"}
+    plan = {
+        "intent": "Search for magic mouse",
+        "steps": [],
+        "expected_outcome": "Success",
+    }
 
     execution_results = [{"success": True, "action": "NAVIGATE"}]
 

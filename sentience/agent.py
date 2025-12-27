@@ -5,7 +5,7 @@ Implements observe-think-act loop for natural language commands
 
 import re
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 from .actions import click, press, type_text
 from .base_agent import BaseAgent
@@ -93,8 +93,11 @@ class SentienceAgent(BaseAgent):
         # Step counter for tracing
         self._step_count = 0
 
-    def act(
-        self, goal: str, max_retries: int = 2, snapshot_options: SnapshotOptions | None = None
+    def act(  # noqa: C901
+        self,
+        goal: str,
+        max_retries: int = 2,
+        snapshot_options: SnapshotOptions | None = None,
     ) -> AgentActionResult:
         """
         Execute a high-level goal using observe → think → act loop
@@ -116,9 +119,9 @@ class SentienceAgent(BaseAgent):
             42
         """
         if self.verbose:
-            print(f"\n{'='*70}")
+            print(f"\n{'=' * 70}")
             print(f"🤖 Agent Goal: {goal}")
-            print(f"{'='*70}")
+            print(f"{'=' * 70}")
 
         # Generate step ID for tracing
         self._step_count += 1
@@ -460,7 +463,9 @@ Examples:
 
         # Parse TYPE(42, "hello world")
         elif match := re.match(
-            r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)', action_str, re.IGNORECASE
+            r'TYPE\s*\(\s*(\d+)\s*,\s*["\']([^"\']*)["\']\s*\)',
+            action_str,
+            re.IGNORECASE,
         ):
             element_id = int(match.group(1))
             text = match.group(2)
@@ -486,7 +491,11 @@ Examples:
 
         # Parse FINISH()
         elif re.match(r"FINISH\s*\(\s*\)", action_str, re.IGNORECASE):
-            return {"success": True, "action": "finish", "message": "Task marked as complete"}
+            return {
+                "success": True,
+                "action": "finish",
+                "message": "Task marked as complete",
+            }
 
         else:
             raise ValueError(

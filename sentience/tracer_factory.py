@@ -4,20 +4,23 @@ Tracer factory with automatic tier detection.
 Provides convenient factory function for creating tracers with cloud upload support.
 """
 
+import gzip
+import os
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import requests
 
 from sentience.cloud_tracing import CloudTraceSink
 from sentience.tracing import JsonlTraceSink, Tracer
 
+# Sentience API base URL (constant)
+SENTIENCE_API_URL = "https://api.sentienceapi.com"
+
 
 def create_tracer(
     api_key: str | None = None,
     run_id: str | None = None,
-    api_url: str = "https://api.sentienceapi.com",
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -31,7 +34,6 @@ def create_tracer(
                  - Free tier: None or empty
                  - Pro/Enterprise: Valid API key
         run_id: Unique identifier for this agent run. If not provided, generates UUID.
-        api_url: Sentience API base URL (default: https://api.sentienceapi.com)
 
     Returns:
         Tracer configured with appropriate sink
@@ -53,12 +55,16 @@ def create_tracer(
     if run_id is None:
         run_id = str(uuid.uuid4())
 
+    # 0. Check for orphaned traces from previous crashes (if api_key provided)
+    if api_key:
+        _recover_orphaned_traces(api_key, SENTIENCE_API_URL)
+
     # 1. Try to initialize Cloud Sink (Pro/Enterprise tier)
     if api_key:
         try:
             # Request pre-signed upload URL from backend
             response = requests.post(
-                f"{api_url}/v1/traces/init",
+                f"{SENTIENCE_API_URL}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={"run_id": run_id},
                 timeout=10,
@@ -72,7 +78,7 @@ def create_tracer(
                     print("☁️  [Sentience] Cloud tracing enabled (Pro tier)")
                     return Tracer(
                         run_id=run_id,
-                        sink=CloudTraceSink(upload_url=upload_url),
+                        sink=CloudTraceSink(upload_url=upload_url, run_id=run_id),
                     )
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
@@ -103,3 +109,86 @@ def create_tracer(
     print(f"💾 [Sentience] Local tracing: {local_path}")
 
     return Tracer(run_id=run_id, sink=JsonlTraceSink(str(local_path)))
+
+
+def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> None:
+    """
+    Attempt to upload orphaned traces from previous crashed runs.
+
+    Scans ~/.sentience/traces/pending/ for un-uploaded trace files and
+    attempts to upload them using the provided API key.
+
+    Args:
+        api_key: Sentience API key for authentication
+        api_url: Sentience API base URL (defaults to SENTIENCE_API_URL)
+    """
+    pending_dir = Path.home() / ".sentience" / "traces" / "pending"
+
+    if not pending_dir.exists():
+        return
+
+    orphaned = list(pending_dir.glob("*.jsonl"))
+
+    if not orphaned:
+        return
+
+    print(f"⚠️  [Sentience] Found {len(orphaned)} un-uploaded trace(s) from previous runs")
+    print("   Attempting to upload now...")
+
+    for trace_file in orphaned:
+        try:
+            # Extract run_id from filename (format: {run_id}.jsonl)
+            run_id = trace_file.stem
+
+            # Request new upload URL for this run_id
+            response = requests.post(
+                f"{api_url}/v1/traces/init",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"run_id": run_id},
+                timeout=10,
+            )
+
+            if response.status_code != 200:
+                print(f"❌ Failed to get upload URL for {run_id}: HTTP {response.status_code}")
+                continue
+
+            data = response.json()
+            upload_url = data.get("upload_url")
+
+            if not upload_url:
+                print(f"❌ Upload URL missing for {run_id}")
+                continue
+
+            # Read and compress trace file
+            with open(trace_file, "rb") as f:
+                trace_data = f.read()
+
+            compressed_data = gzip.compress(trace_data)
+
+            # Upload to cloud
+            upload_response = requests.put(
+                upload_url,
+                data=compressed_data,
+                headers={
+                    "Content-Type": "application/x-gzip",
+                    "Content-Encoding": "gzip",
+                },
+                timeout=60,
+            )
+
+            if upload_response.status_code == 200:
+                print(f"✅ Uploaded orphaned trace: {run_id}")
+                # Delete file on successful upload
+                try:
+                    os.remove(trace_file)
+                except Exception:
+                    pass  # Ignore cleanup errors
+            else:
+                print(f"❌ Failed to upload {run_id}: HTTP {upload_response.status_code}")
+
+        except requests.exceptions.Timeout:
+            print(f"❌ Timeout uploading {trace_file.name}")
+        except requests.exceptions.ConnectionError:
+            print(f"❌ Connection error uploading {trace_file.name}")
+        except Exception as e:
+            print(f"❌ Error uploading {trace_file.name}: {e}")

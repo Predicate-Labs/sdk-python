@@ -65,7 +65,10 @@ RESPONSE FORMAT (return ONLY the function call):
     user_prompt = "What is the next step to achieve the goal?"
 
     response = llm.generate(
-        system_prompt=system_prompt, user_prompt=user_prompt, max_new_tokens=20, temperature=0.0
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        max_new_tokens=20,
+        temperature=0.0,
     )
 
     print(f"Agent Response: {response.content}")

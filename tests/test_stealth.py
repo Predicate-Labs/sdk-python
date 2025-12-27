@@ -91,7 +91,11 @@ def test_stealth_features():  # noqa: C901
         print("\n7. Testing against bot detection site...")
         try:
             # Navigate to a bot detection test site
-            page.goto("https://bot.sannysoft.com/", wait_until="domcontentloaded", timeout=10000)
+            page.goto(
+                "https://bot.sannysoft.com/",
+                wait_until="domcontentloaded",
+                timeout=10000,
+            )
             page.wait_for_timeout(2000)  # Wait for page to load
 
             # Check if we're detected

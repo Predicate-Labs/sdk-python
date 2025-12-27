@@ -293,7 +293,6 @@ def test_agent_act_full_cycle():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.click") as mock_click,
     ):
-
         from sentience.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
@@ -392,7 +391,6 @@ def test_agent_retry_on_failure():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.click") as mock_click,
     ):
-
         mock_snapshot.return_value = create_mock_snapshot()
         # Simulate click failure
         mock_click.side_effect = RuntimeError("Element not found")
@@ -417,7 +415,6 @@ def test_agent_action_parsing_variations():
         patch("sentience.agent.type_text") as mock_type,
         patch("sentience.agent.press") as mock_press,
     ):
-
         from sentience.models import ActionResult
 
         mock_result = ActionResult(success=True, duration_ms=100, outcome="dom_updated")

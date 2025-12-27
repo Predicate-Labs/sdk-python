@@ -11,7 +11,8 @@ import pytest
 def pytest_configure(config):
     """Register custom markers"""
     config.addinivalue_line(
-        "markers", "requires_extension: mark test as requiring the sentience-chrome extension"
+        "markers",
+        "requires_extension: mark test as requiring the sentience-chrome extension",
     )
 
 
