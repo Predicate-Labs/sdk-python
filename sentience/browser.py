@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
-from sentience.models import ProxyConfig
+from sentience.models import ProxyConfig, StorageState
 
 # Import stealth for bot evasion (optional - graceful fallback if not available)
 try:
@@ -31,6 +31,8 @@ class SentienceBrowser:
         api_url: str | None = None,
         headless: bool | None = None,
         proxy: str | None = None,
+        user_data_dir: str | None = None,
+        storage_state: str | Path | StorageState | dict | None = None,
     ):
         """
         Initialize Sentience browser
@@ -46,6 +48,15 @@ class SentienceBrowser:
             proxy: Optional proxy server URL (e.g., 'http://user:pass@proxy.example.com:8080')
                    Supports HTTP, HTTPS, and SOCKS5 proxies
                    Falls back to SENTIENCE_PROXY environment variable if not provided
+            user_data_dir: Optional path to user data directory for persistent sessions.
+                          If None, uses temporary directory (session not persisted).
+                          If provided, cookies and localStorage persist across browser restarts.
+            storage_state: Optional storage state to inject (cookies + localStorage).
+                          Can be:
+                          - Path to JSON file (str or Path)
+                          - StorageState object
+                          - Dictionary with 'cookies' and/or 'origins' keys
+                          If provided, browser starts with pre-injected authentication.
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -64,6 +75,10 @@ class SentienceBrowser:
 
         # Support proxy from argument or environment variable
         self.proxy = proxy or os.environ.get("SENTIENCE_PROXY")
+
+        # Auth injection support
+        self.user_data_dir = user_data_dir
+        self.storage_state = storage_state
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -170,9 +185,16 @@ class SentienceBrowser:
         # Parse proxy configuration if provided
         proxy_config = self._parse_proxy(self.proxy) if self.proxy else None
 
+        # Handle User Data Directory (Persistence)
+        if self.user_data_dir:
+            user_data_dir = str(self.user_data_dir)
+            Path(user_data_dir).mkdir(parents=True, exist_ok=True)
+        else:
+            user_data_dir = ""  # Ephemeral temp dir (existing behavior)
+
         # Build launch_persistent_context parameters
         launch_params = {
-            "user_data_dir": "",  # Ephemeral temp dir
+            "user_data_dir": user_data_dir,
             "headless": False,  # IMPORTANT: See note above
             "args": args,
             "viewport": {"width": 1280, "height": 800},
@@ -193,6 +215,10 @@ class SentienceBrowser:
         self.context = self.playwright.chromium.launch_persistent_context(**launch_params)
 
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+
+        # Inject storage state if provided (must be after context creation)
+        if self.storage_state:
+            self._inject_storage_state(self.storage_state)
 
         # Apply stealth if available
         if STEALTH_AVAILABLE:
@@ -232,6 +258,92 @@ class SentienceBrowser:
                 f"4. Extension path: {self._extension_path}\n"
                 f"5. Diagnostic info: {diag}"
             )
+
+    def _inject_storage_state(
+        self, storage_state: str | Path | StorageState | dict
+    ) -> None:  # noqa: C901
+        """
+        Inject storage state (cookies + localStorage) into browser context.
+
+        Args:
+            storage_state: Path to JSON file, StorageState object, or dict containing storage state
+        """
+        import json
+
+        # Load storage state
+        if isinstance(storage_state, (str, Path)):
+            # Load from file
+            with open(storage_state, encoding="utf-8") as f:
+                state_dict = json.load(f)
+            state = StorageState.from_dict(state_dict)
+        elif isinstance(storage_state, StorageState):
+            # Already a StorageState object
+            state = storage_state
+        elif isinstance(storage_state, dict):
+            # Dictionary format
+            state = StorageState.from_dict(storage_state)
+        else:
+            raise ValueError(
+                f"Invalid storage_state type: {type(storage_state)}. "
+                "Expected str, Path, StorageState, or dict."
+            )
+
+        # Inject cookies (works globally)
+        if state.cookies:
+            # Convert to Playwright cookie format
+            playwright_cookies = []
+            for cookie in state.cookies:
+                cookie_dict = cookie.model_dump()
+                # Playwright expects lowercase keys for some fields
+                playwright_cookie = {
+                    "name": cookie_dict["name"],
+                    "value": cookie_dict["value"],
+                    "domain": cookie_dict["domain"],
+                    "path": cookie_dict["path"],
+                }
+                if cookie_dict.get("expires"):
+                    playwright_cookie["expires"] = cookie_dict["expires"]
+                if cookie_dict.get("httpOnly"):
+                    playwright_cookie["httpOnly"] = cookie_dict["httpOnly"]
+                if cookie_dict.get("secure"):
+                    playwright_cookie["secure"] = cookie_dict["secure"]
+                if cookie_dict.get("sameSite"):
+                    playwright_cookie["sameSite"] = cookie_dict["sameSite"]
+                playwright_cookies.append(playwright_cookie)
+
+            self.context.add_cookies(playwright_cookies)
+            print(f"✅ [Sentience] Injected {len(state.cookies)} cookie(s)")
+
+        # Inject LocalStorage (requires navigation to each domain)
+        if state.origins:
+            for origin_data in state.origins:
+                origin = origin_data.origin
+                if not origin:
+                    continue
+
+                # Navigate to origin to set localStorage
+                try:
+                    self.page.goto(origin, wait_until="domcontentloaded", timeout=10000)
+
+                    # Inject localStorage
+                    if origin_data.localStorage:
+                        # Convert to dict format for JavaScript
+                        localStorage_dict = {
+                            item.name: item.value for item in origin_data.localStorage
+                        }
+                        self.page.evaluate(
+                            """(localStorage_data) => {
+                                for (const [key, value] of Object.entries(localStorage_data)) {
+                                    localStorage.setItem(key, value);
+                                }
+                            }""",
+                            localStorage_dict,
+                        )
+                        print(
+                            f"✅ [Sentience] Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
+                        )
+                except Exception as e:
+                    print(f"⚠️  [Sentience] Failed to inject localStorage for {origin}: {e}")
 
     def _wait_for_extension(self, timeout_sec: float = 5.0) -> bool:
         """Poll for window.sentience to be available"""

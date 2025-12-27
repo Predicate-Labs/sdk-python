@@ -216,3 +216,124 @@ class ProxyConfig(BaseModel):
             config["username"] = self.username
             config["password"] = self.password
         return config
+
+
+# ========== Storage State Models (Auth Injection) ==========
+
+
+class Cookie(BaseModel):
+    """
+    Cookie definition for storage state injection.
+
+    Matches Playwright's cookie format for storage_state.
+    """
+
+    name: str = Field(..., description="Cookie name")
+    value: str = Field(..., description="Cookie value")
+    domain: str = Field(..., description="Cookie domain (e.g., '.example.com')")
+    path: str = Field(default="/", description="Cookie path")
+    expires: float | None = Field(None, description="Expiration timestamp (Unix epoch)")
+    httpOnly: bool = Field(default=False, description="HTTP-only flag")
+    secure: bool = Field(default=False, description="Secure (HTTPS-only) flag")
+    sameSite: Literal["Strict", "Lax", "None"] = Field(
+        default="Lax", description="SameSite attribute"
+    )
+
+
+class LocalStorageItem(BaseModel):
+    """
+    LocalStorage item for a specific origin.
+
+    Playwright stores localStorage as an array of {name, value} objects.
+    """
+
+    name: str = Field(..., description="LocalStorage key")
+    value: str = Field(..., description="LocalStorage value")
+
+
+class OriginStorage(BaseModel):
+    """
+    Storage state for a specific origin (localStorage).
+
+    Represents localStorage data for a single domain.
+    """
+
+    origin: str = Field(..., description="Origin URL (e.g., 'https://example.com')")
+    localStorage: list[LocalStorageItem] = Field(
+        default_factory=list, description="LocalStorage items for this origin"
+    )
+
+
+class StorageState(BaseModel):
+    """
+    Complete browser storage state (cookies + localStorage).
+
+    This is the format used by Playwright's storage_state() method.
+    Can be saved to/loaded from JSON files for session injection.
+    """
+
+    cookies: list[Cookie] = Field(
+        default_factory=list, description="Cookies to inject (global scope)"
+    )
+    origins: list[OriginStorage] = Field(
+        default_factory=list, description="LocalStorage data per origin"
+    )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StorageState":
+        """
+        Create StorageState from dictionary (e.g., loaded from JSON).
+
+        Args:
+            data: Dictionary with 'cookies' and/or 'origins' keys
+
+        Returns:
+            StorageState instance
+        """
+        cookies = [
+            Cookie(**cookie) if isinstance(cookie, dict) else cookie
+            for cookie in data.get("cookies", [])
+        ]
+        origins = []
+        for origin_data in data.get("origins", []):
+            if isinstance(origin_data, dict):
+                # Handle localStorage as array of {name, value} or as dict
+                localStorage_data = origin_data.get("localStorage", [])
+                if isinstance(localStorage_data, dict):
+                    # Convert dict to list of LocalStorageItem
+                    localStorage_items = [
+                        LocalStorageItem(name=k, value=v) for k, v in localStorage_data.items()
+                    ]
+                else:
+                    # Already a list
+                    localStorage_items = [
+                        LocalStorageItem(**item) if isinstance(item, dict) else item
+                        for item in localStorage_data
+                    ]
+                origins.append(
+                    OriginStorage(
+                        origin=origin_data.get("origin", ""),
+                        localStorage=localStorage_items,
+                    )
+                )
+            else:
+                origins.append(origin_data)
+        return cls(cookies=cookies, origins=origins)
+
+    def to_playwright_dict(self) -> dict:
+        """
+        Convert to Playwright-compatible dictionary format.
+
+        Returns:
+            Dictionary compatible with Playwright's storage_state parameter
+        """
+        return {
+            "cookies": [cookie.model_dump() for cookie in self.cookies],
+            "origins": [
+                {
+                    "origin": origin.origin,
+                    "localStorage": [item.model_dump() for item in origin.localStorage],
+                }
+                for origin in self.origins
+            ],
+        }
