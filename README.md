@@ -396,6 +396,36 @@ browser = SentienceBrowser(headless=True)
 browser = SentienceBrowser()  # headless=True if CI=true, else False
 ```
 
+### Residential Proxy Support
+
+Use residential proxies to route traffic and protect your IP address. Supports HTTP, HTTPS, and SOCKS5 with automatic SSL certificate handling:
+
+```python
+# Method 1: Direct configuration
+browser = SentienceBrowser(proxy="http://user:pass@proxy.example.com:8080")
+
+# Method 2: Environment variable
+# export SENTIENCE_PROXY="http://user:pass@proxy.example.com:8080"
+browser = SentienceBrowser()
+
+# Works with agents
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+agent = SentienceAgent(browser, llm)
+
+with browser:
+    browser.page.goto("https://example.com")
+    agent.act("Search for products")
+    # All traffic routed through proxy with WebRTC leak protection
+```
+
+**Features:**
+- HTTP, HTTPS, SOCKS5 proxy support
+- Username/password authentication
+- Automatic self-signed SSL certificate handling
+- WebRTC IP leak protection (automatic)
+
+See `examples/residential_proxy_agent.py` for complete examples.
+
 ## Best Practices
 
 ### 1. Wait for Dynamic Content
