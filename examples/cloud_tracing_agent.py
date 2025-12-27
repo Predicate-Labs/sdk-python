@@ -85,9 +85,9 @@ def main():
         # 6. Get token usage stats
         stats = agent.get_token_stats()
         print("\n📊 Token Usage:")
-        print(f"   Total tokens: {stats['total_tokens']}")
-        print(f"   Prompt tokens: {stats['total_prompt_tokens']}")
-        print(f"   Completion tokens: {stats['total_completion_tokens']}")
+        print(f"   Total tokens: {stats.total_tokens}")
+        print(f"   Prompt tokens: {stats.total_prompt_tokens}")
+        print(f"   Completion tokens: {stats.total_completion_tokens}")
 
     except Exception as e:
         print(f"\n❌ Error during execution: {e}")

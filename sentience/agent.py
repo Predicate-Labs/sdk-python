@@ -237,7 +237,7 @@ class SentienceAgent(BaseAgent):
                 self._track_tokens(goal, llm_response)
 
                 # Parse action from LLM response
-                action_str = llm_response.content.strip()
+                action_str = self._extract_action_from_response(llm_response.content)
 
                 # 4. EXECUTE: Parse and run action
                 result_dict = self._execute_action(action_str, filtered_snap)
@@ -395,6 +395,34 @@ class SentienceAgent(BaseAgent):
 
         return "\n".join(lines)
 
+    def _extract_action_from_response(self, response: str) -> str:
+        """
+        Extract action command from LLM response, handling cases where
+        the LLM adds extra explanation despite instructions.
+
+        Args:
+            response: Raw LLM response text
+
+        Returns:
+            Cleaned action command string
+        """
+        import re
+
+        # Remove markdown code blocks if present
+        response = re.sub(r"```[\w]*\n?", "", response)
+        response = response.strip()
+
+        # Try to find action patterns in the response
+        # Pattern matches: CLICK(123), TYPE(123, "text"), PRESS("key"), FINISH()
+        action_pattern = r'(CLICK\s*\(\s*\d+\s*\)|TYPE\s*\(\s*\d+\s*,\s*["\'].*?["\']\s*\)|PRESS\s*\(\s*["\'].*?["\']\s*\)|FINISH\s*\(\s*\))'
+
+        match = re.search(action_pattern, response, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+        # If no pattern match, return the original response (will likely fail parsing)
+        return response
+
     def _query_llm(self, dom_context: str, goal: str) -> LLMResponse:
         """
         Query LLM with standardized prompt template
@@ -418,23 +446,30 @@ VISUAL CUES EXPLAINED:
 - {{CLICKABLE}}: Element is clickable
 - {{color:X}}: Background color name
 
-RESPONSE FORMAT:
-Return ONLY the function call, no explanation or markdown.
-
-Available actions:
+CRITICAL RESPONSE FORMAT:
+You MUST respond with ONLY ONE of these exact action formats:
 - CLICK(id) - Click element by ID
 - TYPE(id, "text") - Type text into element
 - PRESS("key") - Press keyboard key (Enter, Escape, Tab, ArrowDown, etc)
 - FINISH() - Task complete
 
-Examples:
-- CLICK(42)
-- TYPE(15, "magic mouse")
-- PRESS("Enter")
-- FINISH()
+DO NOT include any explanation, reasoning, or natural language.
+DO NOT use markdown formatting or code blocks.
+DO NOT say "The next step is..." or anything similar.
+
+CORRECT Examples:
+CLICK(42)
+TYPE(15, "magic mouse")
+PRESS("Enter")
+FINISH()
+
+INCORRECT Examples (DO NOT DO THIS):
+"The next step is to click..."
+"I will type..."
+```CLICK(42)```
 """
 
-        user_prompt = "What is the next step to achieve the goal?"
+        user_prompt = "Return the single action command:"
 
         return self.llm.generate(system_prompt, user_prompt, temperature=0.0)
 
