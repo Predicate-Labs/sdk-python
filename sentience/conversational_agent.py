@@ -5,11 +5,11 @@ Enables end users to control web automation using plain English
 
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .agent import SentienceAgent
 from .browser import SentienceBrowser
-from .llm_provider import LLMProvider, LLMResponse
+from .llm_provider import LLMProvider
 from .models import Snapshot
 from .snapshot import snapshot
 
@@ -70,9 +70,9 @@ class ConversationalAgent:
              The top result is from amazon.com selling Magic Mouse 2 for $79."
         """
         if self.verbose:
-            print(f"\n{'='*70}")
+            print(f"\n{'=' * 70}")
             print(f"👤 User: {user_input}")
-            print(f"{'='*70}")
+            print(f"{'=' * 70}")
 
         start_time = time.time()
 
@@ -80,7 +80,7 @@ class ConversationalAgent:
         plan = self._create_plan(user_input)
 
         if self.verbose:
-            print(f"\n📋 Execution Plan:")
+            print("\n📋 Execution Plan:")
             for i, step in enumerate(plan["steps"], 1):
                 print(f"  {i}. {step['description']}")
 
@@ -176,7 +176,10 @@ Create a step-by-step execution plan."""
 
         try:
             response = self.llm.generate(
-                system_prompt, user_prompt, json_mode=self.llm.supports_json_mode(), temperature=0.0
+                system_prompt,
+                user_prompt,
+                json_mode=self.llm.supports_json_mode(),
+                temperature=0.0,
             )
 
             # Parse JSON response
@@ -262,7 +265,11 @@ Create a step-by-step execution plan."""
             elif action == "WAIT":
                 duration = params.get("duration", 2.0)
                 time.sleep(duration)
-                return {"success": True, "action": action, "data": {"duration": duration}}
+                return {
+                    "success": True,
+                    "action": action,
+                    "data": {"duration": duration},
+                }
 
             elif action == "EXTRACT_INFO":
                 info_type = params["info_type"]
@@ -337,7 +344,11 @@ Return JSON with extracted information:
             )
             return json.loads(response.content)
         except:
-            return {"found": False, "data": {}, "summary": "Failed to extract information"}
+            return {
+                "found": False,
+                "data": {},
+                "summary": "Failed to extract information",
+            }
 
     def _verify_condition(self, condition: str) -> bool:
         """
@@ -375,7 +386,10 @@ Return JSON:
             return False
 
     def _synthesize_response(
-        self, user_input: str, plan: dict[str, Any], execution_results: list[dict[str, Any]]
+        self,
+        user_input: str,
+        plan: dict[str, Any],
+        execution_results: list[dict[str, Any]],
     ) -> str:
         """
         Synthesize a natural language response from execution results

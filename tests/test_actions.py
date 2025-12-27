@@ -77,7 +77,12 @@ def test_click_rect_with_bbox():
         if link:
             result = click_rect(
                 browser,
-                {"x": link.bbox.x, "y": link.bbox.y, "w": link.bbox.width, "h": link.bbox.height},
+                {
+                    "x": link.bbox.x,
+                    "y": link.bbox.y,
+                    "w": link.bbox.width,
+                    "h": link.bbox.height,
+                },
             )
             assert result.success is True
             assert result.duration_ms > 0

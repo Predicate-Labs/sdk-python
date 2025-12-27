@@ -9,6 +9,7 @@ sentience/agent_config.py
 sentience/base_agent.py
 sentience/browser.py
 sentience/cli.py
+sentience/cloud_tracing.py
 sentience/conversational_agent.py
 sentience/expect.py
 sentience/formatting.py
@@ -21,6 +22,7 @@ sentience/read.py
 sentience/recorder.py
 sentience/screenshot.py
 sentience/snapshot.py
+sentience/tracer_factory.py
 sentience/tracing.py
 sentience/utils.py
 sentience/wait.py
@@ -39,6 +41,7 @@ tests/test_actions.py
 tests/test_agent.py
 tests/test_agent_config.py
 tests/test_bot.py
+tests/test_cloud_tracing.py
 tests/test_conversational_agent.py
 tests/test_formatting.py
 tests/test_generator.py

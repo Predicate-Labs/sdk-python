@@ -40,6 +40,9 @@ ENV/
 htmlcov/
 .tox/
 
+# Traces (runtime and test-generated)
+traces/
+
 # Jupyter
 .ipynb_checkpoints
 

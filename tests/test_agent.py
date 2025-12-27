@@ -3,7 +3,7 @@ Unit tests for Sentience Agent Layer (Phase 1)
 Tests LLM providers and SentienceAgent without requiring browser
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -293,7 +293,6 @@ def test_agent_act_full_cycle():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.click") as mock_click,
     ):
-
         from sentience.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
@@ -392,7 +391,6 @@ def test_agent_retry_on_failure():
         patch("sentience.agent.snapshot") as mock_snapshot,
         patch("sentience.agent.click") as mock_click,
     ):
-
         mock_snapshot.return_value = create_mock_snapshot()
         # Simulate click failure
         mock_click.side_effect = RuntimeError("Element not found")
@@ -417,7 +415,6 @@ def test_agent_action_parsing_variations():
         patch("sentience.agent.type_text") as mock_type,
         patch("sentience.agent.press") as mock_press,
     ):
-
         from sentience.models import ActionResult
 
         mock_result = ActionResult(success=True, duration_ms=100, outcome="dom_updated")
@@ -435,3 +432,38 @@ def test_agent_action_parsing_variations():
         assert mock_click.call_count == 2
         assert mock_type.call_count == 1
         assert mock_press.call_count == 1
+
+
+def test_agent_extract_action_from_llm_response():
+    """Test extraction of action commands from LLM responses with extra text"""
+    browser = create_mock_browser()
+    llm = MockLLMProvider()
+    agent = SentienceAgent(browser, llm, verbose=False)
+
+    # Test clean action (should pass through)
+    assert agent._extract_action_from_response("CLICK(42)") == "CLICK(42)"
+    assert agent._extract_action_from_response('TYPE(15, "test")') == 'TYPE(15, "test")'
+    assert agent._extract_action_from_response('PRESS("Enter")') == 'PRESS("Enter")'
+    assert agent._extract_action_from_response("FINISH()") == "FINISH()"
+
+    # Test with natural language prefix (the bug case)
+    assert (
+        agent._extract_action_from_response("The next step is to click the button. CLICK(42)")
+        == "CLICK(42)"
+    )
+    assert (
+        agent._extract_action_from_response(
+            'The next step is to type "Sentience AI agent SDK" into the search field. TYPE(15, "Sentience AI agent SDK")'
+        )
+        == 'TYPE(15, "Sentience AI agent SDK")'
+    )
+
+    # Test with markdown code blocks
+    assert agent._extract_action_from_response("```\nCLICK(42)\n```") == "CLICK(42)"
+    assert (
+        agent._extract_action_from_response('```python\nTYPE(15, "test")\n```')
+        == 'TYPE(15, "test")'
+    )
+
+    # Test with explanation after action
+    assert agent._extract_action_from_response("CLICK(42) to submit the form") == "CLICK(42)"

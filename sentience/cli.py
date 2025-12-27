@@ -104,7 +104,9 @@ def main():
         "--snapshots", action="store_true", help="Capture snapshots at each step"
     )
     record_parser.add_argument(
-        "--mask", action="append", help="Pattern to mask in recorded text (e.g., password)"
+        "--mask",
+        action="append",
+        help="Pattern to mask in recorded text (e.g., password)",
     )
     record_parser.set_defaults(func=cmd_record)
 

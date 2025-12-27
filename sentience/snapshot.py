@@ -97,7 +97,8 @@ def _snapshot_via_extension(
     # may not be immediately available after page load
     try:
         browser.page.wait_for_function(
-            "typeof window.sentience !== 'undefined'", timeout=5000  # 5 second timeout
+            "typeof window.sentience !== 'undefined'",
+            timeout=5000,  # 5 second timeout
         )
     except Exception as e:
         # Gather diagnostics if wait fails

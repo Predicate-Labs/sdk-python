@@ -4,11 +4,10 @@ Recorder - captures user actions into a trace
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .browser import SentienceBrowser
 from .models import Element, Snapshot
-from .query import find
 from .snapshot import snapshot
 
 
@@ -83,14 +82,22 @@ class Trace:
         self.add_step(step)
 
     def add_type(
-        self, element_id: int, text: str, selector: str | None = None, mask: bool = False
+        self,
+        element_id: int,
+        text: str,
+        selector: str | None = None,
+        mask: bool = False,
     ) -> None:
         """Add type step"""
         ts = int((datetime.now() - self._start_time).total_seconds() * 1000)
         # Mask sensitive data if requested
         masked_text = "***" if mask else text
         step = TraceStep(
-            ts=ts, type="type", element_id=element_id, text=masked_text, selector=selector
+            ts=ts,
+            type="type",
+            element_id=element_id,
+            text=masked_text,
+            selector=selector,
         )
         self.add_step(step)
 
@@ -188,7 +195,7 @@ class Recorder:
         """Clean up event listeners"""
         pass
 
-    def _infer_selector(self, element_id: int) -> str | None:
+    def _infer_selector(self, element_id: int) -> str | None:  # noqa: C901
         """
         Infer a semantic selector for an element
 

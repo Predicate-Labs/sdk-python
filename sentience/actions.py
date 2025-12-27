@@ -3,14 +3,13 @@ Actions v1 - click, type, press
 """
 
 import time
-from typing import Any, Dict, Optional
 
 from .browser import SentienceBrowser
 from .models import ActionResult, BBox, Snapshot
 from .snapshot import snapshot
 
 
-def click(
+def click(  # noqa: C901
     browser: SentienceBrowser,
     element_id: int,
     use_mouse: bool = True,
@@ -141,7 +140,10 @@ def click(
         error=(
             None
             if success
-            else {"code": "click_failed", "reason": "Element not found or not clickable"}
+            else {
+                "code": "click_failed",
+                "reason": "Element not found or not clickable",
+            }
         ),
     )
 
@@ -371,7 +373,10 @@ def click_rect(
             success=False,
             duration_ms=0,
             outcome="error",
-            error={"code": "invalid_rect", "reason": "Rectangle width and height must be positive"},
+            error={
+                "code": "invalid_rect",
+                "reason": "Rectangle width and height must be positive",
+            },
         )
 
     start_time = time.time()
@@ -426,6 +431,9 @@ def click_rect(
         error=(
             None
             if success
-            else {"code": "click_failed", "reason": error_msg if not success else "Click failed"}
+            else {
+                "code": "click_failed",
+                "reason": error_msg if not success else "Click failed",
+            }
         ),
     )

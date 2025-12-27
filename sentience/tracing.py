@@ -9,7 +9,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 
 @dataclass
@@ -243,9 +243,24 @@ class Tracer:
         }
         self.emit("error", data, step_id=step_id)
 
-    def close(self) -> None:
-        """Close the underlying sink."""
-        self.sink.close()
+    def close(self, **kwargs) -> None:
+        """
+        Close the underlying sink.
+
+        Args:
+            **kwargs: Passed through to sink.close() (e.g., blocking=True for CloudTraceSink)
+        """
+        # Check if sink.close() accepts kwargs (CloudTraceSink does, JsonlTraceSink doesn't)
+        import inspect
+
+        sig = inspect.signature(self.sink.close)
+        if any(
+            p.kind in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+            for p in sig.parameters.values()
+        ):
+            self.sink.close(**kwargs)
+        else:
+            self.sink.close()
 
     def __enter__(self):
         """Context manager support."""
