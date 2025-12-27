@@ -133,23 +133,19 @@ class CloudTraceSink(TraceSink):
             on_progress: Optional callback(uploaded_bytes, total_bytes) for progress updates
         """
         try:
-            # Read file size for progress
-            file_size = os.path.getsize(self._path)
-
-            if on_progress:
-                on_progress(0, file_size)
-
             # Read and compress
             with open(self._path, "rb") as f:
                 trace_data = f.read()
 
             compressed_data = gzip.compress(trace_data)
+            compressed_size = len(compressed_data)
 
+            # Report progress: start
             if on_progress:
-                on_progress(len(compressed_data), file_size)
+                on_progress(0, compressed_size)
 
             # Upload to DigitalOcean Spaces via pre-signed URL
-            print(f"📤 [Sentience] Uploading trace to cloud ({len(compressed_data)} bytes)...")
+            print(f"📤 [Sentience] Uploading trace to cloud ({compressed_size} bytes)...")
 
             response = requests.put(
                 self.upload_url,
@@ -164,6 +160,11 @@ class CloudTraceSink(TraceSink):
             if response.status_code == 200:
                 self._upload_successful = True
                 print("✅ [Sentience] Trace uploaded successfully")
+
+                # Report progress: complete
+                if on_progress:
+                    on_progress(compressed_size, compressed_size)
+
                 # Delete file only on successful upload
                 if os.path.exists(self._path):
                     try:
