@@ -163,20 +163,38 @@ class SentienceAgent(BaseAgent):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
+                # Apply element filtering based on goal
+                filtered_elements = self.filter_elements(snap, goal)
+
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
+                    # Include element data for live overlay visualization
+                    # Use filtered_elements for overlay (only relevant elements)
+                    elements_data = [
+                        {
+                            "id": el.id,
+                            "bbox": {
+                                "x": el.bbox.x,
+                                "y": el.bbox.y,
+                                "width": el.bbox.width,
+                                "height": el.bbox.height,
+                            },
+                            "role": el.role,
+                            "text": el.text[:50] if el.text else "",  # Truncate for brevity
+                        }
+                        for el in filtered_elements[:50]  # Limit to first 50 for performance
+                    ]
+
                     self.tracer.emit(
                         "snapshot",
                         {
                             "url": snap.url,
                             "element_count": len(snap.elements),
                             "timestamp": snap.timestamp,
+                            "elements": elements_data,  # Add element data for overlay
                         },
                         step_id=step_id,
                     )
-
-                # Apply element filtering based on goal
-                filtered_elements = self.filter_elements(snap, goal)
 
                 # Create filtered snapshot
                 filtered_snap = Snapshot(
@@ -242,6 +260,23 @@ class SentienceAgent(BaseAgent):
                 # Emit action execution trace event if tracer is enabled
                 if self.tracer:
                     post_url = self.browser.page.url if self.browser.page else None
+
+                    # Include element data for live overlay visualization
+                    elements_data = [
+                        {
+                            "id": el.id,
+                            "bbox": {
+                                "x": el.bbox.x,
+                                "y": el.bbox.y,
+                                "width": el.bbox.width,
+                                "height": el.bbox.height,
+                            },
+                            "role": el.role,
+                            "text": el.text[:50] if el.text else "",
+                        }
+                        for el in filtered_snap.elements[:50]
+                    ]
+
                     self.tracer.emit(
                         "action",
                         {
@@ -251,6 +286,8 @@ class SentienceAgent(BaseAgent):
                             "outcome": result.outcome,
                             "duration_ms": duration_ms,
                             "post_url": post_url,
+                            "elements": elements_data,  # Add element data for overlay
+                            "target_element_id": result.element_id,  # Highlight target in red
                         },
                         step_id=step_id,
                     )
