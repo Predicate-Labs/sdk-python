@@ -182,3 +182,37 @@ class ActionHistory(BaseModel):
     success: bool
     attempt: int
     duration_ms: int
+
+
+class ProxyConfig(BaseModel):
+    """
+    Proxy configuration for browser networking.
+
+    Supports HTTP, HTTPS, and SOCKS5 proxies with optional authentication.
+    """
+
+    server: str = Field(
+        ...,
+        description="Proxy server URL including scheme and port (e.g., 'http://proxy.example.com:8080')",
+    )
+    username: str | None = Field(
+        None,
+        description="Username for proxy authentication (optional)",
+    )
+    password: str | None = Field(
+        None,
+        description="Password for proxy authentication (optional)",
+    )
+
+    def to_playwright_dict(self) -> dict:
+        """
+        Convert to Playwright proxy configuration format.
+
+        Returns:
+            Dict compatible with Playwright's proxy parameter
+        """
+        config = {"server": self.server}
+        if self.username and self.password:
+            config["username"] = self.username
+            config["password"] = self.password
+        return config

@@ -7,8 +7,11 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
+
+from sentience.models import ProxyConfig
 
 # Import stealth for bot evasion (optional - graceful fallback if not available)
 try:
@@ -27,6 +30,7 @@ class SentienceBrowser:
         api_key: str | None = None,
         api_url: str | None = None,
         headless: bool | None = None,
+        proxy: str | None = None,
     ):
         """
         Initialize Sentience browser
@@ -39,6 +43,9 @@ class SentienceBrowser:
                     If None and no api_key, uses free tier (local extension only)
                     If 'local' or Docker sidecar URL, uses Enterprise tier
             headless: Whether to run in headless mode. If None, defaults to True in CI, False otherwise
+            proxy: Optional proxy server URL (e.g., 'http://user:pass@proxy.example.com:8080')
+                   Supports HTTP, HTTPS, and SOCKS5 proxies
+                   Falls back to SENTIENCE_PROXY environment variable if not provided
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -55,10 +62,59 @@ class SentienceBrowser:
         else:
             self.headless = headless
 
+        # Support proxy from argument or environment variable
+        self.proxy = proxy or os.environ.get("SENTIENCE_PROXY")
+
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
         self.page: Page | None = None
         self._extension_path: str | None = None
+
+    def _parse_proxy(self, proxy_string: str) -> ProxyConfig | None:
+        """
+        Parse proxy connection string into ProxyConfig.
+
+        Args:
+            proxy_string: Proxy URL (e.g., 'http://user:pass@proxy.example.com:8080')
+
+        Returns:
+            ProxyConfig object or None if invalid
+
+        Raises:
+            ValueError: If proxy format is invalid
+        """
+        if not proxy_string:
+            return None
+
+        try:
+            parsed = urlparse(proxy_string)
+
+            # Validate scheme
+            if parsed.scheme not in ("http", "https", "socks5"):
+                print(f"⚠️  [Sentience] Unsupported proxy scheme: {parsed.scheme}")
+                print("   Supported: http, https, socks5")
+                return None
+
+            # Validate host and port
+            if not parsed.hostname or not parsed.port:
+                print("⚠️  [Sentience] Proxy URL must include hostname and port")
+                print("   Expected format: http://username:password@host:port")
+                return None
+
+            # Build server URL
+            server = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+
+            # Create ProxyConfig with optional credentials
+            return ProxyConfig(
+                server=server,
+                username=parsed.username if parsed.username else None,
+                password=parsed.password if parsed.password else None,
+            )
+
+        except Exception as e:
+            print(f"⚠️  [Sentience] Invalid proxy configuration: {e}")
+            print("   Expected format: http://username:password@host:port")
+            return None
 
     def start(self) -> None:
         """Launch browser with extension loaded"""
@@ -99,6 +155,9 @@ class SentienceBrowser:
             "--disable-blink-features=AutomationControlled",  # Hides 'navigator.webdriver'
             "--no-sandbox",
             "--disable-infobars",
+            # WebRTC leak protection (prevents real IP exposure when using proxies/VPNs)
+            "--disable-features=WebRtcHideLocalIpsWithMdns",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
 
         # Handle headless mode correctly for extensions
@@ -108,17 +167,30 @@ class SentienceBrowser:
         if self.headless:
             args.append("--headless=new")  # Use new headless mode via args
 
+        # Parse proxy configuration if provided
+        proxy_config = self._parse_proxy(self.proxy) if self.proxy else None
+
+        # Build launch_persistent_context parameters
+        launch_params = {
+            "user_data_dir": "",  # Ephemeral temp dir
+            "headless": False,  # IMPORTANT: See note above
+            "args": args,
+            "viewport": {"width": 1280, "height": 800},
+            # Remove "HeadlessChrome" from User Agent automatically
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        }
+
+        # Add proxy if configured
+        if proxy_config:
+            launch_params["proxy"] = proxy_config.to_playwright_dict()
+            # Ignore HTTPS errors when using proxy (many residential proxies use self-signed certs)
+            launch_params["ignore_https_errors"] = True
+            print(f"🌐 [Sentience] Using proxy: {proxy_config.server}")
+
         # Launch persistent context (required for extensions)
         # Note: We pass headless=False to launch_persistent_context because we handle
         # headless mode via the --headless=new arg above. This is a Playwright workaround.
-        self.context = self.playwright.chromium.launch_persistent_context(
-            user_data_dir="",  # Ephemeral temp dir
-            headless=False,  # IMPORTANT: See note above
-            args=args,
-            viewport={"width": 1280, "height": 800},
-            # Remove "HeadlessChrome" from User Agent automatically
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        )
+        self.context = self.playwright.chromium.launch_persistent_context(**launch_params)
 
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
 
