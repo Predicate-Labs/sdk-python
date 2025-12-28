@@ -426,6 +426,41 @@ with browser:
 
 See `examples/residential_proxy_agent.py` for complete examples.
 
+### Authentication Session Injection
+
+Inject pre-recorded authentication sessions (cookies + localStorage) to start your agent already logged in, bypassing login screens, 2FA, and CAPTCHAs. This saves tokens and reduces costs by eliminating login steps.
+
+```python
+# Workflow 1: Inject pre-recorded session from file
+from sentience import SentienceBrowser, save_storage_state
+
+# Save session after manual login
+browser = SentienceBrowser()
+browser.start()
+browser.goto("https://example.com")
+# ... log in manually ...
+save_storage_state(browser.context, "auth.json")
+
+# Use saved session in future runs
+browser = SentienceBrowser(storage_state="auth.json")
+browser.start()
+# Agent starts already logged in!
+
+# Workflow 2: Persistent sessions (cookies persist across runs)
+browser = SentienceBrowser(user_data_dir="./chrome_profile")
+browser.start()
+# First run: Log in
+# Second run: Already logged in (cookies persist automatically)
+```
+
+**Benefits:**
+- Bypass login screens and CAPTCHAs with valid sessions
+- Save 5-10 agent steps and hundreds of tokens per run
+- Maintain stateful sessions for accessing authenticated pages
+- Act as authenticated users (e.g., "Go to my Orders page")
+
+See `examples/auth_injection_agent.py` for complete examples.
+
 ## Best Practices
 
 ### 1. Wait for Dynamic Content
