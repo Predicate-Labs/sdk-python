@@ -1,1 +1,2 @@
 include sentience/schemas/*.json
+recursive-include sentience/extension *.js *.json *.wasm *.d.ts

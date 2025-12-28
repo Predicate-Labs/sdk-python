@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentienceapi"
-version = "0.90.2"
+version = "0.90.3"
 description = "Python SDK for Sentience AI Agent Browser Automation"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,6 +46,9 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sentience*"]
+
+[tool.setuptools.package-data]
+sentience = ["schemas/*.json", "extension/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
