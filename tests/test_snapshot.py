@@ -101,3 +101,36 @@ def test_snapshot_save():
                 assert "elements" in data
         finally:
             os.unlink(temp_path)
+
+
+@pytest.mark.requires_extension
+def test_snapshot_with_goal():
+    """Test snapshot with goal parameter"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        # Test snapshot with goal
+        snap = snapshot(browser, goal="Find the main heading")
+
+        assert snap.status == "success"
+        assert snap.url == "https://example.com/"
+        assert len(snap.elements) > 0
+
+        # Verify snapshot works normally with goal parameter
+        assert all(el.id >= 0 for el in snap.elements)
+        assert all(
+            el.role
+            in [
+                "button",
+                "link",
+                "textbox",
+                "searchbox",
+                "checkbox",
+                "radio",
+                "combobox",
+                "image",
+                "generic",
+            ]
+            for el in snap.elements
+        )
