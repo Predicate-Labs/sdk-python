@@ -72,11 +72,11 @@ jobs:
         tag_name: v${{ steps.version.outputs.version }}
         name: Release v${{ steps.version.outputs.version }}
         body: |
-          Release v${{ steps.version.outputs.version }} of sentience-python
+          Release v${{ steps.version.outputs.version }} of sentienceapi
 
           ## Installation
           ```bash
-          pip install sentience-python==${{ steps.version.outputs.version }}
+          pip install sentienceapi==${{ steps.version.outputs.version }}
           ```
         draft: false
         prerelease: false

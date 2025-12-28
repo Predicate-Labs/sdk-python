@@ -5,7 +5,8 @@ The SDK is open under ELv2; the core semantic geometry and reliability logic run
 ## Installation
 
 ```bash
-pip install -e .
+# Install from PyPI
+pip install sentienceapi
 
 # Install Playwright browsers (required)
 playwright install chromium
@@ -14,6 +15,11 @@ playwright install chromium
 pip install openai  # For OpenAI models
 pip install anthropic  # For Claude models
 pip install transformers torch  # For local LLMs
+```
+
+**For local development:**
+```bash
+pip install -e .
 ```
 
 ## Quick Start: Choose Your Abstraction Level
