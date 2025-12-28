@@ -44,6 +44,7 @@ def snapshot(
     use_api: bool | None = None,
     save_trace: bool = False,
     trace_path: str | None = None,
+    show_overlay: bool = False,
 ) -> Snapshot:
     """
     Take a snapshot of the current page
@@ -57,6 +58,7 @@ def snapshot(
                  If None, uses API if api_key is set, otherwise uses local extension.
         save_trace: Whether to save raw_elements to JSON for benchmarking/training
         trace_path: Path to save trace file. If None, uses "trace_{timestamp}.json"
+        show_overlay: Show visual overlay highlighting elements in browser
 
     Returns:
         Snapshot object
@@ -69,6 +71,7 @@ def snapshot(
         use_api=use_api,
         save_trace=save_trace,
         trace_path=trace_path,
+        show_overlay=show_overlay,
     )
 
     # Determine if we should use server-side API
@@ -142,6 +145,21 @@ def _snapshot_via_extension(
     # Save trace if requested
     if options.save_trace:
         _save_trace_to_file(result.get("raw_elements", []), options.trace_path)
+
+    # Show visual overlay if requested
+    if options.show_overlay:
+        raw_elements = result.get("raw_elements", [])
+        if raw_elements:
+            browser.page.evaluate(
+                """
+                (elements) => {
+                    if (window.sentience && window.sentience.showOverlay) {
+                        window.sentience.showOverlay(elements, null);
+                    }
+                }
+                """,
+                raw_elements,
+            )
 
     # Validate and parse with Pydantic
     snapshot_obj = Snapshot(**result)
@@ -230,6 +248,21 @@ def _snapshot_via_api(
             "screenshot_format": raw_result.get("screenshot_format"),
             "error": api_result.get("error"),
         }
+
+        # Show visual overlay if requested (use API-ranked elements)
+        if options.show_overlay:
+            elements = api_result.get("elements", [])
+            if elements:
+                browser.page.evaluate(
+                    """
+                    (elements) => {
+                        if (window.sentience && window.sentience.showOverlay) {
+                            window.sentience.showOverlay(elements, null);
+                        }
+                    }
+                    """,
+                    elements,
+                )
 
         return Snapshot(**snapshot_data)
     except requests.exceptions.RequestException as e:
