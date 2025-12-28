@@ -45,6 +45,7 @@ from .models import (  # Agent Layer Models
     Viewport,
     WaitResult,
 )
+from .overlay import clear_overlay, show_overlay
 from .query import find, query
 from .read import read
 from .recorder import Recorder, Trace, TraceStep, record
@@ -63,7 +64,7 @@ from .utils import (
 )
 from .wait import wait_for
 
-__version__ = "0.90.1"
+__version__ = "0.90.2"
 
 __all__ = [
     # Core SDK
@@ -93,6 +94,8 @@ __all__ = [
     "generate",
     "read",
     "screenshot",
+    "show_overlay",
+    "clear_overlay",
     # Agent Layer (Phase 1 & 2)
     "BaseAgent",
     "LLMProvider",

@@ -2,7 +2,7 @@
 
 The SDK is open under ELv2; the core semantic geometry and reliability logic runs in Sentience-hosted services.
 
-## Installation
+## 📦 Installation
 
 ```bash
 # Install from PyPI
@@ -22,11 +22,12 @@ pip install transformers torch  # For local LLMs
 pip install -e .
 ```
 
-## Quick Start: Choose Your Abstraction Level
+## 🚀 Quick Start: Choose Your Abstraction Level
 
 Sentience SDK offers **three abstraction levels** - use what fits your needs:
 
-### 🎯 **Level 3: Natural Language (Easiest)** - For non-technical users
+<details>
+<summary><b>🎯 Level 3: Natural Language (Easiest)</b> - For non-technical users</summary>
 
 ```python
 from sentience import SentienceBrowser, ConversationalAgent
@@ -47,7 +48,10 @@ with browser:
 **Code required:** 3-5 lines
 **Technical knowledge:** None
 
-### ⚙️ **Level 2: Technical Commands (Recommended)** - For AI developers
+</details>
+
+<details>
+<summary><b>⚙️ Level 2: Technical Commands (Recommended)</b> - For AI developers</summary>
 
 ```python
 from sentience import SentienceBrowser, SentienceAgent
@@ -68,7 +72,10 @@ with browser:
 **Code required:** 10-15 lines
 **Technical knowledge:** Medium (Python basics)
 
-### 🔧 **Level 1: Direct SDK (Most Control)** - For production automation
+</details>
+
+<details>
+<summary><b>🔧 Level 1: Direct SDK (Most Control)</b> - For production automation</summary>
 
 ```python
 from sentience import SentienceBrowser, snapshot, find, click
@@ -91,7 +98,12 @@ with SentienceBrowser(headless=False) as browser:
 **Code required:** 20-50 lines
 **Technical knowledge:** High (SDK API, selectors)
 
-## Real-World Example: Amazon Shopping Bot
+</details>
+
+---
+
+<details>
+<summary><h2>💼 Real-World Example: Amazon Shopping Bot</h2></summary>
 
 This example demonstrates navigating Amazon, finding products, and adding items to cart:
 
@@ -139,26 +151,39 @@ with SentienceBrowser(headless=False) as browser:
             print(f"Added to cart: {cart_result.success}")
 ```
 
-**See the complete tutorial**: [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)
+**📖 See the complete tutorial:** [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)
 
-## Core Features
+</details>
 
-### Browser Control
+---
+
+## 📚 Core Features
+
+<details>
+<summary><h3>🌐 Browser Control</h3></summary>
+
 - **`SentienceBrowser`** - Playwright browser with Sentience extension pre-loaded
 - **`browser.goto(url)`** - Navigate with automatic extension readiness checks
 - Automatic bot evasion and stealth mode
 - Configurable headless/headed mode
 
-### Snapshot - Intelligent Page Analysis
-- **`snapshot(browser, screenshot=True)`** - Capture page state with AI-ranked elements
+</details>
+
+<details>
+<summary><h3>📸 Snapshot - Intelligent Page Analysis</h3></summary>
+
+**`snapshot(browser, screenshot=True, show_overlay=False)`** - Capture page state with AI-ranked elements
+
+Features:
 - Returns semantic elements with roles, text, importance scores, and bounding boxes
 - Optional screenshot capture (PNG/JPEG)
+- Optional visual overlay to see what elements are detected
 - Pydantic models for type safety
 - **`snapshot.save(filepath)`** - Export to JSON
 
 **Example:**
 ```python
-snap = snapshot(browser, screenshot=True)
+snap = snapshot(browser, screenshot=True, show_overlay=True)
 
 # Access structured data
 print(f"URL: {snap.url}")
@@ -170,7 +195,11 @@ for element in snap.elements:
     print(f"{element.role}: {element.text} (importance: {element.importance})")
 ```
 
-### Query Engine - Semantic Element Selection
+</details>
+
+<details>
+<summary><h3>🔍 Query Engine - Semantic Element Selection</h3></summary>
+
 - **`query(snapshot, selector)`** - Find all matching elements
 - **`find(snapshot, selector)`** - Find single best match (by importance)
 - Powerful query DSL with multiple operators
@@ -200,7 +229,11 @@ first_row = query(snap, "bbox.y<600")
 
 **📖 [Complete Query DSL Guide](docs/QUERY_DSL.md)** - All operators, fields, and advanced patterns
 
-### Actions - Interact with Elements
+</details>
+
+<details>
+<summary><h3>👆 Actions - Interact with Elements</h3></summary>
+
 - **`click(browser, element_id)`** - Click element by ID
 - **`click_rect(browser, rect)`** - Click at center of rectangle (coordinate-based)
 - **`type_text(browser, element_id, text)`** - Type into input fields
@@ -239,7 +272,11 @@ if element:
     })
 ```
 
-### Wait & Assertions
+</details>
+
+<details>
+<summary><h3>⏱️ Wait & Assertions</h3></summary>
+
 - **`wait_for(browser, selector, timeout=5.0, interval=None, use_api=None)`** - Wait for element to appear
 - **`expect(browser, selector)`** - Assertion helper with fluent API
 
@@ -271,11 +308,56 @@ expect(browser, "role=button").to_have_text("Submit")
 expect(browser, "role=link").to_have_count(10)
 ```
 
-### Content Reading
-- **`read(browser, format="text|markdown|raw")`** - Extract page content
-  - `format="text"` - Plain text extraction
-  - `format="markdown"` - High-quality markdown conversion (uses markdownify)
-  - `format="raw"` - Cleaned HTML (default)
+</details>
+
+<details>
+<summary><h3>🎨 Visual Overlay - Debug Element Detection</h3></summary>
+
+- **`show_overlay(browser, elements, target_element_id=None)`** - Display visual overlay highlighting elements
+- **`clear_overlay(browser)`** - Clear overlay manually
+
+Show color-coded borders around detected elements to debug, validate, and understand what Sentience sees:
+
+```python
+from sentience import show_overlay, clear_overlay
+
+# Take snapshot once
+snap = snapshot(browser)
+
+# Show overlay anytime without re-snapshotting
+show_overlay(browser, snap)  # Auto-clears after 5 seconds
+
+# Highlight specific target element in red
+button = find(snap, "role=button text~'Submit'")
+show_overlay(browser, snap, target_element_id=button.id)
+
+# Clear manually before 5 seconds
+import time
+time.sleep(2)
+clear_overlay(browser)
+```
+
+**Color Coding:**
+- 🔴 Red: Target element
+- 🔵 Blue: Primary elements (`is_primary=true`)
+- 🟢 Green: Regular interactive elements
+
+**Visual Indicators:**
+- Border thickness/opacity scales with importance
+- Semi-transparent fill
+- Importance badges
+- Star icons for primary elements
+- Auto-clear after 5 seconds
+
+</details>
+
+<details>
+<summary><h3>📄 Content Reading</h3></summary>
+
+**`read(browser, format="text|markdown|raw")`** - Extract page content
+- `format="text"` - Plain text extraction
+- `format="markdown"` - High-quality markdown conversion (uses markdownify)
+- `format="raw"` - Cleaned HTML (default)
 
 **Example:**
 ```python
@@ -290,11 +372,15 @@ result = read(browser, format="text")
 print(result["content"])  # Plain text
 ```
 
-### Screenshots
-- **`screenshot(browser, format="png|jpeg", quality=80)`** - Standalone screenshot capture
-  - Returns base64-encoded data URL
-  - PNG or JPEG format
-  - Quality control for JPEG (1-100)
+</details>
+
+<details>
+<summary><h3>📷 Screenshots</h3></summary>
+
+**`screenshot(browser, format="png|jpeg", quality=80)`** - Standalone screenshot capture
+- Returns base64-encoded data URL
+- PNG or JPEG format
+- Quality control for JPEG (1-100)
 
 **Example:**
 ```python
@@ -313,7 +399,14 @@ with open("screenshot.png", "wb") as f:
 data_url = screenshot(browser, format="jpeg", quality=85)
 ```
 
-## Element Properties
+</details>
+
+---
+
+## 📋 Reference
+
+<details>
+<summary><h3>Element Properties</h3></summary>
 
 Elements returned by `snapshot()` have the following properties:
 
@@ -329,7 +422,10 @@ element.is_occluded     # Is element covered by other elements?
 element.z_index         # CSS stacking order
 ```
 
-## Query DSL Reference
+</details>
+
+<details>
+<summary><h3>Query DSL Reference</h3></summary>
 
 ### Basic Operators
 
@@ -352,32 +448,14 @@ element.z_index         # CSS stacking order
 - **Position**: `bbox.x`, `bbox.y`, `bbox.width`, `bbox.height`
 - **Layering**: `z_index`
 
-## Examples
+</details>
 
-See the `examples/` directory for complete working examples:
+---
 
-- **`hello.py`** - Extension bridge verification
-- **`basic_agent.py`** - Basic snapshot and element inspection
-- **`query_demo.py`** - Query engine demonstrations
-- **`wait_and_click.py`** - Waiting for elements and performing actions
-- **`read_markdown.py`** - Content extraction and markdown conversion
+## ⚙️ Configuration
 
-## Testing
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific test file
-pytest tests/test_snapshot.py
-
-# Run with verbose output
-pytest -v tests/
-```
-
-## Configuration
-
-### Viewport Size
+<details>
+<summary><h3>Viewport Size</h3></summary>
 
 Default viewport is **1280x800** pixels. You can customize it using Playwright's API:
 
@@ -389,7 +467,10 @@ with SentienceBrowser(headless=False) as browser:
     browser.goto("https://example.com")
 ```
 
-### Headless Mode
+</details>
+
+<details>
+<summary><h3>Headless Mode</h3></summary>
 
 ```python
 # Headed mode (default in dev, shows browser window)
@@ -402,7 +483,10 @@ browser = SentienceBrowser(headless=True)
 browser = SentienceBrowser()  # headless=True if CI=true, else False
 ```
 
-### Residential Proxy Support
+</details>
+
+<details>
+<summary><h3>🌍 Residential Proxy Support</h3></summary>
 
 Use residential proxies to route traffic and protect your IP address. Supports HTTP, HTTPS, and SOCKS5 with automatic SSL certificate handling:
 
@@ -432,7 +516,10 @@ with browser:
 
 See `examples/residential_proxy_agent.py` for complete examples.
 
-### Authentication Session Injection
+</details>
+
+<details>
+<summary><h3>🔐 Authentication Session Injection</h3></summary>
 
 Inject pre-recorded authentication sessions (cookies + localStorage) to start your agent already logged in, bypassing login screens, 2FA, and CAPTCHAs. This saves tokens and reduces costs by eliminating login steps.
 
@@ -467,7 +554,14 @@ browser.start()
 
 See `examples/auth_injection_agent.py` for complete examples.
 
-## Best Practices
+</details>
+
+---
+
+## 💡 Best Practices
+
+<details>
+<summary>Click to expand best practices</summary>
 
 ### 1. Wait for Dynamic Content
 ```python
@@ -507,7 +601,14 @@ snap = snapshot(browser)
 snap = snapshot(browser, screenshot=True)
 ```
 
-## Troubleshooting
+</details>
+
+---
+
+## 🛠️ Troubleshooting
+
+<details>
+<summary>Click to expand common issues and solutions</summary>
 
 ### "Extension failed to load"
 **Solution:** Build the extension first:
@@ -527,9 +628,14 @@ cd sentience-chrome
 - Check visibility: `element.in_viewport and not element.is_occluded`
 - Scroll to element: `browser.page.evaluate(f"window.sentience_registry[{element.id}].scrollIntoView()")`
 
-## Advanced Features (v0.12.0+)
+</details>
 
-### Agent Tracing & Debugging
+---
+
+## 🔬 Advanced Features (v0.12.0+)
+
+<details>
+<summary><h3>📊 Agent Tracing & Debugging</h3></summary>
 
 The SDK now includes built-in tracing infrastructure for debugging and analyzing agent behavior:
 
@@ -585,7 +691,10 @@ with browser:
 - Train custom models from successful runs
 - Monitor production agents
 
-### Snapshot Utilities
+</details>
+
+<details>
+<summary><h3>🧰 Snapshot Utilities</h3></summary>
 
 New utility functions for working with snapshots:
 
@@ -607,16 +716,53 @@ print(llm_context)
 # Output: [1] <button> "Sign In" {PRIMARY,CLICKABLE} @ (100,50) (Imp:10)
 ```
 
-## Documentation
+</details>
+
+---
+
+## 📖 Documentation
 
 - **📖 [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)** - Complete tutorial with real-world example
 - **📖 [Query DSL Guide](docs/QUERY_DSL.md)** - Advanced query patterns and operators
 - **📄 [API Contract](../spec/SNAPSHOT_V1.md)** - Snapshot API specification
 - **📄 [Type Definitions](../spec/sdk-types.md)** - TypeScript/Python type definitions
 
-## License
+---
 
-📜 **License**
+## 💻 Examples & Testing
+
+<details>
+<summary><h3>Examples</h3></summary>
+
+See the `examples/` directory for complete working examples:
+
+- **`hello.py`** - Extension bridge verification
+- **`basic_agent.py`** - Basic snapshot and element inspection
+- **`query_demo.py`** - Query engine demonstrations
+- **`wait_and_click.py`** - Waiting for elements and performing actions
+- **`read_markdown.py`** - Content extraction and markdown conversion
+
+</details>
+
+<details>
+<summary><h3>Testing</h3></summary>
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test file
+pytest tests/test_snapshot.py
+
+# Run with verbose output
+pytest -v tests/
+```
+
+</details>
+
+---
+
+## 📜 License
 
 This SDK is licensed under the **Elastic License 2.0 (ELv2)**.
 
@@ -626,9 +772,9 @@ The Elastic License 2.0 allows you to use, modify, and distribute this SDK for i
 
 - This SDK is a **client-side library** that communicates with proprietary Sentience services and browser components.
 
-- The Sentience backend services (including semantic geometry grounding, ranking, visual cues, and trace processing) are **not open source** and are governed by Sentience’s Terms of Service.
+- The Sentience backend services (including semantic geometry grounding, ranking, visual cues, and trace processing) are **not open source** and are governed by Sentience's Terms of Service.
 
-- Use of this SDK does **not** grant rights to operate, replicate, or reimplement Sentience’s hosted services.
+- Use of this SDK does **not** grant rights to operate, replicate, or reimplement Sentience's hosted services.
 
 For commercial usage, hosted offerings, or enterprise deployments, please contact Sentience to obtain a commercial license.
 
