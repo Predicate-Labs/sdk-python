@@ -145,6 +145,9 @@ class SentienceAgent(BaseAgent):
 
                 # Use provided options or create default
                 snap_opts = snapshot_options or SnapshotOptions(limit=self.default_snapshot_limit)
+                # Only set goal if not already provided
+                if snap_opts.goal is None:
+                    snap_opts.goal = goal
 
                 # Convert screenshot config to dict if needed
                 screenshot_param = snap_opts.screenshot
@@ -161,6 +164,7 @@ class SentienceAgent(BaseAgent):
                     limit=snap_opts.limit,
                     filter=snap_opts.filter.model_dump() if snap_opts.filter else None,
                     use_api=snap_opts.use_api,
+                    goal=snap_opts.goal,  # Pass goal to snapshot
                 )
 
                 if snap.status != "success":

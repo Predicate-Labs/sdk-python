@@ -196,6 +196,7 @@ def _snapshot_via_api(
         "raw_elements": raw_result.get("raw_elements", []),  # Raw data needed for server processing
         "url": raw_result.get("url", ""),
         "viewport": raw_result.get("viewport"),
+        "goal": options.goal,  # Optional goal/task description
         "options": {
             "limit": options.limit,
             "filter": options.filter.model_dump() if options.filter else None,
