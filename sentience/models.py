@@ -117,6 +117,7 @@ class SnapshotOptions(BaseModel):
     save_trace: bool = False  # Save raw_elements to JSON for benchmarking/training
     trace_path: str | None = None  # Path to save trace (default: "trace_{timestamp}.json")
     goal: str | None = None  # Optional goal/task description for the snapshot
+    show_overlay: bool = False  # Show visual overlay highlighting elements in browser
 
     class Config:
         arbitrary_types_allowed = True
