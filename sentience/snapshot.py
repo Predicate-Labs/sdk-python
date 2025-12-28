@@ -12,6 +12,9 @@ import requests
 from .browser import SentienceBrowser
 from .models import Snapshot, SnapshotOptions
 
+# Maximum payload size for API requests (10MB server limit)
+MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
+
 
 def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | None = None) -> None:
     """
@@ -221,6 +224,16 @@ def _snapshot_via_api(
         },
     }
 
+    # Check payload size before sending (server has 10MB limit)
+    payload_json = json.dumps(payload)
+    payload_size = len(payload_json.encode("utf-8"))
+    if payload_size > MAX_PAYLOAD_BYTES:
+        raise ValueError(
+            f"Payload size ({payload_size / 1024 / 1024:.2f}MB) exceeds server limit "
+            f"({MAX_PAYLOAD_BYTES / 1024 / 1024:.0f}MB). "
+            f"Try reducing the number of elements on the page or filtering elements."
+        )
+
     headers = {
         "Authorization": f"Bearer {browser.api_key}",
         "Content-Type": "application/json",
@@ -229,7 +242,7 @@ def _snapshot_via_api(
     try:
         response = requests.post(
             f"{browser.api_url}/v1/snapshot",
-            json=payload,
+            data=payload_json,  # Reuse already-serialized JSON
             headers=headers,
             timeout=30,
         )
