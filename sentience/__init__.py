@@ -32,11 +32,15 @@ from .models import (  # Agent Layer Models
     ActionTokenUsage,
     AgentActionResult,
     BBox,
+    Cookie,
     Element,
+    LocalStorageItem,
+    OriginStorage,
     ScreenshotConfig,
     Snapshot,
     SnapshotFilter,
     SnapshotOptions,
+    StorageState,
     TokenStats,
     Viewport,
     WaitResult,
@@ -54,6 +58,7 @@ from .utils import (
     canonical_snapshot_loose,
     canonical_snapshot_strict,
     compute_snapshot_digests,
+    save_storage_state,
     sha256_digest,
 )
 from .wait import wait_for
@@ -105,6 +110,11 @@ __all__ = [
     "SnapshotOptions",
     "SnapshotFilter",
     "ScreenshotConfig",
+    # Storage State Models (Auth Injection)
+    "StorageState",
+    "Cookie",
+    "LocalStorageItem",
+    "OriginStorage",
     # Tracing (v0.12.0+)
     "Tracer",
     "TraceSink",
@@ -118,6 +128,7 @@ __all__ = [
     "canonical_snapshot_loose",
     "compute_snapshot_digests",
     "sha256_digest",
+    "save_storage_state",
     # Formatting (v0.12.0+)
     "format_snapshot_for_llm",
     # Agent Config (v0.12.0+)
