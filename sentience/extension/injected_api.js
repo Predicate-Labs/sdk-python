@@ -726,9 +726,15 @@
         }
         
         console.log(`[SentienceAPI] Found ${iframes.length} iframe(s), requesting snapshots...`);
-        
         // Request snapshot from each iframe
         const iframePromises = iframes.map((iframe, idx) => {
+            // OPTIMIZATION: Skip common ad domains to save time
+            const src = iframe.src || '';
+            if (src.includes('doubleclick') || src.includes('googleadservices') || src.includes('ads system')) {
+                console.log(`[SentienceAPI] Skipping ad iframe: ${src.substring(0, 30)}...`);
+                return Promise.resolve(null);
+            }
+
             return new Promise((resolve) => {
                 const requestId = `iframe-${idx}-${Date.now()}`;
                 
@@ -736,7 +742,7 @@
                 const timeout = setTimeout(() => {
                     console.warn(`[SentienceAPI] ⚠️ Iframe ${idx} snapshot TIMEOUT (id: ${requestId})`);
                     resolve(null);
-                }, 10000); // Increased to 10s to handle slow processing
+                }, 5000); // Increased to 5s to handle slow processing
                 
                 // 2. ROBUST LISTENER with debugging
                 const listener = (event) => {
@@ -1036,6 +1042,10 @@
                 return {
                     status: "success",
                     url: window.location.href,
+                    viewport: {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    },
                     elements: cleanedElements,
                     raw_elements: cleanedRawElements,
                     screenshot: screenshot
@@ -1070,6 +1080,154 @@
                 format: format,
                 content: content,
                 length: content.length
+            };
+        },
+
+        // 2b. Find Text Rectangle - Get exact pixel coordinates of specific text
+        findTextRect: (options = {}) => {
+            const {
+                text,
+                containerElement = document.body,
+                caseSensitive = false,
+                wholeWord = false,
+                maxResults = 10
+            } = options;
+
+            if (!text || text.trim().length === 0) {
+                return {
+                    status: "error",
+                    error: "Text parameter is required"
+                };
+            }
+
+            const results = [];
+            const searchText = caseSensitive ? text : text.toLowerCase();
+
+            // Helper function to find text in a single text node
+            function findInTextNode(textNode) {
+                const nodeText = textNode.nodeValue;
+                const searchableText = caseSensitive ? nodeText : nodeText.toLowerCase();
+
+                let startIndex = 0;
+                while (startIndex < nodeText.length && results.length < maxResults) {
+                    const foundIndex = searchableText.indexOf(searchText, startIndex);
+
+                    if (foundIndex === -1) break;
+
+                    // Check whole word matching if required
+                    if (wholeWord) {
+                        const before = foundIndex > 0 ? nodeText[foundIndex - 1] : ' ';
+                        const after = foundIndex + text.length < nodeText.length
+                            ? nodeText[foundIndex + text.length]
+                            : ' ';
+
+                        // Check if surrounded by word boundaries
+                        if (!/\s/.test(before) || !/\s/.test(after)) {
+                            startIndex = foundIndex + 1;
+                            continue;
+                        }
+                    }
+
+                    try {
+                        // Create range for this occurrence
+                        const range = document.createRange();
+                        range.setStart(textNode, foundIndex);
+                        range.setEnd(textNode, foundIndex + text.length);
+
+                        const rect = range.getBoundingClientRect();
+
+                        // Only include visible rectangles
+                        if (rect.width > 0 && rect.height > 0) {
+                            results.push({
+                                text: nodeText.substring(foundIndex, foundIndex + text.length),
+                                rect: {
+                                    x: rect.left + window.scrollX,
+                                    y: rect.top + window.scrollY,
+                                    width: rect.width,
+                                    height: rect.height,
+                                    left: rect.left + window.scrollX,
+                                    top: rect.top + window.scrollY,
+                                    right: rect.right + window.scrollX,
+                                    bottom: rect.bottom + window.scrollY
+                                },
+                                viewport_rect: {
+                                    x: rect.left,
+                                    y: rect.top,
+                                    width: rect.width,
+                                    height: rect.height
+                                },
+                                context: {
+                                    before: nodeText.substring(Math.max(0, foundIndex - 20), foundIndex),
+                                    after: nodeText.substring(foundIndex + text.length, Math.min(nodeText.length, foundIndex + text.length + 20))
+                                },
+                                in_viewport: (
+                                    rect.top >= 0 &&
+                                    rect.left >= 0 &&
+                                    rect.bottom <= window.innerHeight &&
+                                    rect.right <= window.innerWidth
+                                )
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('[SentienceAPI] Failed to get rect for text:', e);
+                    }
+
+                    startIndex = foundIndex + 1;
+                }
+            }
+
+            // Tree walker to find all text nodes
+            const walker = document.createTreeWalker(
+                containerElement,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode: function(node) {
+                        // Skip script, style, and empty text nodes
+                        const parent = node.parentElement;
+                        if (!parent) return NodeFilter.FILTER_REJECT;
+
+                        const tagName = parent.tagName.toLowerCase();
+                        if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        // Skip whitespace-only nodes
+                        if (!node.nodeValue || node.nodeValue.trim().length === 0) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        // Check if element is visible
+                        const computedStyle = window.getComputedStyle(parent);
+                        if (computedStyle.display === 'none' ||
+                            computedStyle.visibility === 'hidden' ||
+                            computedStyle.opacity === '0') {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                }
+            );
+
+            // Walk through all text nodes
+            let currentNode;
+            while ((currentNode = walker.nextNode()) && results.length < maxResults) {
+                findInTextNode(currentNode);
+            }
+
+            return {
+                status: "success",
+                query: text,
+                case_sensitive: caseSensitive,
+                whole_word: wholeWord,
+                matches: results.length,
+                results: results,
+                viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    scroll_x: window.scrollX,
+                    scroll_y: window.scrollY
+                }
             };
         },
 
