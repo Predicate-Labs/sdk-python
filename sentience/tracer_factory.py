@@ -23,6 +23,7 @@ def create_tracer(
     run_id: str | None = None,
     api_url: str | None = None,
     logger: SentienceLogger | None = None,
+    upload_trace: bool = False,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -38,6 +39,9 @@ def create_tracer(
         run_id: Unique identifier for this agent run. If not provided, generates UUID.
         api_url: Sentience API base URL (default: https://api.sentienceapi.com)
         logger: Optional logger instance for logging file sizes and errors
+        upload_trace: Enable cloud trace upload (default: False). When True and api_key
+                      is provided, traces will be uploaded to cloud. When False, traces
+                      are saved locally only.
 
     Returns:
         Tracer configured with appropriate sink
@@ -62,12 +66,12 @@ def create_tracer(
     if api_url is None:
         api_url = SENTIENCE_API_URL
 
-    # 0. Check for orphaned traces from previous crashes (if api_key provided)
-    if api_key:
+    # 0. Check for orphaned traces from previous crashes (if api_key provided and upload enabled)
+    if api_key and upload_trace:
         _recover_orphaned_traces(api_key, api_url)
 
-    # 1. Try to initialize Cloud Sink (Pro/Enterprise tier)
-    if api_key:
+    # 1. Try to initialize Cloud Sink (Pro/Enterprise tier) if upload enabled
+    if api_key and upload_trace:
         try:
             # Request pre-signed upload URL from backend
             response = requests.post(
