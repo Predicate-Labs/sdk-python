@@ -339,3 +339,66 @@ class StorageState(BaseModel):
                 for origin in self.origins
             ],
         }
+
+
+# ========== Text Search Models (findTextRect) ==========
+
+
+class TextRect(BaseModel):
+    """
+    Rectangle coordinates for text occurrence.
+    Includes both absolute (page) and viewport-relative coordinates.
+    """
+
+    x: float = Field(..., description="Absolute X coordinate (page coordinate with scroll offset)")
+    y: float = Field(..., description="Absolute Y coordinate (page coordinate with scroll offset)")
+    width: float = Field(..., description="Rectangle width in pixels")
+    height: float = Field(..., description="Rectangle height in pixels")
+    left: float = Field(..., description="Absolute left position (same as x)")
+    top: float = Field(..., description="Absolute top position (same as y)")
+    right: float = Field(..., description="Absolute right position (x + width)")
+    bottom: float = Field(..., description="Absolute bottom position (y + height)")
+
+
+class ViewportRect(BaseModel):
+    """Viewport-relative rectangle coordinates (without scroll offset)"""
+
+    x: float = Field(..., description="Viewport-relative X coordinate")
+    y: float = Field(..., description="Viewport-relative Y coordinate")
+    width: float = Field(..., description="Rectangle width in pixels")
+    height: float = Field(..., description="Rectangle height in pixels")
+
+
+class TextContext(BaseModel):
+    """Context text surrounding a match"""
+
+    before: str = Field(..., description="Text before the match (up to 20 chars)")
+    after: str = Field(..., description="Text after the match (up to 20 chars)")
+
+
+class TextMatch(BaseModel):
+    """A single text match with its rectangle and context"""
+
+    text: str = Field(..., description="The matched text")
+    rect: TextRect = Field(..., description="Absolute rectangle coordinates (with scroll offset)")
+    viewport_rect: ViewportRect = Field(
+        ..., description="Viewport-relative rectangle (without scroll offset)"
+    )
+    context: TextContext = Field(..., description="Surrounding text context")
+    in_viewport: bool = Field(..., description="Whether the match is currently visible in viewport")
+
+
+class TextRectSearchResult(BaseModel):
+    """
+    Result of findTextRect operation.
+    Returns all occurrences of text on the page with their exact pixel coordinates.
+    """
+
+    status: Literal["success", "error"]
+    query: str | None = Field(None, description="The search text that was queried")
+    case_sensitive: bool | None = Field(None, description="Whether search was case-sensitive")
+    whole_word: bool | None = Field(None, description="Whether whole-word matching was used")
+    matches: int | None = Field(None, description="Number of matches found")
+    results: list[TextMatch] | None = Field(None, description="List of text matches with coordinates")
+    viewport: Viewport | None = Field(None, description="Current viewport dimensions")
+    error: str | None = Field(None, description="Error message if status is 'error'")

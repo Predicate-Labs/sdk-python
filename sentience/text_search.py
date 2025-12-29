@@ -1,0 +1,107 @@
+"""
+Text search utilities - find text and get pixel coordinates
+"""
+
+from .browser import SentienceBrowser
+from .models import TextRectSearchResult
+
+
+def find_text_rect(
+    browser: SentienceBrowser,
+    text: str,
+    case_sensitive: bool = False,
+    whole_word: bool = False,
+    max_results: int = 10,
+) -> TextRectSearchResult:
+    """
+    Find all occurrences of text on the page and get their exact pixel coordinates.
+
+    This function searches for text in all visible text nodes on the page and returns
+    the bounding rectangles for each match. Useful for:
+    - Finding specific UI elements by their text content
+    - Locating buttons, links, or labels without element IDs
+    - Getting exact coordinates for click automation
+    - Highlighting search results visually
+
+    Args:
+        browser: SentienceBrowser instance
+        text: Text to search for (required)
+        case_sensitive: If True, search is case-sensitive (default: False)
+        whole_word: If True, only match whole words surrounded by whitespace (default: False)
+        max_results: Maximum number of matches to return (default: 10, max: 100)
+
+    Returns:
+        TextRectSearchResult with:
+            - status: "success" or "error"
+            - query: The search text
+            - case_sensitive: Whether search was case-sensitive
+            - whole_word: Whether whole-word matching was used
+            - matches: Number of matches found
+            - results: List of TextMatch objects, each containing:
+                - text: The matched text
+                - rect: Absolute rectangle (with scroll offset)
+                - viewport_rect: Viewport-relative rectangle
+                - context: Surrounding text (before/after)
+                - in_viewport: Whether visible in current viewport
+            - viewport: Current viewport dimensions and scroll position
+            - error: Error message if status is "error"
+
+    Examples:
+        # Find "Sign In" button
+        result = find_text_rect(browser, "Sign In")
+        if result.status == "success" and result.results:
+            first_match = result.results[0]
+            print(f"Found at: ({first_match.rect.x}, {first_match.rect.y})")
+            print(f"Size: {first_match.rect.width}x{first_match.rect.height}")
+            print(f"In viewport: {first_match.in_viewport}")
+
+        # Case-sensitive search
+        result = find_text_rect(browser, "LOGIN", case_sensitive=True)
+
+        # Whole word only
+        result = find_text_rect(browser, "log", whole_word=True)  # Won't match "login"
+
+        # Find all matches and click the first visible one
+        result = find_text_rect(browser, "Buy Now", max_results=5)
+        if result.status == "success" and result.results:
+            for match in result.results:
+                if match.in_viewport:
+                    # Use click_rect from actions module
+                    from sentience import click_rect
+                    click_result = click_rect(browser, {
+                        "x": match.rect.x,
+                        "y": match.rect.y,
+                        "w": match.rect.width,
+                        "h": match.rect.height
+                    })
+                    break
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    if not text or not text.strip():
+        return TextRectSearchResult(
+            status="error",
+            error="Text parameter is required and cannot be empty",
+        )
+
+    # Limit max_results to prevent performance issues
+    max_results = min(max_results, 100)
+
+    # Call the extension's findTextRect method
+    result_dict = browser.page.evaluate(
+        """
+        (options) => {
+            return window.sentience.findTextRect(options);
+        }
+        """,
+        {
+            "text": text,
+            "caseSensitive": case_sensitive,
+            "wholeWord": whole_word,
+            "maxResults": max_results,
+        },
+    )
+
+    # Parse and validate with Pydantic
+    return TextRectSearchResult(**result_dict)

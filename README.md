@@ -401,6 +401,74 @@ data_url = screenshot(browser, format="jpeg", quality=85)
 
 </details>
 
+<details>
+<summary><h3>🔎 Text Search - Find Elements by Visible Text</h3></summary>
+
+**`find_text_rect(browser, text, case_sensitive=False, whole_word=False, max_results=10)`** - Find text on page and get exact pixel coordinates
+
+Find buttons, links, or any UI elements by their visible text without needing element IDs or CSS selectors. Returns exact pixel coordinates for each match.
+
+**Example:**
+```python
+from sentience import SentienceBrowser, find_text_rect, click_rect
+
+with SentienceBrowser() as browser:
+    browser.page.goto("https://example.com")
+
+    # Find "Sign In" button
+    result = find_text_rect(browser, "Sign In")
+    if result.status == "success" and result.results:
+        first_match = result.results[0]
+        print(f"Found at: ({first_match.rect.x}, {first_match.rect.y})")
+        print(f"In viewport: {first_match.in_viewport}")
+
+        # Click on the found text
+        if first_match.in_viewport:
+            click_rect(browser, {
+                "x": first_match.rect.x,
+                "y": first_match.rect.y,
+                "w": first_match.rect.width,
+                "h": first_match.rect.height
+            })
+```
+
+**Advanced Options:**
+```python
+# Case-sensitive search
+result = find_text_rect(browser, "LOGIN", case_sensitive=True)
+
+# Whole word only (won't match "login" as part of "loginButton")
+result = find_text_rect(browser, "log", whole_word=True)
+
+# Find multiple matches
+result = find_text_rect(browser, "Buy", max_results=10)
+for match in result.results:
+    if match.in_viewport:
+        print(f"Found '{match.text}' at ({match.rect.x}, {match.rect.y})")
+        print(f"Context: ...{match.context.before}[{match.text}]{match.context.after}...")
+```
+
+**Returns:** `TextRectSearchResult` with:
+- **`status`**: "success" or "error"
+- **`results`**: List of `TextMatch` objects with:
+  - `text` - The matched text
+  - `rect` - Absolute coordinates (with scroll offset)
+  - `viewport_rect` - Viewport-relative coordinates
+  - `context` - Surrounding text (before/after)
+  - `in_viewport` - Whether visible in current viewport
+
+**Use Cases:**
+- Find buttons/links by visible text without CSS selectors
+- Get exact pixel coordinates for click automation
+- Verify text visibility and position on page
+- Search dynamic content that changes frequently
+
+**Note:** Does not consume API credits (runs locally in browser)
+
+**See example:** `examples/find_text_demo.py`
+
+</details>
+
 ---
 
 ## 📋 Reference
