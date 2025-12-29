@@ -10,11 +10,27 @@ import os
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import requests
 
 from sentience.tracing import TraceSink
+
+
+class SentienceLogger(Protocol):
+    """Protocol for optional logger interface."""
+
+    def info(self, message: str) -> None:
+        """Log info message."""
+        ...
+
+    def warning(self, message: str) -> None:
+        """Log warning message."""
+        ...
+
+    def error(self, message: str) -> None:
+        """Log error message."""
+        ...
 
 
 class CloudTraceSink(TraceSink):
@@ -51,7 +67,14 @@ class CloudTraceSink(TraceSink):
         >>> tracer.close(blocking=False)  # Returns immediately
     """
 
-    def __init__(self, upload_url: str, run_id: str):
+    def __init__(
+        self,
+        upload_url: str,
+        run_id: str,
+        api_key: str | None = None,
+        api_url: str | None = None,
+        logger: SentienceLogger | None = None,
+    ):
         """
         Initialize cloud trace sink.
 
@@ -59,9 +82,15 @@ class CloudTraceSink(TraceSink):
             upload_url: Pre-signed PUT URL from Sentience API
                         (e.g., "https://sentience.nyc3.digitaloceanspaces.com/...")
             run_id: Unique identifier for this agent run (used for persistent cache)
+            api_key: Sentience API key for calling /v1/traces/complete
+            api_url: Sentience API base URL (default: https://api.sentienceapi.com)
+            logger: Optional logger instance for logging file sizes and errors
         """
         self.upload_url = upload_url
         self.run_id = run_id
+        self.api_key = api_key
+        self.api_url = api_url or "https://api.sentienceapi.com"
+        self.logger = logger
 
         # Use persistent cache directory instead of temp file
         # This ensures traces survive process crashes
@@ -73,6 +102,10 @@ class CloudTraceSink(TraceSink):
         self._trace_file = open(self._path, "w", encoding="utf-8")
         self._closed = False
         self._upload_successful = False
+
+        # File size tracking (NEW)
+        self.trace_file_size_bytes = 0
+        self.screenshot_total_size_bytes = 0
 
     def emit(self, event: dict[str, Any]) -> None:
         """
@@ -140,6 +173,18 @@ class CloudTraceSink(TraceSink):
             compressed_data = gzip.compress(trace_data)
             compressed_size = len(compressed_data)
 
+            # Measure trace file size (NEW)
+            self.trace_file_size_bytes = compressed_size
+
+            # Log file sizes if logger is provided (NEW)
+            if self.logger:
+                self.logger.info(
+                    f"Trace file size: {self.trace_file_size_bytes / 1024 / 1024:.2f} MB"
+                )
+                self.logger.info(
+                    f"Screenshot total: {self.screenshot_total_size_bytes / 1024 / 1024:.2f} MB"
+                )
+
             # Report progress: start
             if on_progress:
                 on_progress(0, compressed_size)
@@ -165,6 +210,9 @@ class CloudTraceSink(TraceSink):
                 if on_progress:
                     on_progress(compressed_size, compressed_size)
 
+                # Call /v1/traces/complete to report file sizes (NEW)
+                self._complete_trace()
+
                 # Delete file only on successful upload
                 if os.path.exists(self._path):
                     try:
@@ -182,6 +230,44 @@ class CloudTraceSink(TraceSink):
             print(f"❌ [Sentience] Error uploading trace: {e}")
             print(f"   Local trace preserved at: {self._path}")
             # Don't raise - preserve trace locally even if upload fails
+
+    def _complete_trace(self) -> None:
+        """
+        Call /v1/traces/complete to report file sizes to gateway.
+
+        This is a best-effort call - failures are logged but don't affect upload success.
+        """
+        if not self.api_key:
+            # No API key - skip complete call
+            return
+
+        try:
+            response = requests.post(
+                f"{self.api_url}/v1/traces/complete",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "run_id": self.run_id,
+                    "stats": {
+                        "trace_file_size_bytes": self.trace_file_size_bytes,
+                        "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
+                    },
+                },
+                timeout=10,
+            )
+
+            if response.status_code == 200:
+                if self.logger:
+                    self.logger.info("Trace completion reported to gateway")
+            else:
+                if self.logger:
+                    self.logger.warning(
+                        f"Failed to report trace completion: HTTP {response.status_code}"
+                    )
+
+        except Exception as e:
+            # Best-effort - log but don't fail
+            if self.logger:
+                self.logger.warning(f"Error reporting trace completion: {e}")
 
     def __enter__(self):
         """Context manager support."""
