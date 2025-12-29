@@ -186,6 +186,7 @@ class TestFileSizeTracking:
                 api_key="sk_test_key",
                 run_id="test-logger",
                 logger=mock_logger,
+                upload_trace=True,
             )
 
         # Verify tracer was created
