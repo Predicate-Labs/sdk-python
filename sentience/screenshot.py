@@ -2,7 +2,7 @@
 Screenshot functionality - standalone screenshot capture
 """
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from .browser import SentienceBrowser
 

@@ -2,10 +2,6 @@
 Script Generator - converts trace into executable code
 """
 
-import json
-from typing import List, Optional
-
-from .query import find
 from .recorder import Trace, TraceStep
 
 

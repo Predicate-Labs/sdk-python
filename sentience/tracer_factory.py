@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests
 
-from sentience.cloud_tracing import CloudTraceSink
+from sentience.cloud_tracing import CloudTraceSink, SentienceLogger
 from sentience.tracing import JsonlTraceSink, Tracer
 
 # Sentience API base URL (constant)
@@ -22,6 +22,7 @@ def create_tracer(
     api_key: str | None = None,
     run_id: str | None = None,
     api_url: str | None = None,
+    logger: SentienceLogger | None = None,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -36,6 +37,7 @@ def create_tracer(
                  - Pro/Enterprise: Valid API key
         run_id: Unique identifier for this agent run. If not provided, generates UUID.
         api_url: Sentience API base URL (default: https://api.sentienceapi.com)
+        logger: Optional logger instance for logging file sizes and errors
 
     Returns:
         Tracer configured with appropriate sink
@@ -83,7 +85,13 @@ def create_tracer(
                     print("☁️  [Sentience] Cloud tracing enabled (Pro tier)")
                     return Tracer(
                         run_id=run_id,
-                        sink=CloudTraceSink(upload_url=upload_url, run_id=run_id),
+                        sink=CloudTraceSink(
+                            upload_url=upload_url,
+                            run_id=run_id,
+                            api_key=api_key,
+                            api_url=api_url,
+                            logger=logger,
+                        ),
                     )
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
