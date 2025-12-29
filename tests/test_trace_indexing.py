@@ -1,0 +1,532 @@
+"""
+Tests for trace indexing functionality.
+"""
+
+import json
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from sentience.trace_indexing import (
+    build_trace_index,
+    write_trace_index,
+    read_step_events,
+    TraceIndex,
+    StepIndex,
+)
+
+
+class TestTraceIndexing:
+    """Test trace index building and querying."""
+
+    def test_empty_trace(self):
+        """Index of empty file should have zero events."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "empty.jsonl"
+            trace_path.write_text("")
+
+            index = build_trace_index(str(trace_path))
+
+            assert isinstance(index, TraceIndex)
+            assert index.version == 1
+            assert index.run_id == "empty"
+            assert index.summary.event_count == 0
+            assert index.summary.step_count == 0
+            assert index.summary.error_count == 0
+            assert len(index.steps) == 0
+
+    def test_single_step_trace(self):
+        """Index should have 1 step with correct offsets."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "single-step.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {"goal": "Test goal"},
+                },
+                {
+                    "v": 1,
+                    "type": "action",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {"type": "CLICK", "target_element_id": 42, "success": True},
+                },
+                {
+                    "v": 1,
+                    "type": "step_end",
+                    "ts": "2025-12-29T10:00:02.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            assert index.summary.event_count == 3
+            assert index.summary.step_count == 1
+            assert len(index.steps) == 1
+
+            step = index.steps[0]
+            assert isinstance(step, StepIndex)
+            assert step.step_id == "step-1"
+            assert step.step_index == 1
+            assert step.goal == "Test goal"
+            assert step.status == "ok"
+            assert step.counters.events == 3
+            assert step.counters.actions == 1
+            assert step.offset_start == 0
+            assert step.offset_end > step.offset_start
+
+    def test_multi_step_trace(self):
+        """Index should have multiple steps in order."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "multi-step.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {"goal": "First step"},
+                },
+                {
+                    "v": 1,
+                    "type": "step_end",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:02.000Z",
+                    "step_id": "step-2",
+                    "data": {"goal": "Second step"},
+                },
+                {
+                    "v": 1,
+                    "type": "step_end",
+                    "ts": "2025-12-29T10:00:03.000Z",
+                    "step_id": "step-2",
+                    "data": {},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            assert index.summary.step_count == 2
+            assert len(index.steps) == 2
+            assert index.steps[0].step_id == "step-1"
+            assert index.steps[0].step_index == 1
+            assert index.steps[1].step_id == "step-2"
+            assert index.steps[1].step_index == 2
+
+    def test_byte_offset_accuracy(self):
+        """Seeking to offset should return exact events."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "offset-test.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "action",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {"type": "CLICK"},
+                },
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:02.000Z",
+                    "step_id": "step-2",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "action",
+                    "ts": "2025-12-29T10:00:03.000Z",
+                    "step_id": "step-2",
+                    "data": {"type": "TYPE"},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            # Read step-1 events using offset
+            step1 = index.steps[0]
+            step1_events = read_step_events(
+                str(trace_path), step1.offset_start, step1.offset_end
+            )
+
+            assert len(step1_events) == 2
+            assert step1_events[0]["step_id"] == "step-1"
+            assert step1_events[0]["type"] == "step_start"
+            assert step1_events[1]["step_id"] == "step-1"
+            assert step1_events[1]["type"] == "action"
+
+            # Read step-2 events using offset
+            step2 = index.steps[1]
+            step2_events = read_step_events(
+                str(trace_path), step2.offset_start, step2.offset_end
+            )
+
+            assert len(step2_events) == 2
+            assert step2_events[0]["step_id"] == "step-2"
+            assert step2_events[1]["type"] == "action"
+
+    def test_snapshot_digest_determinism(self):
+        """Same snapshot data should produce same digest."""
+        snapshot_data = {
+            "url": "https://example.com",
+            "viewport": {"width": 1920, "height": 1080},
+            "elements": [
+                {
+                    "id": 1,
+                    "role": "button",
+                    "text": "Click me",
+                    "bbox": {"x": 10.0, "y": 20.0, "width": 100.0, "height": 50.0},
+                    "is_primary": True,
+                    "is_clickable": True,
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "digest-test.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "snapshot",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": snapshot_data,
+                }
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index1 = build_trace_index(str(trace_path))
+            index2 = build_trace_index(str(trace_path))
+
+            digest1 = index1.steps[0].snapshot_after.digest
+            digest2 = index2.steps[0].snapshot_after.digest
+
+            assert digest1 == digest2
+            assert digest1.startswith("sha256:")
+
+    def test_snapshot_digest_noise_resistance(self):
+        """Small changes (2px bbox shift) should produce same digest."""
+        base_snapshot = {
+            "url": "https://example.com",
+            "viewport": {"width": 1920, "height": 1080},
+            "elements": [
+                {
+                    "id": 1,
+                    "role": "button",
+                    "text": "  Click  me  ",  # Extra whitespace
+                    "bbox": {"x": 10.0, "y": 20.0, "width": 100.0, "height": 50.0},
+                }
+            ],
+        }
+
+        shifted_snapshot = {
+            "url": "https://example.com",
+            "viewport": {"width": 1920, "height": 1080},
+            "elements": [
+                {
+                    "id": 1,
+                    "role": "button",
+                    "text": "Click me",  # No extra whitespace
+                    "bbox": {
+                        "x": 10.5,
+                        "y": 20.5,
+                        "width": 100.5,
+                        "height": 50.5,
+                    },  # Sub-2px shift
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace1_path = Path(tmpdir) / "base.jsonl"
+            trace2_path = Path(tmpdir) / "shifted.jsonl"
+
+            with open(trace1_path, "w") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "v": 1,
+                            "type": "snapshot",
+                            "ts": "2025-12-29T10:00:00.000Z",
+                            "step_id": "step-1",
+                            "data": base_snapshot,
+                        }
+                    )
+                    + "\n"
+                )
+
+            with open(trace2_path, "w") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "v": 1,
+                            "type": "snapshot",
+                            "ts": "2025-12-29T10:00:00.000Z",
+                            "step_id": "step-1",
+                            "data": shifted_snapshot,
+                        }
+                    )
+                    + "\n"
+                )
+
+            index1 = build_trace_index(str(trace1_path))
+            index2 = build_trace_index(str(trace2_path))
+
+            digest1 = index1.steps[0].snapshot_after.digest
+            digest2 = index2.steps[0].snapshot_after.digest
+
+            assert digest1 == digest2  # Should be identical despite noise
+
+    def test_action_digest_privacy(self):
+        """Typed text should not appear in action digest."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "privacy-test.jsonl"
+
+            sensitive_text = "my-secret-password"
+            events = [
+                {
+                    "v": 1,
+                    "type": "action",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {
+                        "type": "TYPE",
+                        "target_element_id": 15,
+                        "text": sensitive_text,
+                        "success": True,
+                    },
+                }
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            # Convert index to JSON string
+            index_json = json.dumps(index.to_dict())
+
+            # Verify sensitive text is NOT in index
+            assert sensitive_text not in index_json
+
+            # Verify action digest exists and is a hash
+            action_digest = index.steps[0].action.args_digest
+            assert action_digest is not None
+            assert action_digest.startswith("sha256:")
+
+    def test_synthetic_step(self):
+        """Events without step_id should create step-0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "synthetic-step.jsonl"
+
+            events = [
+                {"v": 1, "type": "run_start", "ts": "2025-12-29T10:00:00.000Z", "data": {}},
+                {"v": 1, "type": "action", "ts": "2025-12-29T10:00:01.000Z", "data": {}},
+                {"v": 1, "type": "run_end", "ts": "2025-12-29T10:00:02.000Z", "data": {}},
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            assert index.summary.step_count == 1
+            assert len(index.steps) == 1
+            assert index.steps[0].step_id == "step-0"  # Synthetic step
+
+    def test_index_idempotency(self):
+        """Regenerating index should produce identical output."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "idempotent.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "action",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {"type": "CLICK"},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index1 = build_trace_index(str(trace_path))
+            index2 = build_trace_index(str(trace_path))
+
+            # Compare all fields except created_at (timestamp will differ)
+            assert index1.version == index2.version
+            assert index1.run_id == index2.run_id
+            assert index1.trace_file.sha256 == index2.trace_file.sha256
+            assert index1.summary.event_count == index2.summary.event_count
+            assert len(index1.steps) == len(index2.steps)
+
+            for step1, step2 in zip(index1.steps, index2.steps):
+                assert step1.step_id == step2.step_id
+                assert step1.offset_start == step2.offset_start
+                assert step1.offset_end == step2.offset_end
+
+    def test_write_trace_index(self):
+        """write_trace_index should create index file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "test.jsonl"
+
+            events = [
+                {"v": 1, "type": "run_start", "ts": "2025-12-29T10:00:00.000Z", "data": {}}
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index_path = write_trace_index(str(trace_path))
+
+            assert os.path.exists(index_path)
+            assert index_path.endswith(".index.json")
+
+            # Verify index content
+            with open(index_path, "r") as f:
+                index_data = json.load(f)
+
+            assert index_data["version"] == 1
+            assert index_data["run_id"] == "test"
+            assert "summary" in index_data
+            assert "steps" in index_data
+
+    def test_error_counting(self):
+        """Errors should be counted in summary and affect step status."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "errors.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "error",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {"message": "Something failed"},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            assert index.summary.error_count == 1
+            assert index.steps[0].status == "error"
+
+    def test_llm_call_counting(self):
+        """LLM calls should be counted per step."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "llm.jsonl"
+
+            events = [
+                {
+                    "v": 1,
+                    "type": "step_start",
+                    "ts": "2025-12-29T10:00:00.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "llm_response",
+                    "ts": "2025-12-29T10:00:01.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+                {
+                    "v": 1,
+                    "type": "llm_response",
+                    "ts": "2025-12-29T10:00:02.000Z",
+                    "step_id": "step-1",
+                    "data": {},
+                },
+            ]
+
+            with open(trace_path, "w") as f:
+                for event in events:
+                    f.write(json.dumps(event) + "\n")
+
+            index = build_trace_index(str(trace_path))
+
+            assert index.steps[0].counters.llm_calls == 2
+
+    def test_malformed_lines_skipped(self):
+        """Malformed JSON lines should be skipped gracefully."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "malformed.jsonl"
+
+            with open(trace_path, "w") as f:
+                f.write('{"v": 1, "type": "run_start", "ts": "2025-12-29T10:00:00.000Z"}\n')
+                f.write("this is not valid json\n")  # Malformed line
+                f.write('{"v": 1, "type": "run_end", "ts": "2025-12-29T10:00:01.000Z"}\n')
+
+            index = build_trace_index(str(trace_path))
+
+            # Should have 2 valid events (malformed line skipped)
+            assert index.summary.event_count == 2
+
+    def test_file_not_found(self):
+        """Should raise FileNotFoundError for non-existent file."""
+        with pytest.raises(FileNotFoundError):
+            build_trace_index("/nonexistent/trace.jsonl")

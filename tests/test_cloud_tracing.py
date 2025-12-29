@@ -250,7 +250,9 @@ class TestTracerFactory:
                 # Mock upload response
                 mock_put.return_value = Mock(status_code=200)
 
-                tracer = create_tracer(api_key="sk_pro_test123", run_id="test-run", upload_trace=True)
+                tracer = create_tracer(
+                    api_key="sk_pro_test123", run_id="test-run", upload_trace=True
+                )
 
                 # Verify Pro tier message
                 captured = capsys.readouterr()
@@ -294,7 +296,9 @@ class TestTracerFactory:
             mock_post.return_value = mock_response
 
             with tempfile.TemporaryDirectory():
-                tracer = create_tracer(api_key="sk_free_test123", run_id="test-run", upload_trace=True)
+                tracer = create_tracer(
+                    api_key="sk_free_test123", run_id="test-run", upload_trace=True
+                )
 
                 # Verify warning message
                 captured = capsys.readouterr()
@@ -395,7 +399,10 @@ class TestTracerFactory:
                 mock_put.return_value = Mock(status_code=200)
 
                 tracer = create_tracer(
-                    api_key="sk_test123", run_id="test-run", api_url=custom_api_url, upload_trace=True
+                    api_key="sk_test123",
+                    run_id="test-run",
+                    api_url=custom_api_url,
+                    upload_trace=True,
                 )
 
                 # Verify custom API URL was used
@@ -463,7 +470,9 @@ class TestTracerFactory:
                     mock_put.return_value = Mock(status_code=200)
 
                     # Create tracer - should trigger orphaned trace recovery
-                    tracer = create_tracer(api_key="sk_test123", run_id="new-run-456", upload_trace=True)
+                    tracer = create_tracer(
+                        api_key="sk_test123", run_id="new-run-456", upload_trace=True
+                    )
 
                     # Verify recovery messages
                     captured = capsys.readouterr()
