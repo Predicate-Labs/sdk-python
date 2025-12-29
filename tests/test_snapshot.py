@@ -6,6 +6,7 @@ import pytest
 
 from sentience import SentienceBrowser, snapshot
 
+
 @pytest.mark.requires_extension
 def test_snapshot_basic():
     """Test basic snapshot on example.com"""

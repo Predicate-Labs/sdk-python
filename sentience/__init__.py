@@ -41,8 +41,13 @@ from .models import (  # Agent Layer Models
     SnapshotFilter,
     SnapshotOptions,
     StorageState,
+    TextContext,
+    TextMatch,
+    TextRect,
+    TextRectSearchResult,
     TokenStats,
     Viewport,
+    ViewportRect,
     WaitResult,
 )
 from .overlay import clear_overlay, show_overlay
@@ -51,6 +56,7 @@ from .read import read
 from .recorder import Recorder, Trace, TraceStep, record
 from .screenshot import screenshot
 from .snapshot import snapshot
+from .text_search import find_text_rect
 from .tracer_factory import SENTIENCE_API_URL, create_tracer
 from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
 
@@ -96,6 +102,13 @@ __all__ = [
     "screenshot",
     "show_overlay",
     "clear_overlay",
+    # Text Search
+    "find_text_rect",
+    "TextRectSearchResult",
+    "TextMatch",
+    "TextRect",
+    "ViewportRect",
+    "TextContext",
     # Agent Layer (Phase 1 & 2)
     "BaseAgent",
     "LLMProvider",
