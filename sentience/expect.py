@@ -3,7 +3,6 @@ Expect/Assert functionality
 """
 
 import time
-from typing import Optional, Union
 
 from .browser import SentienceBrowser
 from .models import Element

@@ -144,13 +144,13 @@ async function handleScreenshotCapture(_tabId, options = {}) {
 async function handleSnapshotProcessing(rawData, options = {}) {
     const MAX_ELEMENTS = 10000; // Safety limit to prevent hangs
     const startTime = performance.now();
-    
+
     try {
         // Safety check: limit element count to prevent hangs
         if (!Array.isArray(rawData)) {
             throw new Error('rawData must be an array');
         }
-        
+
         if (rawData.length > MAX_ELEMENTS) {
             console.warn(`[Sentience Background] ⚠️ Large dataset: ${rawData.length} elements. Limiting to ${MAX_ELEMENTS} to prevent hangs.`);
             rawData = rawData.slice(0, MAX_ELEMENTS);
@@ -186,7 +186,7 @@ async function handleSnapshotProcessing(rawData, options = {}) {
             // Add timeout protection (18 seconds - less than content.js timeout)
             analyzedElements = await Promise.race([
                 wasmPromise,
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('WASM processing timeout (>18s)')), 18000)
                 )
             ]);

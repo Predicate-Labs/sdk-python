@@ -34,7 +34,6 @@ from .models import (  # Agent Layer Models
     BBox,
     Cookie,
     Element,
-    TextRectSearchResult,
     LocalStorageItem,
     OriginStorage,
     ScreenshotConfig,
@@ -45,9 +44,10 @@ from .models import (  # Agent Layer Models
     TextContext,
     TextMatch,
     TextRect,
+    TextRectSearchResult,
     TokenStats,
-    ViewportRect,
     Viewport,
+    ViewportRect,
     WaitResult,
 )
 from .overlay import clear_overlay, show_overlay

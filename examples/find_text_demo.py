@@ -8,7 +8,7 @@ This example demonstrates how to:
 4. Handle multiple matches and filter by viewport visibility
 """
 
-from sentience import SentienceBrowser, find_text_rect, click_rect
+from sentience import SentienceBrowser, click_rect, find_text_rect
 
 
 def main():
@@ -34,9 +34,7 @@ def main():
                 print(f"  Position: ({match.rect.x:.1f}, {match.rect.y:.1f})")
                 print(f"  Size: {match.rect.width:.1f}x{match.rect.height:.1f} pixels")
                 print(f"  In viewport: {match.in_viewport}")
-                print(
-                    f"  Context: ...{match.context.before}[{match.text}]{match.context.after}..."
-                )
+                print(f"  Context: ...{match.context.before}[{match.text}]{match.context.after}...")
         else:
             print(f"✗ Search failed: {result.error}")
 

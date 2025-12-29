@@ -399,6 +399,8 @@ class TextRectSearchResult(BaseModel):
     case_sensitive: bool | None = Field(None, description="Whether search was case-sensitive")
     whole_word: bool | None = Field(None, description="Whether whole-word matching was used")
     matches: int | None = Field(None, description="Number of matches found")
-    results: list[TextMatch] | None = Field(None, description="List of text matches with coordinates")
+    results: list[TextMatch] | None = Field(
+        None, description="List of text matches with coordinates"
+    )
     viewport: Viewport | None = Field(None, description="Current viewport dimensions")
     error: str | None = Field(None, description="Error message if status is 'error'")

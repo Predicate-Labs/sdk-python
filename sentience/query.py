@@ -8,7 +8,7 @@ from typing import Any
 from .models import Element, Snapshot
 
 
-def parse_selector(selector: str) -> dict[str, Any]: # noqa: C901
+def parse_selector(selector: str) -> dict[str, Any]:  # noqa: C901
     """
     Parse string DSL selector into structured query
 
@@ -136,7 +136,7 @@ def parse_selector(selector: str) -> dict[str, Any]: # noqa: C901
     return query
 
 
-def match_element(element: Element, query: dict[str, Any]) -> bool: # noqa: C901
+def match_element(element: Element, query: dict[str, Any]) -> bool:  # noqa: C901
     """Check if element matches query criteria"""
 
     # Role exact match
