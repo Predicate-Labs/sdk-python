@@ -3,12 +3,12 @@ Query engine v1 - semantic selector matching
 """
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from .models import Element, Snapshot
 
 
-def parse_selector(selector: str) -> dict[str, Any]:
+def parse_selector(selector: str) -> dict[str, Any]: # noqa: C901
     """
     Parse string DSL selector into structured query
 
@@ -136,7 +136,7 @@ def parse_selector(selector: str) -> dict[str, Any]:
     return query
 
 
-def match_element(element: Element, query: dict[str, Any]) -> bool:
+def match_element(element: Element, query: dict[str, Any]) -> bool: # noqa: C901
     """Check if element matches query criteria"""
 
     # Role exact match

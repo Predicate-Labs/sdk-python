@@ -2,10 +2,6 @@
 Tests for wait functionality
 """
 
-import os
-
-import pytest
-
 from sentience import SentienceBrowser, expect, wait_for
 
 

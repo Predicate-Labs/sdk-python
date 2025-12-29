@@ -3,7 +3,6 @@ Wait functionality - wait_for element matching selector
 """
 
 import time
-from typing import Optional, Union
 
 from .browser import SentienceBrowser
 from .models import WaitResult

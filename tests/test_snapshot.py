@@ -5,8 +5,6 @@ Tests for snapshot functionality
 import pytest
 
 from sentience import SentienceBrowser, snapshot
-from sentience.models import Snapshot
-
 
 @pytest.mark.requires_extension
 def test_snapshot_basic():
