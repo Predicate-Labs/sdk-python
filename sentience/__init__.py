@@ -11,7 +11,7 @@ from .base_agent import BaseAgent
 from .browser import SentienceBrowser
 
 # Tracing (v0.12.0+)
-from .cloud_tracing import CloudTraceSink
+from .cloud_tracing import CloudTraceSink, SentienceLogger
 from .conversational_agent import ConversationalAgent
 from .expect import expect
 
@@ -64,7 +64,7 @@ from .utils import (
 )
 from .wait import wait_for
 
-__version__ = "0.90.3"
+__version__ = "0.90.5"
 
 __all__ = [
     # Core SDK
@@ -123,6 +123,7 @@ __all__ = [
     "TraceSink",
     "JsonlTraceSink",
     "CloudTraceSink",
+    "SentienceLogger",
     "TraceEvent",
     "create_tracer",
     "SENTIENCE_API_URL",
