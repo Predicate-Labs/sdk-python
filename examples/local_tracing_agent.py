@@ -41,7 +41,8 @@ def main():
     # If api_key is Pro/Enterprise, uses CloudTraceSink
     # If api_key is missing/invalid, falls back to local JsonlTraceSink
     run_id = "cloud-tracing-demo"
-    tracer = create_tracer(api_key=sentience_key, run_id=run_id)
+    # local storage tracer, is upload_tracer is True and api_key is provided, will upload to cloud
+    tracer = create_tracer(api_key=sentience_key, run_id=run_id, upload_trace=False)
 
     print(f"🆔 Run ID: {run_id}\n")
 
