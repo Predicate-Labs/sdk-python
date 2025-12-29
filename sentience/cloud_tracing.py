@@ -145,6 +145,9 @@ class CloudTraceSink(TraceSink):
         # Close file first
         self._trace_file.close()
 
+        # Generate index after closing file
+        self._generate_index()
+
         if not blocking:
             # Fire-and-forget background upload
             thread = threading.Thread(
@@ -230,6 +233,16 @@ class CloudTraceSink(TraceSink):
             print(f"❌ [Sentience] Error uploading trace: {e}")
             print(f"   Local trace preserved at: {self._path}")
             # Don't raise - preserve trace locally even if upload fails
+
+    def _generate_index(self) -> None:
+        """Generate trace index file (automatic on close)."""
+        try:
+            from .trace_indexing import write_trace_index
+
+            write_trace_index(str(self._path))
+        except Exception as e:
+            # Non-fatal: log but don't crash
+            print(f"⚠️  Failed to generate trace index: {e}")
 
     def _complete_trace(self) -> None:
         """

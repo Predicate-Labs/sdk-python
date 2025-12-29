@@ -103,9 +103,22 @@ class JsonlTraceSink(TraceSink):
         self._file.write(json_str + "\n")
 
     def close(self) -> None:
-        """Close the file."""
+        """Close the file and generate index."""
         if hasattr(self, "_file") and not self._file.closed:
             self._file.close()
+
+        # Generate index after closing file
+        self._generate_index()
+
+    def _generate_index(self) -> None:
+        """Generate trace index file (automatic on close)."""
+        try:
+            from .trace_indexing import write_trace_index
+
+            write_trace_index(str(self.path))
+        except Exception as e:
+            # Non-fatal: log but don't crash
+            print(f"⚠️  Failed to generate trace index: {e}")
 
     def __enter__(self):
         """Context manager support."""
