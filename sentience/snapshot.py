@@ -5,7 +5,7 @@ Snapshot functionality - calls window.sentience.snapshot() or server-side API
 import json
 import os
 import time
-from typing import Any
+from typing import Any, Optional
 
 import requests
 
@@ -41,41 +41,33 @@ def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | No
 
 def snapshot(
     browser: SentienceBrowser,
-    screenshot: bool | None = None,
-    limit: int | None = None,
-    filter: dict[str, Any] | None = None,
-    use_api: bool | None = None,
-    save_trace: bool = False,
-    trace_path: str | None = None,
-    show_overlay: bool = False,
+    options: Optional[SnapshotOptions] = None,
 ) -> Snapshot:
     """
     Take a snapshot of the current page
 
     Args:
         browser: SentienceBrowser instance
-        screenshot: Whether to capture screenshot (bool or dict with format/quality)
-        limit: Limit number of elements returned
-        filter: Filter options (min_area, allowed_roles, min_z_index)
-        use_api: Force use of server-side API if True, local extension if False.
-                 If None, uses API if api_key is set, otherwise uses local extension.
-        save_trace: Whether to save raw_elements to JSON for benchmarking/training
-        trace_path: Path to save trace file. If None, uses "trace_{timestamp}.json"
-        show_overlay: Show visual overlay highlighting elements in browser
+        options: Snapshot options (screenshot, limit, filter, etc.)
+                If None, uses default options.
 
     Returns:
         Snapshot object
+
+    Example:
+        # Basic snapshot with defaults
+        snap = snapshot(browser)
+
+        # With options
+        snap = snapshot(browser, SnapshotOptions(
+            screenshot=True,
+            limit=100,
+            show_overlay=True
+        ))
     """
-    # Build SnapshotOptions from individual parameters
-    options = SnapshotOptions(
-        screenshot=screenshot if screenshot is not None else False,
-        limit=limit if limit is not None else 50,
-        filter=filter,
-        use_api=use_api,
-        save_trace=save_trace,
-        trace_path=trace_path,
-        show_overlay=show_overlay,
-    )
+    # Use default options if none provided
+    if options is None:
+        options = SnapshotOptions()
 
     # Determine if we should use server-side API
     should_use_api = (
