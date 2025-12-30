@@ -127,9 +127,7 @@ def find_text_rect(
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError(
-            f"Failed to verify findTextRect availability: {e}"
-        ) from e
+        raise RuntimeError(f"Failed to verify findTextRect availability: {e}") from e
 
     # Call the extension's findTextRect method
     result_dict = browser.page.evaluate(

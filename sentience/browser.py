@@ -33,6 +33,8 @@ class SentienceBrowser:
         proxy: str | None = None,
         user_data_dir: str | None = None,
         storage_state: str | Path | StorageState | dict | None = None,
+        record_video_dir: str | Path | None = None,
+        record_video_size: dict[str, int] | None = None,
     ):
         """
         Initialize Sentience browser
@@ -57,6 +59,14 @@ class SentienceBrowser:
                           - StorageState object
                           - Dictionary with 'cookies' and/or 'origins' keys
                           If provided, browser starts with pre-injected authentication.
+            record_video_dir: Optional directory path to save video recordings.
+                            If provided, browser will record video of all pages.
+                            Videos are saved as .webm files in the specified directory.
+                            If None, no video recording is performed.
+            record_video_size: Optional video resolution as dict with 'width' and 'height' keys.
+                             Examples: {"width": 1280, "height": 800} (default)
+                                      {"width": 1920, "height": 1080} (1080p)
+                             If None, defaults to 1280x800.
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -79,6 +89,10 @@ class SentienceBrowser:
         # Auth injection support
         self.user_data_dir = user_data_dir
         self.storage_state = storage_state
+
+        # Video recording support
+        self.record_video_dir = record_video_dir
+        self.record_video_size = record_video_size or {"width": 1280, "height": 800}
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -208,6 +222,17 @@ class SentienceBrowser:
             # Ignore HTTPS errors when using proxy (many residential proxies use self-signed certs)
             launch_params["ignore_https_errors"] = True
             print(f"🌐 [Sentience] Using proxy: {proxy_config.server}")
+
+        # Add video recording if configured
+        if self.record_video_dir:
+            video_dir = Path(self.record_video_dir)
+            video_dir.mkdir(parents=True, exist_ok=True)
+            launch_params["record_video_dir"] = str(video_dir)
+            launch_params["record_video_size"] = self.record_video_size
+            print(f"🎥 [Sentience] Recording video to: {video_dir}")
+            print(
+                f"   Resolution: {self.record_video_size['width']}x{self.record_video_size['height']}"
+            )
 
         # Launch persistent context (required for extensions)
         # Note: We pass headless=False to launch_persistent_context because we handle
@@ -390,14 +415,70 @@ class SentienceBrowser:
 
         return False
 
-    def close(self) -> None:
-        """Close browser and cleanup"""
+    def close(self, output_path: str | Path | None = None) -> str | None:
+        """
+        Close browser and cleanup
+
+        Args:
+            output_path: Optional path to rename the video file to.
+                        If provided, the recorded video will be moved to this location.
+                        Useful for giving videos meaningful names instead of random hashes.
+
+        Returns:
+            Path to video file if recording was enabled, None otherwise
+            Note: Video files are saved automatically by Playwright when context closes.
+            If multiple pages exist, returns the path to the first page's video.
+        """
+        temp_video_path = None
+
+        # Get video path before closing (if recording was enabled)
+        # Note: Playwright saves videos when pages/context close, but we can get the
+        # expected path before closing. The actual file will be available after close.
+        if self.record_video_dir:
+            try:
+                # Try to get video path from the first page
+                if self.page and self.page.video:
+                    temp_video_path = self.page.video.path()
+                # If that fails, check all pages in the context
+                elif self.context:
+                    for page in self.context.pages:
+                        if page.video:
+                            temp_video_path = page.video.path()
+                            break
+            except Exception:
+                # Video path might not be available until after close
+                # In that case, we'll return None and user can check the directory
+                pass
+
+        # Close context (this triggers video file finalization)
         if self.context:
             self.context.close()
+
+        # Close playwright
         if self.playwright:
             self.playwright.stop()
+
+        # Clean up extension directory
         if self._extension_path and os.path.exists(self._extension_path):
             shutil.rmtree(self._extension_path)
+
+        # Rename/move video if output_path is specified
+        final_path = temp_video_path
+        if temp_video_path and output_path and os.path.exists(temp_video_path):
+            try:
+                output_path = str(output_path)
+                # Ensure parent directory exists
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(temp_video_path, output_path)
+                final_path = output_path
+            except Exception as e:
+                import warnings
+
+                warnings.warn(f"Failed to rename video file: {e}")
+                # Return original path if rename fails
+                final_path = temp_video_path
+
+        return final_path
 
     def __enter__(self):
         """Context manager entry"""

@@ -53,7 +53,7 @@ jobs:
     - name: Verify extension files are present
       run: |
         echo "🔍 Verifying extension files are included..."
-        
+
         # Check required extension files exist
         REQUIRED_FILES=(
           "sentience/extension/manifest.json"
@@ -63,14 +63,14 @@ jobs:
           "sentience/extension/pkg/sentience_core.js"
           "sentience/extension/pkg/sentience_core_bg.wasm"
         )
-        
+
         MISSING_FILES=()
         for file in "${REQUIRED_FILES[@]}"; do
           if [ ! -f "$file" ]; then
             MISSING_FILES+=("$file")
           fi
         done
-        
+
         if [ ${#MISSING_FILES[@]} -ne 0 ]; then
           echo "❌ Error: Missing required extension files:"
           printf '  - %s\n' "${MISSING_FILES[@]}"
@@ -79,14 +79,14 @@ jobs:
           echo "Run the sync-extension workflow or manually sync extension files."
           exit 1
         fi
-        
+
         # Verify findTextRect function exists in injected_api.js
         if ! grep -q "findTextRect:" sentience/extension/injected_api.js; then
           echo "❌ Error: findTextRect function not found in injected_api.js"
           echo "The extension may be out of date. Please sync the extension before releasing."
           exit 1
         fi
-        
+
         echo "✅ All extension files verified"
         echo "📦 Extension files that will be included:"
         find sentience/extension -type f | sort
@@ -98,23 +98,23 @@ jobs:
     - name: Check package
       run: |
         twine check dist/*
-    
+
     - name: Verify extension files in built package
       run: |
         echo "🔍 Verifying extension files are included in the built package..."
-        
+
         # Extract wheel to check contents
         WHEEL_FILE=$(ls dist/*.whl | head -1)
         WHEEL_PATH=$(realpath "$WHEEL_FILE")
         echo "Checking wheel: $WHEEL_PATH"
-        
+
         # Create temp directory for extraction
         TEMP_DIR=$(mktemp -d)
         cd "$TEMP_DIR"
-        
+
         # Extract wheel (it's a zip file)
         unzip -q "$WHEEL_PATH"
-        
+
         # Check for required extension files in the wheel
         REQUIRED_IN_WHEEL=(
           "sentience/extension/manifest.json"
@@ -122,14 +122,14 @@ jobs:
           "sentience/extension/pkg/sentience_core.js"
           "sentience/extension/pkg/sentience_core_bg.wasm"
         )
-        
+
         MISSING_IN_WHEEL=()
         for file in "${REQUIRED_IN_WHEEL[@]}"; do
           if [ ! -f "$file" ]; then
             MISSING_IN_WHEEL+=("$file")
           fi
         done
-        
+
         if [ ${#MISSING_IN_WHEEL[@]} -ne 0 ]; then
           echo "❌ Error: Extension files missing from built wheel:"
           printf '  - %s\n' "${MISSING_IN_WHEEL[@]}"
@@ -138,17 +138,17 @@ jobs:
           echo "Check MANIFEST.in and pyproject.toml package-data settings."
           exit 1
         fi
-        
+
         # Verify findTextRect is in the packaged injected_api.js
         if ! grep -q "findTextRect:" sentience/extension/injected_api.js; then
           echo "❌ Error: findTextRect not found in packaged injected_api.js"
           exit 1
         fi
-        
+
         echo "✅ All extension files verified in built package"
         echo "📦 Extension files found in wheel:"
         find sentience/extension -type f | sort
-        
+
         # Cleanup
         rm -rf "$TEMP_DIR"
 
