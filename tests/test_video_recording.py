@@ -3,10 +3,11 @@ Tests for video recording functionality
 """
 
 import os
-import pytest
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+
+import pytest
 
 from sentience import SentienceBrowser
 
@@ -16,10 +17,7 @@ def test_video_recording_basic():
     with tempfile.TemporaryDirectory() as temp_dir:
         video_dir = Path(temp_dir) / "recordings"
 
-        with SentienceBrowser(
-            headless=True,
-            record_video_dir=str(video_dir)
-        ) as browser:
+        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -43,7 +41,7 @@ def test_video_recording_custom_resolution():
         with SentienceBrowser(
             headless=True,
             record_video_dir=str(video_dir),
-            record_video_size={"width": 1920, "height": 1080}
+            record_video_size={"width": 1920, "height": 1080},
         ) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
@@ -60,10 +58,7 @@ def test_video_recording_custom_output_path():
         video_dir = Path(temp_dir) / "recordings"
         custom_path = video_dir / "my_recording.webm"
 
-        with SentienceBrowser(
-            headless=True,
-            record_video_dir=str(video_dir)
-        ) as browser:
+        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -80,10 +75,7 @@ def test_video_recording_nested_output_path():
         video_dir = Path(temp_dir) / "recordings"
         nested_path = video_dir / "project" / "tutorials" / "video1.webm"
 
-        with SentienceBrowser(
-            headless=True,
-            record_video_dir=str(video_dir)
-        ) as browser:
+        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -113,10 +105,7 @@ def test_video_recording_directory_auto_created():
         # Use a non-existent directory
         video_dir = Path(temp_dir) / "new_recordings" / "subdir"
 
-        with SentienceBrowser(
-            headless=True,
-            record_video_dir=str(video_dir)
-        ) as browser:
+        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -135,8 +124,7 @@ def test_video_recording_with_pathlib():
         output_path = video_dir / "test_video.webm"
 
         with SentienceBrowser(
-            headless=True,
-            record_video_dir=video_dir  # Pass Path object
+            headless=True, record_video_dir=video_dir  # Pass Path object
         ) as browser:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
@@ -156,10 +144,7 @@ def test_video_recording_multiple_sessions():
 
         # Create 3 video recordings
         for i in range(3):
-            with SentienceBrowser(
-                headless=True,
-                record_video_dir=str(video_dir)
-            ) as browser:
+            with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
                 browser.page.goto("https://example.com")
                 browser.page.wait_for_load_state("networkidle")
 
@@ -177,10 +162,7 @@ def test_video_recording_default_resolution():
     with tempfile.TemporaryDirectory() as temp_dir:
         video_dir = Path(temp_dir) / "recordings"
 
-        browser = SentienceBrowser(
-            headless=True,
-            record_video_dir=str(video_dir)
-        )
+        browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
 
         # Verify default resolution
         assert browser.record_video_size == {"width": 1280, "height": 800}

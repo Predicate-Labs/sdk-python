@@ -7,9 +7,10 @@ Demonstrates advanced video recording features:
 - Multiple recordings in one session
 """
 
-from sentience import SentienceBrowser
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+from sentience import SentienceBrowser
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
 
     with SentienceBrowser(
         record_video_dir=str(video_dir),
-        record_video_size={"width": 1920, "height": 1080}  # 1080p resolution
+        record_video_size={"width": 1920, "height": 1080},  # 1080p resolution
     ) as browser:
         print("   Resolution: 1920x1080")
         browser.page.goto("https://example.com")
