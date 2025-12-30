@@ -70,7 +70,7 @@ from .utils import (
 )
 from .wait import wait_for
 
-__version__ = "0.90.9"
+__version__ = "0.90.10"
 
 __all__ = [
     # Core SDK
