@@ -21,7 +21,7 @@ def test_video_recording_basic():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close()
 
@@ -52,7 +52,7 @@ def test_video_recording_custom_resolution():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close()
 
@@ -74,7 +74,7 @@ def test_video_recording_custom_output_path():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=str(custom_path))
 
@@ -97,7 +97,7 @@ def test_video_recording_nested_output_path():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=str(nested_path))
 
@@ -139,7 +139,7 @@ def test_video_recording_directory_auto_created():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close()
 
@@ -166,7 +166,7 @@ def test_video_recording_with_pathlib():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=output_path)  # Pass Path object
 
@@ -219,7 +219,7 @@ def test_video_recording_default_resolution():
 
         try:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
             browser.close()
         except Exception:
             browser.close()
@@ -234,7 +234,7 @@ def test_video_recording_with_context_manager():
         # Use context manager WITHOUT calling close() manually
         with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
             browser.page.goto("https://example.com")
-            browser.page.wait_for_load_state("networkidle")
+            browser.page.wait_for_load_state("domcontentloaded")
             # Don't call browser.close() - let context manager handle it
 
         # Verify video was created after context manager exits
