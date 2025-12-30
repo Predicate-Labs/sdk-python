@@ -66,10 +66,10 @@
     // --- HELPER: Safe Class Name Extractor (Handles SVGAnimatedString) ---
     function getClassName(el) {
         if (!el || !el.className) return '';
-
+        
         // Handle string (HTML elements)
         if (typeof el.className === 'string') return el.className;
-
+        
         // Handle SVGAnimatedString (SVG elements)
         if (typeof el.className === 'object') {
             if ('baseVal' in el.className && typeof el.className.baseVal === 'string') {
@@ -85,17 +85,17 @@
                 return '';
             }
         }
-
+        
         return '';
     }
 
     // --- HELPER: Paranoid String Converter (Handles SVGAnimatedString) ---
     function toSafeString(value) {
         if (value === null || value === undefined) return null;
-
+        
         // 1. If it's already a primitive string, return it
         if (typeof value === 'string') return value;
-
+        
         // 2. Handle SVG objects (SVGAnimatedString, SVGAnimatedNumber, etc.)
         if (typeof value === 'object') {
             // Try extracting baseVal (standard SVG property)
@@ -114,7 +114,7 @@
                 return null;
             }
         }
-
+        
         // 3. Last resort cast for primitives
         try {
             return String(value);
@@ -127,9 +127,9 @@
     // For SVG elements, get the fill or stroke color (SVGs use fill/stroke, not backgroundColor)
     function getSVGColor(el) {
         if (!el || el.tagName !== 'SVG') return null;
-
+        
         const style = window.getComputedStyle(el);
-
+        
         // Try fill first (most common for SVG icons)
         const fill = style.fill;
         if (fill && fill !== 'none' && fill !== 'transparent' && fill !== 'rgba(0, 0, 0, 0)') {
@@ -144,7 +144,7 @@
                 return fill;
             }
         }
-
+        
         // Fallback to stroke if fill is not available
         const stroke = style.stroke;
         if (stroke && stroke !== 'none' && stroke !== 'transparent' && stroke !== 'rgba(0, 0, 0, 0)') {
@@ -158,7 +158,7 @@
                 return stroke;
             }
         }
-
+        
         return null;
     }
 
@@ -168,28 +168,28 @@
     // This handles rgba(0,0,0,0) and transparent values that browsers commonly return
     function getEffectiveBackgroundColor(el) {
         if (!el) return null;
-
+        
         // For SVG elements, use fill/stroke instead of backgroundColor
         if (el.tagName === 'SVG') {
             const svgColor = getSVGColor(el);
             if (svgColor) return svgColor;
         }
-
+        
         let current = el;
         const maxDepth = 10; // Prevent infinite loops
         let depth = 0;
-
+        
         while (current && depth < maxDepth) {
             const style = window.getComputedStyle(current);
-
+            
             // For SVG elements in the tree, also check fill/stroke
             if (current.tagName === 'SVG') {
                 const svgColor = getSVGColor(current);
                 if (svgColor) return svgColor;
             }
-
+            
             const bgColor = style.backgroundColor;
-
+            
             if (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') {
                 // Check if it's rgba with alpha < 1 (semi-transparent)
                 const rgbaMatch = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
@@ -209,12 +209,12 @@
                     return bgColor;
                 }
             }
-
+            
             // Move up the DOM tree
             current = current.parentElement;
             depth++;
         }
-
+        
         // Fallback: return null if nothing found
         return null;
     }
@@ -235,7 +235,7 @@
         // Only check for elements that are likely to be occluded (overlays, modals, tooltips)
         const zIndex = parseInt(style.zIndex, 10);
         const position = style.position;
-
+        
         // Skip occlusion check for normal flow elements (vast majority)
         // Only check for positioned elements or high z-index (likely overlays)
         if (position === 'static' && (isNaN(zIndex) || zIndex <= 10)) {
@@ -308,7 +308,7 @@
             };
 
             window.addEventListener('message', listener);
-
+            
             try {
                 window.postMessage({
                     type: 'SENTIENCE_SNAPSHOT_REQUEST',
@@ -514,7 +514,7 @@
     function extractRawElementData(el) {
         const style = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-
+        
         return {
             tag: el.tagName,
             rect: {
@@ -548,12 +548,12 @@
     // --- HELPER: Generate Unique CSS Selector (for Golden Set) ---
     function getUniqueSelector(el) {
         if (!el || !el.tagName) return '';
-
+        
         // If element has a unique ID, use it
         if (el.id) {
             return `#${el.id}`;
         }
-
+        
         // Try data attributes or aria-label for uniqueness
         for (const attr of el.attributes) {
             if (attr.name.startsWith('data-') || attr.name === 'aria-label') {
@@ -561,21 +561,21 @@
                 return `${el.tagName.toLowerCase()}[${attr.name}="${value}"]`;
             }
         }
-
+        
         // Build path with classes and nth-child for uniqueness
         const path = [];
         let current = el;
-
+        
         while (current && current !== document.body && current !== document.documentElement) {
             let selector = current.tagName.toLowerCase();
-
+            
             // If current element has ID, use it and stop
             if (current.id) {
                 selector = `#${current.id}`;
                 path.unshift(selector);
                 break;
             }
-
+            
             // Add class if available
             if (current.className && typeof current.className === 'string') {
                 const classes = current.className.trim().split(/\s+/).filter(c => c);
@@ -584,7 +584,7 @@
                     selector += `.${classes[0]}`;
                 }
             }
-
+            
             // Add nth-of-type if needed for uniqueness
             if (current.parentElement) {
                 const siblings = Array.from(current.parentElement.children);
@@ -594,11 +594,11 @@
                     selector += `:nth-of-type(${index + 1})`;
                 }
             }
-
+            
             path.unshift(selector);
             current = current.parentElement;
         }
-
+        
         return path.join(' > ') || el.tagName.toLowerCase();
     }
 
@@ -613,7 +613,7 @@
         } = options;
 
         const startTime = Date.now();
-
+        
         return new Promise((resolve) => {
             // Check if DOM already has enough nodes
             const nodeCount = document.querySelectorAll('*').length;
@@ -623,17 +623,17 @@
                 const observer = new MutationObserver(() => {
                     lastChange = Date.now();
                 });
-
+                
                 observer.observe(document.body, {
                     childList: true,
                     subtree: true,
                     attributes: false
                 });
-
+                
                 const checkStable = () => {
                     const timeSinceLastChange = Date.now() - lastChange;
                     const totalWait = Date.now() - startTime;
-
+                    
                     if (timeSinceLastChange >= quietPeriod) {
                         observer.disconnect();
                         resolve();
@@ -645,14 +645,14 @@
                         setTimeout(checkStable, 50);
                     }
                 };
-
+                
                 checkStable();
             } else {
                 // DOM doesn't have enough nodes yet, wait for them
                 const observer = new MutationObserver(() => {
                     const currentCount = document.querySelectorAll('*').length;
                     const totalWait = Date.now() - startTime;
-
+                    
                     if (currentCount >= minNodeCount) {
                         observer.disconnect();
                         // Now wait for quiet period
@@ -660,17 +660,17 @@
                         const quietObserver = new MutationObserver(() => {
                             lastChange = Date.now();
                         });
-
+                        
                         quietObserver.observe(document.body, {
                             childList: true,
                             subtree: true,
                             attributes: false
                         });
-
+                        
                         const checkQuiet = () => {
                             const timeSinceLastChange = Date.now() - lastChange;
                             const totalWait = Date.now() - startTime;
-
+                            
                             if (timeSinceLastChange >= quietPeriod) {
                                 quietObserver.disconnect();
                                 resolve();
@@ -682,7 +682,7 @@
                                 setTimeout(checkQuiet, 50);
                             }
                         };
-
+                        
                         checkQuiet();
                     } else if (totalWait >= maxWait) {
                         observer.disconnect();
@@ -690,13 +690,13 @@
                         resolve();
                     }
                 });
-
+                
                 observer.observe(document.body, {
                     childList: true,
                     subtree: true,
                     attributes: false
                 });
-
+                
                 // Timeout fallback
                 setTimeout(() => {
                     observer.disconnect();
@@ -710,21 +710,21 @@
     // --- HELPER: Collect Iframe Snapshots (Frame Stitching) ---
     // Recursively collects snapshot data from all child iframes
     // This enables detection of elements inside iframes (e.g., Stripe forms)
-    //
+    // 
     // NOTE: Cross-origin iframes cannot be accessed due to browser security (Same-Origin Policy).
     // Only same-origin iframes will return snapshot data. Cross-origin iframes will be skipped
     // with a warning. For cross-origin iframes, users must manually switch frames using
     // Playwright's page.frame() API.
     async function collectIframeSnapshots(options = {}) {
         const iframeData = new Map(); // Map of iframe element -> snapshot data
-
+        
         // Find all iframe elements in current document
         const iframes = Array.from(document.querySelectorAll('iframe'));
-
+        
         if (iframes.length === 0) {
             return iframeData;
         }
-
+        
         console.log(`[SentienceAPI] Found ${iframes.length} iframe(s), requesting snapshots...`);
         // Request snapshot from each iframe
         const iframePromises = iframes.map((iframe, idx) => {
@@ -737,13 +737,13 @@
 
             return new Promise((resolve) => {
                 const requestId = `iframe-${idx}-${Date.now()}`;
-
+                
                 // 1. EXTENDED TIMEOUT (Handle slow children)
                 const timeout = setTimeout(() => {
                     console.warn(`[SentienceAPI] ⚠️ Iframe ${idx} snapshot TIMEOUT (id: ${requestId})`);
                     resolve(null);
                 }, 5000); // Increased to 5s to handle slow processing
-
+                
                 // 2. ROBUST LISTENER with debugging
                 const listener = (event) => {
                     // Debug: Log all SENTIENCE_IFRAME_SNAPSHOT_RESPONSE messages to see what's happening
@@ -753,14 +753,14 @@
                             // console.log(`[SentienceAPI] Received response for different request: ${event.data.requestId} (expected: ${requestId})`);
                         }
                     }
-
+                    
                     // Check if this is the response we're waiting for
-                    if (event.data?.type === 'SENTIENCE_IFRAME_SNAPSHOT_RESPONSE' &&
+                    if (event.data?.type === 'SENTIENCE_IFRAME_SNAPSHOT_RESPONSE' && 
                         event.data?.requestId === requestId) {
-
+                        
                         clearTimeout(timeout);
                         window.removeEventListener('message', listener);
-
+                        
                         if (event.data.error) {
                             console.warn(`[SentienceAPI] Iframe ${idx} returned error:`, event.data.error);
                             resolve(null);
@@ -775,9 +775,9 @@
                         }
                     }
                 };
-
+                
                 window.addEventListener('message', listener);
-
+                
                 // 3. SEND REQUEST with error handling
                 try {
                     if (iframe.contentWindow) {
@@ -785,8 +785,8 @@
                         iframe.contentWindow.postMessage({
                             type: 'SENTIENCE_IFRAME_SNAPSHOT_REQUEST',
                             requestId: requestId,
-                            options: {
-                                ...options,
+                            options: { 
+                                ...options, 
                                 collectIframes: true // Enable recursion for nested iframes
                             }
                         }, '*'); // Use '*' for cross-origin, but browser will enforce same-origin policy
@@ -804,10 +804,10 @@
                 }
             });
         });
-
+        
         // Wait for all iframe responses
         const results = await Promise.all(iframePromises);
-
+        
         // Store iframe data
         results.forEach((result, idx) => {
             if (result && result.data && !result.error) {
@@ -819,7 +819,7 @@
                 console.warn(`[SentienceAPI] Iframe ${idx} returned no data (timeout or error)`);
             }
         });
-
+        
         return iframeData;
     }
 
@@ -832,7 +832,7 @@
             // Security: only respond to snapshot requests from parent frames
             if (event.data?.type === 'SENTIENCE_IFRAME_SNAPSHOT_REQUEST') {
                 const { requestId, options } = event.data;
-
+                
                 try {
                     // Generate snapshot for this iframe's content
                     // Allow recursive collection - querySelectorAll('iframe') only finds direct children,
@@ -840,7 +840,7 @@
                     // waitForStability: false makes performance better - i.e. don't wait for children frames
                     const snapshotOptions = { ...options, collectIframes: true, waitForStability: options.waitForStability === false ? false : false };
                     const snapshot = await window.sentience.snapshot(snapshotOptions);
-
+                    
                     // Send response back to parent
                     if (event.source && event.source.postMessage) {
                         event.source.postMessage({
@@ -864,7 +864,7 @@
             }
         });
     }
-
+    
     // Setup iframe handler when script loads (only once)
     if (!window.sentience_iframe_handler_setup) {
         setupIframeSnapshotHandler();
@@ -880,7 +880,7 @@
                 if (options.waitForStability !== false) {
                     await waitForStability(options.waitForStability || {});
                 }
-
+                
                 // Step 1: Collect raw DOM data (Main World - CSP can't block this!)
                 const rawData = [];
                 window.sentience_registry = [];
@@ -896,17 +896,17 @@
 
                     const textVal = getText(el);
                     const inView = isInViewport(rect);
-
+                    
                     // Get computed style once (needed for both occlusion check and data collection)
                     const style = window.getComputedStyle(el);
-
+                    
                     // Only check occlusion for elements likely to be occluded (optimized)
                     // This avoids layout thrashing for the vast majority of elements
                     const occluded = inView ? isOccluded(el, rect, style) : false;
-
+                    
                     // Get effective background color (traverses DOM to find non-transparent color)
                     const effectiveBgColor = getEffectiveBackgroundColor(el);
-
+                    
                     rawData.push({
                         id: idx,
                         tag: el.tagName.toLowerCase(),
@@ -946,26 +946,26 @@
                 // This allows WASM to process all elements uniformly (no recursion needed)
                 let allRawElements = [...rawData]; // Start with main frame elements
                 let totalIframeElements = 0;
-
+                
                 if (options.collectIframes !== false) {
                     try {
                         console.log(`[SentienceAPI] Starting iframe collection...`);
                         const iframeSnapshots = await collectIframeSnapshots(options);
                         console.log(`[SentienceAPI] Iframe collection complete. Received ${iframeSnapshots.size} snapshot(s)`);
-
+                        
                         if (iframeSnapshots.size > 0) {
                             // FLATTEN IMMEDIATELY: Don't nest them. Just append them with coordinate translation.
                             iframeSnapshots.forEach((iframeSnapshot, iframeEl) => {
                                 // Debug: Log structure to verify data is correct
                                 // console.log(`[SentienceAPI] Processing iframe snapshot:`, iframeSnapshot);
-
+                                
                                 if (iframeSnapshot && iframeSnapshot.raw_elements) {
                                     const rawElementsCount = iframeSnapshot.raw_elements.length;
                                     console.log(`[SentienceAPI] Processing ${rawElementsCount} elements from iframe (src: ${iframeEl.src || 'unknown'})`);
                                     // Get iframe's bounding rect (offset for coordinate translation)
                                     const iframeRect = iframeEl.getBoundingClientRect();
                                     const offset = { x: iframeRect.x, y: iframeRect.y };
-
+                                    
                                     // Get iframe context for frame switching (Playwright needs this)
                                     const iframeSrc = iframeEl.src || iframeEl.getAttribute('src') || '';
                                     let isSameOrigin = false;
@@ -975,11 +975,11 @@
                                     } catch (e) {
                                         isSameOrigin = false;
                                     }
-
+                                    
                                     // Adjust coordinates and add iframe context to each element
                                     const adjustedElements = iframeSnapshot.raw_elements.map(el => {
                                         const adjusted = { ...el };
-
+                                        
                                         // Adjust rect coordinates to parent viewport
                                         if (adjusted.rect) {
                                             adjusted.rect = {
@@ -988,22 +988,22 @@
                                                 y: adjusted.rect.y + offset.y
                                             };
                                         }
-
+                                        
                                         // Add iframe context so agents can switch frames in Playwright
                                         adjusted.iframe_context = {
                                             src: iframeSrc,
                                             is_same_origin: isSameOrigin
                                         };
-
+                                        
                                         return adjusted;
                                     });
-
+                                    
                                     // Append flattened iframe elements to main array
                                     allRawElements.push(...adjustedElements);
                                     totalIframeElements += adjustedElements.length;
                                 }
                             });
-
+                            
                             // console.log(`[SentienceAPI] Merged ${iframeSnapshots.size} iframe(s). Total elements: ${allRawElements.length} (${rawData.length} main + ${totalIframeElements} iframe)`);
                         }
                     } catch (error) {
@@ -1016,7 +1016,7 @@
                 // No recursion needed - everything is already flat
                 console.log(`[SentienceAPI] Sending ${allRawElements.length} total elements to WASM (${rawData.length} main + ${totalIframeElements} iframe)`);
                 const processed = await processSnapshotInBackground(allRawElements, options);
-
+                
                 if (!processed || !processed.elements) {
                     throw new Error('WASM processing returned invalid result');
                 }
@@ -1032,10 +1032,10 @@
                 const cleanedRawElements = cleanElement(processed.raw_elements);
 
                 // FIXED: Removed undefined 'totalIframeRawElements'
-                // FIXED: Logic updated for "Flatten Early" architecture.
+                // FIXED: Logic updated for "Flatten Early" architecture. 
                 // processed.elements ALREADY contains the merged iframe elements,
                 // so we simply use .length. No addition needed.
-
+                
                 const totalCount = cleanedElements.length;
                 const totalRaw = cleanedRawElements.length;
                 const iframeCount = totalIframeElements || 0;
@@ -1253,23 +1253,23 @@
                 autoDisableTimeout = 30 * 60 * 1000, // 30 minutes default
                 keyboardShortcut = 'Ctrl+Shift+I'
             } = options;
-
+            
             console.log("🔴 [Sentience] Recording Mode STARTED. Click an element to copy its Ground Truth JSON.");
             console.log(`   Press ${keyboardShortcut} or call stopRecording() to stop.`);
-
+            
             // Validate registry is populated
             if (!window.sentience_registry || window.sentience_registry.length === 0) {
                 console.warn("⚠️ Registry empty. Call `await window.sentience.snapshot()` first to populate registry.");
                 alert("Registry empty. Run `await window.sentience.snapshot()` first!");
                 return () => {}; // Return no-op cleanup function
             }
-
+            
             // Create reverse mapping for O(1) lookup (fixes registry lookup bug)
             window.sentience_registry_map = new Map();
             window.sentience_registry.forEach((el, idx) => {
                 if (el) window.sentience_registry_map.set(el, idx);
             });
-
+            
             // Create highlight box overlay
             let highlightBox = document.getElementById('sentience-highlight-box');
             if (!highlightBox) {
@@ -1287,7 +1287,7 @@
                 `;
                 document.body.appendChild(highlightBox);
             }
-
+            
             // Create visual indicator (red border on page when recording)
             let recordingIndicator = document.getElementById('sentience-recording-indicator');
             if (!recordingIndicator) {
@@ -1306,12 +1306,12 @@
                 document.body.appendChild(recordingIndicator);
             }
             recordingIndicator.style.display = 'block';
-
+            
             // Hover handler (visual feedback)
             const mouseOverHandler = (e) => {
                 const el = e.target;
                 if (!el || el === highlightBox || el === recordingIndicator) return;
-
+                
                 const rect = el.getBoundingClientRect();
                 highlightBox.style.display = 'block';
                 highlightBox.style.top = (rect.top + window.scrollY) + 'px';
@@ -1319,15 +1319,15 @@
                 highlightBox.style.width = rect.width + 'px';
                 highlightBox.style.height = rect.height + 'px';
             };
-
+            
             // Click handler (capture ground truth data)
             const clickHandler = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-
+                
                 const el = e.target;
                 if (!el || el === highlightBox || el === recordingIndicator) return;
-
+                
                 // Use Map for reliable O(1) lookup
                 const sentienceId = window.sentience_registry_map.get(el);
                 if (sentienceId === undefined) {
@@ -1335,13 +1335,13 @@
                     alert("Element not in registry. Run `await window.sentience.snapshot()` first!");
                     return;
                 }
-
+                
                 // Extract raw data (ground truth + raw signals, NOT model outputs)
                 const rawData = extractRawElementData(el);
                 const selector = getUniqueSelector(el);
                 const role = el.getAttribute('role') || el.tagName.toLowerCase();
                 const text = getText(el);
-
+                
                 // Build golden set JSON (ground truth + raw signals only)
                 const snippet = {
                     task: `Interact with ${text.substring(0, 20)}${text.length > 20 ? '...' : ''}`,
@@ -1355,12 +1355,12 @@
                     },
                     debug_snapshot: rawData
                 };
-
+                
                 // Copy to clipboard
                 const jsonString = JSON.stringify(snippet, null, 2);
                 navigator.clipboard.writeText(jsonString).then(() => {
                     console.log("✅ Copied Ground Truth to clipboard:", snippet);
-
+                    
                     // Flash green to indicate success
                     highlightBox.style.border = `2px solid ${successColor}`;
                     highlightBox.style.background = 'rgba(0, 255, 0, 0.2)';
@@ -1373,42 +1373,42 @@
                     alert("Failed to copy to clipboard. Check console for JSON.");
                 });
             };
-
+            
             // Auto-disable timeout
             let timeoutId = null;
-
+            
             // Cleanup function to stop recording (defined before use)
             const stopRecording = () => {
                 document.removeEventListener('mouseover', mouseOverHandler, true);
                 document.removeEventListener('click', clickHandler, true);
                 document.removeEventListener('keydown', keyboardHandler, true);
-
+                
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                     timeoutId = null;
                 }
-
+                
                 if (highlightBox) {
                     highlightBox.style.display = 'none';
                 }
-
+                
                 if (recordingIndicator) {
                     recordingIndicator.style.display = 'none';
                 }
-
+                
                 // Clean up registry map (optional, but good practice)
                 if (window.sentience_registry_map) {
                     window.sentience_registry_map.clear();
                 }
-
+                
                 // Remove global reference
                 if (window.sentience_stopRecording === stopRecording) {
                     delete window.sentience_stopRecording;
                 }
-
+                
                 console.log("⚪ [Sentience] Recording Mode STOPPED.");
             };
-
+            
             // Keyboard shortcut handler (defined after stopRecording)
             const keyboardHandler = (e) => {
                 // Ctrl+Shift+I or Cmd+Shift+I
@@ -1417,12 +1417,12 @@
                     stopRecording();
                 }
             };
-
+            
             // Attach event listeners (use capture phase to intercept early)
             document.addEventListener('mouseover', mouseOverHandler, true);
             document.addEventListener('click', clickHandler, true);
             document.addEventListener('keydown', keyboardHandler, true);
-
+            
             // Set up auto-disable timeout
             if (autoDisableTimeout > 0) {
                 timeoutId = setTimeout(() => {
@@ -1430,10 +1430,10 @@
                     stopRecording();
                 }, autoDisableTimeout);
             }
-
+            
             // Store stop function globally for keyboard shortcut access
             window.sentience_stopRecording = stopRecording;
-
+            
             return stopRecording;
         }
     };
