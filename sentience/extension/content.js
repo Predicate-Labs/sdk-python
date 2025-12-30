@@ -92,7 +92,7 @@ function handleSnapshotRequest(data) {
                 if (responded) return; // Already responded via timeout
                 responded = true;
                 clearTimeout(timeoutId);
-                
+
                 const duration = performance.now() - startTime;
 
                 // Handle Chrome extension errors (e.g., background script crashed)
