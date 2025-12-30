@@ -3,7 +3,6 @@ Tests for video recording functionality
 """
 
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -17,7 +16,10 @@ def test_video_recording_basic():
     with tempfile.TemporaryDirectory() as temp_dir:
         video_dir = Path(temp_dir) / "recordings"
 
-        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+        browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -31,6 +33,9 @@ def test_video_recording_basic():
             # Verify file has content
             file_size = os.path.getsize(video_path)
             assert file_size > 0
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_video_recording_custom_resolution():
@@ -38,11 +43,14 @@ def test_video_recording_custom_resolution():
     with tempfile.TemporaryDirectory() as temp_dir:
         video_dir = Path(temp_dir) / "recordings"
 
-        with SentienceBrowser(
+        browser = SentienceBrowser(
             headless=True,
             record_video_dir=str(video_dir),
-            record_video_size={"width": 1920, "height": 1080},
-        ) as browser:
+            record_video_size={"width": 1920, "height": 1080}
+        )
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -50,6 +58,9 @@ def test_video_recording_custom_resolution():
 
             assert video_path is not None
             assert os.path.exists(video_path)
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_video_recording_custom_output_path():
@@ -58,7 +69,10 @@ def test_video_recording_custom_output_path():
         video_dir = Path(temp_dir) / "recordings"
         custom_path = video_dir / "my_recording.webm"
 
-        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+        browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -67,6 +81,9 @@ def test_video_recording_custom_output_path():
             # Verify video was renamed to custom path
             assert video_path == str(custom_path)
             assert os.path.exists(custom_path)
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_video_recording_nested_output_path():
@@ -75,7 +92,10 @@ def test_video_recording_nested_output_path():
         video_dir = Path(temp_dir) / "recordings"
         nested_path = video_dir / "project" / "tutorials" / "video1.webm"
 
-        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+        browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -85,11 +105,17 @@ def test_video_recording_nested_output_path():
             assert video_path == str(nested_path)
             assert os.path.exists(nested_path)
             assert nested_path.parent.exists()
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_no_video_recording_when_disabled():
     """Test that no video is created when recording is disabled"""
-    with SentienceBrowser(headless=True) as browser:
+    browser = SentienceBrowser(headless=True)
+    browser.start()
+
+    try:
         browser.page.goto("https://example.com")
         browser.page.wait_for_load_state("networkidle")
 
@@ -97,6 +123,9 @@ def test_no_video_recording_when_disabled():
 
         # Should return None when recording is disabled
         assert video_path is None
+    except Exception:
+        browser.close()
+        raise
 
 
 def test_video_recording_directory_auto_created():
@@ -105,7 +134,10 @@ def test_video_recording_directory_auto_created():
         # Use a non-existent directory
         video_dir = Path(temp_dir) / "new_recordings" / "subdir"
 
-        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+        browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -115,6 +147,9 @@ def test_video_recording_directory_auto_created():
             assert video_dir.exists()
             assert video_path is not None
             assert os.path.exists(video_path)
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_video_recording_with_pathlib():
@@ -123,9 +158,13 @@ def test_video_recording_with_pathlib():
         video_dir = Path(temp_dir) / "recordings"
         output_path = video_dir / "test_video.webm"
 
-        with SentienceBrowser(
-            headless=True, record_video_dir=video_dir  # Pass Path object
-        ) as browser:
+        browser = SentienceBrowser(
+            headless=True,
+            record_video_dir=video_dir  # Pass Path object
+        )
+        browser.start()
+
+        try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("networkidle")
 
@@ -133,6 +172,9 @@ def test_video_recording_with_pathlib():
 
             assert os.path.exists(output_path)
             assert video_path == str(output_path)
+        except Exception:
+            browser.close()
+            raise
 
 
 def test_video_recording_multiple_sessions():
@@ -144,13 +186,19 @@ def test_video_recording_multiple_sessions():
 
         # Create 3 video recordings
         for i in range(3):
-            with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+            browser = SentienceBrowser(headless=True, record_video_dir=str(video_dir))
+            browser.start()
+
+            try:
                 browser.page.goto("https://example.com")
                 browser.page.wait_for_load_state("networkidle")
 
                 output_path = video_dir / f"video_{i}.webm"
                 video_path = browser.close(output_path=str(output_path))
                 video_paths.append(video_path)
+            except Exception:
+                browser.close()
+                raise
 
         # Verify all videos were created
         for video_path in video_paths:
@@ -168,6 +216,29 @@ def test_video_recording_default_resolution():
         assert browser.record_video_size == {"width": 1280, "height": 800}
 
         browser.start()
-        browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
-        browser.close()
+
+        try:
+            browser.page.goto("https://example.com")
+            browser.page.wait_for_load_state("networkidle")
+            browser.close()
+        except Exception:
+            browser.close()
+            raise
+
+
+def test_video_recording_with_context_manager():
+    """Test that context manager works when NOT calling close() manually"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        video_dir = Path(temp_dir) / "recordings"
+
+        # Use context manager WITHOUT calling close() manually
+        with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
+            browser.page.goto("https://example.com")
+            browser.page.wait_for_load_state("networkidle")
+            # Don't call browser.close() - let context manager handle it
+
+        # Verify video was created after context manager exits
+        # Find the .webm file in the directory
+        webm_files = list(video_dir.glob("*.webm"))
+        assert len(webm_files) > 0
+        assert os.path.exists(webm_files[0])
