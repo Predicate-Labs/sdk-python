@@ -149,23 +149,8 @@ class SentienceAgent(BaseAgent):
                 if snap_opts.goal is None:
                     snap_opts.goal = goal
 
-                # Convert screenshot config to dict if needed
-                screenshot_param = snap_opts.screenshot
-                if isinstance(snap_opts.screenshot, ScreenshotConfig):
-                    screenshot_param = {
-                        "format": snap_opts.screenshot.format,
-                        "quality": snap_opts.screenshot.quality,
-                    }
-
-                # Call snapshot with converted parameters
-                snap = snapshot(
-                    self.browser,
-                    screenshot=screenshot_param,
-                    limit=snap_opts.limit,
-                    filter=snap_opts.filter.model_dump() if snap_opts.filter else None,
-                    use_api=snap_opts.use_api,
-                    goal=snap_opts.goal,  # Pass goal to snapshot
-                )
+                # Call snapshot with options object (matches TypeScript API)
+                snap = snapshot(self.browser, snap_opts)
 
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")

@@ -5,6 +5,7 @@ Tests for snapshot functionality
 import pytest
 
 from sentience import SentienceBrowser, snapshot
+from sentience.models import SnapshotOptions
 
 
 @pytest.mark.requires_extension
@@ -110,7 +111,7 @@ def test_snapshot_with_goal():
         browser.page.wait_for_load_state("networkidle")
 
         # Test snapshot with goal
-        snap = snapshot(browser, goal="Find the main heading")
+        snap = snapshot(browser, SnapshotOptions(goal="Find the main heading"))
 
         assert snap.status == "success"
         assert snap.url == "https://example.com/"

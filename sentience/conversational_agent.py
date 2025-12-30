@@ -10,7 +10,7 @@ from typing import Any
 from .agent import SentienceAgent
 from .browser import SentienceBrowser
 from .llm_provider import LLMProvider
-from .models import Snapshot
+from .models import Snapshot, SnapshotOptions
 from .snapshot import snapshot
 
 
@@ -274,7 +274,7 @@ Create a step-by-step execution plan."""
             elif action == "EXTRACT_INFO":
                 info_type = params["info_type"]
                 # Get current page snapshot and extract info
-                snap = snapshot(self.browser, limit=50)
+                snap = snapshot(self.browser, SnapshotOptions(limit=50))
 
                 # Use LLM to extract specific information
                 extracted = self._extract_information(snap, info_type)
@@ -361,7 +361,7 @@ Return JSON with extracted information:
             True if condition is met, False otherwise
         """
         try:
-            snap = snapshot(self.browser, limit=30)
+            snap = snapshot(self.browser, SnapshotOptions(limit=30))
 
             # Build context
             elements_text = "\n".join([f"{el.role}: {el.text}" for el in snap.elements[:20]])

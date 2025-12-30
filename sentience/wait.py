@@ -5,7 +5,7 @@ Wait functionality - wait_for element matching selector
 import time
 
 from .browser import SentienceBrowser
-from .models import WaitResult
+from .models import WaitResult, SnapshotOptions
 from .query import find
 from .snapshot import snapshot
 
@@ -46,7 +46,7 @@ def wait_for(
 
     while time.time() - start_time < timeout:
         # Take snapshot (may be local extension or remote API)
-        snap = snapshot(browser, use_api=use_api)
+        snap = snapshot(browser, SnapshotOptions(use_api=use_api))
 
         # Try to find element
         element = find(snap, selector)
