@@ -557,12 +557,17 @@ class TestRegressionTests:
                 "upload_url": "https://sentience.nyc3.digitaloceanspaces.com/traces/test.index.json.gz"
             }
 
+            # Mock successful /v1/traces/complete response
+            complete_response = Mock()
+            complete_response.status_code = 200
+
             # Mock successful index upload
             index_upload_response = Mock()
             index_upload_response.status_code = 200
 
             mock_put.side_effect = [trace_response, index_upload_response]
-            mock_post.return_value = index_url_response
+            # POST is called twice: once for index_upload, once for complete
+            mock_post.side_effect = [index_url_response, complete_response]
 
             # Create sink and emit events
             sink = CloudTraceSink(upload_url, run_id=run_id, api_key="sk_test_123")
@@ -577,10 +582,14 @@ class TestRegressionTests:
             # Verify trace upload
             assert mock_put.call_count == 2  # Once for trace, once for index
 
-            # Verify index upload URL request
+            # Verify index upload URL request (first POST call)
             assert mock_post.called
-            assert "/v1/traces/index_upload" in mock_post.call_args[0][0]
-            assert mock_post.call_args[1]["json"] == {"run_id": run_id}
+            assert mock_post.call_count == 2  # index_upload + complete
+
+            # Check first POST call (index_upload)
+            first_post_call = mock_post.call_args_list[0]
+            assert "/v1/traces/index_upload" in first_post_call[0][0]
+            assert first_post_call[1]["json"] == {"run_id": run_id}
 
             # Verify index file upload
             index_call = mock_put.call_args_list[1]
@@ -674,7 +683,7 @@ class TestRegressionTests:
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put, \
              patch("sentience.cloud_tracing.requests.post") as mock_post, \
-             patch("sentience.cloud_tracing.write_trace_index") as mock_write_index:
+             patch("sentience.trace_indexing.write_trace_index") as mock_write_index:
             # Mock index generation to fail (simulating missing index)
             mock_write_index.side_effect = Exception("Index generation failed")
 
