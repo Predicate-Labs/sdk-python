@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from .index_schema import (
-    TraceIndex,
-    StepIndex,
-    TraceSummary,
-    TraceFileInfo,
-    SnapshotInfo,
     ActionInfo,
+    SnapshotInfo,
     StepCounters,
+    StepIndex,
+    TraceFileInfo,
+    TraceIndex,
+    TraceSummary,
 )
 
 
@@ -34,7 +34,7 @@ def _normalize_text(text: str | None, max_len: int = 80) -> str:
     return normalized
 
 
-def _round_bbox(bbox: Dict[str, float], precision: int = 2) -> Dict[str, int]:
+def _round_bbox(bbox: dict[str, float], precision: int = 2) -> dict[str, int]:
     """Round bbox coordinates to reduce noise (default: 2px precision)."""
     return {
         "x": round(bbox.get("x", 0) / precision) * precision,
@@ -44,7 +44,7 @@ def _round_bbox(bbox: Dict[str, float], precision: int = 2) -> Dict[str, int]:
     }
 
 
-def _compute_snapshot_digest(snapshot_data: Dict[str, Any]) -> str:
+def _compute_snapshot_digest(snapshot_data: dict[str, Any]) -> str:
     """
     Compute stable digest of snapshot for diffing.
 
@@ -62,9 +62,7 @@ def _compute_snapshot_digest(snapshot_data: Dict[str, Any]) -> str:
             "id": elem.get("id"),
             "role": elem.get("role", ""),
             "text_norm": _normalize_text(elem.get("text")),
-            "bbox": _round_bbox(
-                elem.get("bbox", {"x": 0, "y": 0, "width": 0, "height": 0})
-            ),
+            "bbox": _round_bbox(elem.get("bbox", {"x": 0, "y": 0, "width": 0, "height": 0})),
             "is_primary": elem.get("is_primary", False),
             "is_clickable": elem.get("is_clickable", False),
         }
@@ -89,7 +87,7 @@ def _compute_snapshot_digest(snapshot_data: Dict[str, Any]) -> str:
     return f"sha256:{digest}"
 
 
-def _compute_action_digest(action_data: Dict[str, Any]) -> str:
+def _compute_action_digest(action_data: dict[str, Any]) -> str:
     """
     Compute digest of action args for privacy + determinism.
 
@@ -152,8 +150,8 @@ def build_trace_index(trace_path: str) -> TraceIndex:
     error_count = 0
     final_url = None
 
-    steps_by_id: Dict[str, StepIndex] = {}
-    step_order: List[str] = []  # Track order of first appearance
+    steps_by_id: dict[str, StepIndex] = {}
+    step_order: list[str] = []  # Track order of first appearance
 
     # Stream through file, tracking byte offsets
     with open(trace_path, "rb") as f:
@@ -228,9 +226,7 @@ def build_trace_index(trace_path: str) -> TraceIndex:
                     )
                     step.url_before = step.url_before or url
 
-                step.snapshot_after = SnapshotInfo(
-                    snapshot_id=snapshot_id, digest=digest, url=url
-                )
+                step.snapshot_after = SnapshotInfo(snapshot_id=snapshot_id, digest=digest, url=url)
                 step.url_after = url
                 step.counters.snapshots += 1
                 final_url = url
@@ -311,9 +307,7 @@ def write_trace_index(trace_path: str, index_path: str | None = None) -> str:
     return index_path
 
 
-def read_step_events(
-    trace_path: str, offset_start: int, offset_end: int
-) -> List[Dict[str, Any]]:
+def read_step_events(trace_path: str, offset_start: int, offset_end: int) -> list[dict[str, Any]]:
     """
     Read events for a specific step using byte offsets from index.
 

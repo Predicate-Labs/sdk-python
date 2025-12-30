@@ -2,8 +2,8 @@
 Type definitions for trace index schema using concrete classes.
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Literal
+from dataclasses import asdict, dataclass, field
+from typing import List, Literal, Optional
 
 
 @dataclass
@@ -27,7 +27,7 @@ class TraceSummary:
     event_count: int
     step_count: int
     error_count: int
-    final_url: Optional[str]
+    final_url: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -37,9 +37,9 @@ class TraceSummary:
 class SnapshotInfo:
     """Snapshot metadata for index."""
 
-    snapshot_id: Optional[str] = None
-    digest: Optional[str] = None
-    url: Optional[str] = None
+    snapshot_id: str | None = None
+    digest: str | None = None
+    url: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -49,10 +49,10 @@ class SnapshotInfo:
 class ActionInfo:
     """Action metadata for index."""
 
-    type: Optional[str] = None
-    target_element_id: Optional[int] = None
-    args_digest: Optional[str] = None
-    success: Optional[bool] = None
+    type: str | None = None
+    target_element_id: int | None = None
+    args_digest: str | None = None
+    success: bool | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -77,14 +77,14 @@ class StepIndex:
 
     step_index: int
     step_id: str
-    goal: Optional[str]
+    goal: str | None
     status: Literal["ok", "error", "partial"]
     ts_start: str
     ts_end: str
     offset_start: int
     offset_end: int
-    url_before: Optional[str]
-    url_after: Optional[str]
+    url_before: str | None
+    url_after: str | None
     snapshot_before: SnapshotInfo
     snapshot_after: SnapshotInfo
     action: ActionInfo
@@ -104,7 +104,7 @@ class TraceIndex:
     created_at: str
     trace_file: TraceFileInfo
     summary: TraceSummary
-    steps: List[StepIndex] = field(default_factory=list)
+    steps: list[StepIndex] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

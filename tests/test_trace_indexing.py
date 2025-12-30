@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 
 from sentience.trace_indexing import (
-    build_trace_index,
-    write_trace_index,
-    read_step_events,
-    TraceIndex,
     StepIndex,
+    TraceIndex,
+    build_trace_index,
+    read_step_events,
+    write_trace_index,
 )
 
 
@@ -180,9 +180,7 @@ class TestTraceIndexing:
 
             # Read step-1 events using offset
             step1 = index.steps[0]
-            step1_events = read_step_events(
-                str(trace_path), step1.offset_start, step1.offset_end
-            )
+            step1_events = read_step_events(str(trace_path), step1.offset_start, step1.offset_end)
 
             assert len(step1_events) == 2
             assert step1_events[0]["step_id"] == "step-1"
@@ -192,9 +190,7 @@ class TestTraceIndexing:
 
             # Read step-2 events using offset
             step2 = index.steps[1]
-            step2_events = read_step_events(
-                str(trace_path), step2.offset_start, step2.offset_end
-            )
+            step2_events = read_step_events(str(trace_path), step2.offset_start, step2.offset_end)
 
             assert len(step2_events) == 2
             assert step2_events[0]["step_id"] == "step-2"
@@ -421,9 +417,7 @@ class TestTraceIndexing:
         with tempfile.TemporaryDirectory() as tmpdir:
             trace_path = Path(tmpdir) / "test.jsonl"
 
-            events = [
-                {"v": 1, "type": "run_start", "ts": "2025-12-29T10:00:00.000Z", "data": {}}
-            ]
+            events = [{"v": 1, "type": "run_start", "ts": "2025-12-29T10:00:00.000Z", "data": {}}]
 
             with open(trace_path, "w") as f:
                 for event in events:
@@ -435,7 +429,7 @@ class TestTraceIndexing:
             assert index_path.endswith(".index.json")
 
             # Verify index content
-            with open(index_path, "r") as f:
+            with open(index_path) as f:
                 index_data = json.load(f)
 
             assert index_data["version"] == 1
