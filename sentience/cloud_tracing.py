@@ -213,7 +213,10 @@ class CloudTraceSink(TraceSink):
                 if on_progress:
                     on_progress(compressed_size, compressed_size)
 
-                # Call /v1/traces/complete to report file sizes (NEW)
+                # Upload trace index file
+                self._upload_index()
+
+                # Call /v1/traces/complete to report file sizes
                 self._complete_trace()
 
                 # Delete file only on successful upload
@@ -243,6 +246,95 @@ class CloudTraceSink(TraceSink):
         except Exception as e:
             # Non-fatal: log but don't crash
             print(f"⚠️  Failed to generate trace index: {e}")
+
+    def _upload_index(self) -> None:
+        """
+        Upload trace index file to cloud storage.
+
+        Called after successful trace upload to provide fast timeline rendering.
+        The index file enables O(1) step lookups without parsing the entire trace.
+        """
+        # Construct index file path (same as trace file with .index.json extension)
+        index_path = Path(str(self._path).replace(".jsonl", ".index.json"))
+
+        if not index_path.exists():
+            if self.logger:
+                self.logger.warning("Index file not found, skipping index upload")
+            return
+
+        try:
+            # Request index upload URL from API
+            if not self.api_key:
+                # No API key - skip index upload
+                if self.logger:
+                    self.logger.info("No API key provided, skipping index upload")
+                return
+
+            response = requests.post(
+                f"{self.api_url}/v1/traces/index_upload",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={"run_id": self.run_id},
+                timeout=10,
+            )
+
+            if response.status_code != 200:
+                if self.logger:
+                    self.logger.warning(
+                        f"Failed to get index upload URL: HTTP {response.status_code}"
+                    )
+                return
+
+            upload_data = response.json()
+            index_upload_url = upload_data.get("upload_url")
+
+            if not index_upload_url:
+                if self.logger:
+                    self.logger.warning("No upload URL in index upload response")
+                return
+
+            # Read and compress index file
+            with open(index_path, "rb") as f:
+                index_data = f.read()
+
+            compressed_index = gzip.compress(index_data)
+            index_size = len(compressed_index)
+
+            if self.logger:
+                self.logger.info(f"Index file size: {index_size / 1024:.2f} KB")
+
+            print(f"📤 [Sentience] Uploading trace index ({index_size} bytes)...")
+
+            # Upload index to cloud storage
+            index_response = requests.put(
+                index_upload_url,
+                data=compressed_index,
+                headers={
+                    "Content-Type": "application/json",
+                    "Content-Encoding": "gzip",
+                },
+                timeout=30,
+            )
+
+            if index_response.status_code == 200:
+                print("✅ [Sentience] Trace index uploaded successfully")
+
+                # Delete local index file after successful upload
+                try:
+                    os.remove(index_path)
+                except Exception:
+                    pass  # Ignore cleanup errors
+            else:
+                if self.logger:
+                    self.logger.warning(
+                        f"Index upload failed: HTTP {index_response.status_code}"
+                    )
+                print(f"⚠️  [Sentience] Index upload failed: HTTP {index_response.status_code}")
+
+        except Exception as e:
+            # Non-fatal: log but don't crash
+            if self.logger:
+                self.logger.warning(f"Error uploading trace index: {e}")
+            print(f"⚠️  [Sentience] Error uploading trace index: {e}")
 
     def _complete_trace(self) -> None:
         """
