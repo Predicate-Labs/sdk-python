@@ -5,8 +5,9 @@ This example demonstrates how to use the video recording feature
 to capture browser automation sessions.
 """
 
-from sentience import SentienceBrowser
 from pathlib import Path
+
+from sentience import SentienceBrowser
 
 
 def main():
