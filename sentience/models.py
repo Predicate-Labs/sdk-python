@@ -45,10 +45,10 @@ class Element(BaseModel):
     z_index: int = 0
 
     # ML reranking metadata (optional - can be absent or null)
-    rerank_index: Optional[int] = None  # 0-based, The rank after ML reranking
-    heuristic_index: Optional[int] = None  # 0-based, Where it would have been without ML
-    ml_probability: Optional[float] = None  # Confidence score from ONNX model (0.0 - 1.0)
-    ml_score: Optional[float] = None  # Raw logit score (optional, for debugging)
+    rerank_index: int | None = None  # 0-based, The rank after ML reranking
+    heuristic_index: int | None = None  # 0-based, Where it would have been without ML
+    ml_probability: float | None = None  # Confidence score from ONNX model (0.0 - 1.0)
+    ml_score: float | None = None  # Raw logit score (optional, for debugging)
 
 
 class Snapshot(BaseModel):
