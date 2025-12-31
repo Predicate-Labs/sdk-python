@@ -41,7 +41,7 @@ def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | No
 
 def snapshot(
     browser: SentienceBrowser,
-    options: Optional[SnapshotOptions] = None,
+    options: SnapshotOptions | None = None,
 ) -> Snapshot:
     """
     Take a snapshot of the current page

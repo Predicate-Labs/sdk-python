@@ -138,7 +138,7 @@ def test_snapshot_with_goal():
 
 def test_element_ml_fields_optional():
     """Test that Element model accepts optional ML reranking fields"""
-    from sentience.models import Element, BBox, VisualCues
+    from sentience.models import BBox, Element, VisualCues
 
     # Test element without ML fields
     element_without_ml = Element(
