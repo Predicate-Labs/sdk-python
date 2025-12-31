@@ -263,6 +263,212 @@ class AnthropicProvider(LLMProvider):
         return self._model_name
 
 
+class GLMProvider(LLMProvider):
+    """
+    Zhipu AI GLM provider implementation (GLM-4, GLM-4-Plus, etc.)
+
+    Requirements:
+        pip install zhipuai
+
+    Example:
+        >>> from sentience.llm_provider import GLMProvider
+        >>> llm = GLMProvider(api_key="your-api-key", model="glm-4-plus")
+        >>> response = llm.generate("You are a helpful assistant", "Hello!")
+        >>> print(response.content)
+    """
+
+    def __init__(self, api_key: str | None = None, model: str = "glm-4-plus"):
+        """
+        Initialize GLM provider
+
+        Args:
+            api_key: Zhipu AI API key (or set GLM_API_KEY env var)
+            model: Model name (glm-4-plus, glm-4, glm-4-air, glm-4-flash, etc.)
+        """
+        try:
+            from zhipuai import ZhipuAI
+        except ImportError:
+            raise ImportError("ZhipuAI package not installed. Install with: pip install zhipuai")
+
+        self.client = ZhipuAI(api_key=api_key)
+        self._model_name = model
+
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+        **kwargs,
+    ) -> LLMResponse:
+        """
+        Generate response using GLM API
+
+        Args:
+            system_prompt: System instruction
+            user_prompt: User query
+            temperature: Sampling temperature (0.0 = deterministic, 1.0 = creative)
+            max_tokens: Maximum tokens to generate
+            **kwargs: Additional GLM API parameters
+
+        Returns:
+            LLMResponse object
+        """
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        # Build API parameters
+        api_params = {
+            "model": self._model_name,
+            "messages": messages,
+            "temperature": temperature,
+        }
+
+        if max_tokens:
+            api_params["max_tokens"] = max_tokens
+
+        # Merge additional parameters
+        api_params.update(kwargs)
+
+        # Call GLM API
+        response = self.client.chat.completions.create(**api_params)
+
+        choice = response.choices[0]
+        usage = response.usage
+
+        return LLMResponse(
+            content=choice.message.content,
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
+            total_tokens=usage.total_tokens if usage else None,
+            model_name=response.model,
+            finish_reason=choice.finish_reason,
+        )
+
+    def supports_json_mode(self) -> bool:
+        """GLM-4 models support JSON mode"""
+        return "glm-4" in self._model_name.lower()
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+
+class GeminiProvider(LLMProvider):
+    """
+    Google Gemini provider implementation (Gemini 2.0, Gemini 1.5 Pro, etc.)
+
+    Requirements:
+        pip install google-generativeai
+
+    Example:
+        >>> from sentience.llm_provider import GeminiProvider
+        >>> llm = GeminiProvider(api_key="your-api-key", model="gemini-2.0-flash-exp")
+        >>> response = llm.generate("You are a helpful assistant", "Hello!")
+        >>> print(response.content)
+    """
+
+    def __init__(self, api_key: str | None = None, model: str = "gemini-2.0-flash-exp"):
+        """
+        Initialize Gemini provider
+
+        Args:
+            api_key: Google API key (or set GEMINI_API_KEY or GOOGLE_API_KEY env var)
+            model: Model name (gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, etc.)
+        """
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            raise ImportError(
+                "Google Generative AI package not installed. Install with: pip install google-generativeai"
+            )
+
+        # Configure API key
+        if api_key:
+            genai.configure(api_key=api_key)
+        else:
+            import os
+
+            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if api_key:
+                genai.configure(api_key=api_key)
+
+        self.genai = genai
+        self._model_name = model
+        self.model = genai.GenerativeModel(model)
+
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+        **kwargs,
+    ) -> LLMResponse:
+        """
+        Generate response using Gemini API
+
+        Args:
+            system_prompt: System instruction
+            user_prompt: User query
+            temperature: Sampling temperature (0.0 = deterministic, 2.0 = very creative)
+            max_tokens: Maximum tokens to generate
+            **kwargs: Additional Gemini API parameters
+
+        Returns:
+            LLMResponse object
+        """
+        # Combine system and user prompts (Gemini doesn't have separate system role in all versions)
+        full_prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
+
+        # Build generation config
+        generation_config = {
+            "temperature": temperature,
+        }
+
+        if max_tokens:
+            generation_config["max_output_tokens"] = max_tokens
+
+        # Merge additional parameters
+        generation_config.update(kwargs)
+
+        # Call Gemini API
+        response = self.model.generate_content(full_prompt, generation_config=generation_config)
+
+        # Extract content
+        content = response.text if response.text else ""
+
+        # Token usage (if available)
+        prompt_tokens = None
+        completion_tokens = None
+        total_tokens = None
+
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.prompt_token_count
+            completion_tokens = response.usage_metadata.candidates_token_count
+            total_tokens = response.usage_metadata.total_token_count
+
+        return LLMResponse(
+            content=content,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            model_name=self._model_name,
+            finish_reason=None,  # Gemini uses different finish reason format
+        )
+
+    def supports_json_mode(self) -> bool:
+        """Gemini 1.5+ models support JSON mode via response_mime_type"""
+        model_lower = self._model_name.lower()
+        return any(x in model_lower for x in ["gemini-1.5", "gemini-2.0"])
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+
 class LocalLLMProvider(LLMProvider):
     """
     Local LLM provider using HuggingFace Transformers
