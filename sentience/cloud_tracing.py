@@ -325,9 +325,7 @@ class CloudTraceSink(TraceSink):
                     pass  # Ignore cleanup errors
             else:
                 if self.logger:
-                    self.logger.warning(
-                        f"Index upload failed: HTTP {index_response.status_code}"
-                    )
+                    self.logger.warning(f"Index upload failed: HTTP {index_response.status_code}")
                 print(f"⚠️  [Sentience] Index upload failed: HTTP {index_response.status_code}")
 
         except Exception as e:

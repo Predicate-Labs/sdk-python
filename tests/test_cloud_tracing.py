@@ -544,8 +544,10 @@ class TestRegressionTests:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/traces/test.jsonl.gz"
         run_id = "test-index-upload"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put, \
-             patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
             # Mock successful trace upload
             trace_response = Mock()
             trace_response.status_code = 200
@@ -573,7 +575,9 @@ class TestRegressionTests:
             sink = CloudTraceSink(upload_url, run_id=run_id, api_key="sk_test_123")
             sink.emit({"v": 1, "type": "run_start", "seq": 1, "data": {"agent": "TestAgent"}})
             sink.emit({"v": 1, "type": "step_start", "seq": 2, "data": {"step": 1}})
-            sink.emit({"v": 1, "type": "snapshot", "seq": 3, "data": {"url": "https://example.com"}})
+            sink.emit(
+                {"v": 1, "type": "snapshot", "seq": 3, "data": {"url": "https://example.com"}}
+            )
             sink.emit({"v": 1, "type": "run_end", "seq": 4, "data": {"steps": 1}})
 
             # Close triggers upload
@@ -608,8 +612,10 @@ class TestRegressionTests:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/traces/test.jsonl.gz"
         run_id = "test-no-api-key"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put, \
-             patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
             # Mock successful trace upload
             mock_put.return_value = Mock(status_code=200)
 
@@ -639,8 +645,10 @@ class TestRegressionTests:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/traces/test.jsonl.gz"
         run_id = "test-index-fail"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put, \
-             patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
             # Mock successful trace upload
             trace_response = Mock()
             trace_response.status_code = 200
@@ -681,9 +689,11 @@ class TestRegressionTests:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/traces/test.jsonl.gz"
         run_id = "test-missing-index"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put, \
-             patch("sentience.cloud_tracing.requests.post") as mock_post, \
-             patch("sentience.trace_indexing.write_trace_index") as mock_write_index:
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("sentience.trace_indexing.write_trace_index") as mock_write_index,
+        ):
             # Mock index generation to fail (simulating missing index)
             mock_write_index.side_effect = Exception("Index generation failed")
 

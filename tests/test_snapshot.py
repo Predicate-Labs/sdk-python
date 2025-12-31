@@ -134,3 +134,65 @@ def test_snapshot_with_goal():
             ]
             for el in snap.elements
         )
+
+
+def test_element_ml_fields_optional():
+    """Test that Element model accepts optional ML reranking fields"""
+    from sentience.models import BBox, Element, VisualCues
+
+    # Test element without ML fields
+    element_without_ml = Element(
+        id=1,
+        role="button",
+        text="Click me",
+        importance=100,
+        bbox=BBox(x=10, y=20, width=100, height=50),
+        visual_cues=VisualCues(is_primary=True, background_color_name="blue", is_clickable=True),
+        in_viewport=True,
+        is_occluded=False,
+        z_index=0,
+    )
+    assert element_without_ml.rerank_index is None
+    assert element_without_ml.heuristic_index is None
+    assert element_without_ml.ml_probability is None
+    assert element_without_ml.ml_score is None
+
+    # Test element with ML fields
+    element_with_ml = Element(
+        id=2,
+        role="link",
+        text="Learn more",
+        importance=80,
+        bbox=BBox(x=15, y=25, width=120, height=40),
+        visual_cues=VisualCues(is_primary=False, background_color_name="white", is_clickable=True),
+        in_viewport=True,
+        is_occluded=False,
+        z_index=1,
+        rerank_index=0,
+        heuristic_index=5,
+        ml_probability=0.95,
+        ml_score=2.34,
+    )
+    assert element_with_ml.rerank_index == 0
+    assert element_with_ml.heuristic_index == 5
+    assert element_with_ml.ml_probability == 0.95
+    assert element_with_ml.ml_score == 2.34
+
+    # Test element with partial ML fields
+    element_partial = Element(
+        id=3,
+        role="textbox",
+        text=None,
+        importance=60,
+        bbox=BBox(x=20, y=30, width=200, height=30),
+        visual_cues=VisualCues(is_primary=False, background_color_name=None, is_clickable=True),
+        in_viewport=True,
+        is_occluded=False,
+        z_index=0,
+        rerank_index=1,
+        ml_probability=0.87,
+    )
+    assert element_partial.rerank_index == 1
+    assert element_partial.heuristic_index is None
+    assert element_partial.ml_probability == 0.87
+    assert element_partial.ml_score is None

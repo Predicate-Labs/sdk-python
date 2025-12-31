@@ -5,7 +5,7 @@ Wait functionality - wait_for element matching selector
 import time
 
 from .browser import SentienceBrowser
-from .models import WaitResult, SnapshotOptions
+from .models import SnapshotOptions, WaitResult
 from .query import find
 from .snapshot import snapshot
 

@@ -46,7 +46,7 @@ def test_video_recording_custom_resolution():
         browser = SentienceBrowser(
             headless=True,
             record_video_dir=str(video_dir),
-            record_video_size={"width": 1920, "height": 1080}
+            record_video_size={"width": 1920, "height": 1080},
         )
         browser.start()
 
@@ -158,10 +158,7 @@ def test_video_recording_with_pathlib():
         video_dir = Path(temp_dir) / "recordings"
         output_path = video_dir / "test_video.webm"
 
-        browser = SentienceBrowser(
-            headless=True,
-            record_video_dir=video_dir  # Pass Path object
-        )
+        browser = SentienceBrowser(headless=True, record_video_dir=video_dir)  # Pass Path object
         browser.start()
 
         try:

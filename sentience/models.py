@@ -2,7 +2,7 @@
 Pydantic models for Sentience SDK - matches spec/snapshot.schema.json
 """
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,12 @@ class Element(BaseModel):
     in_viewport: bool = True
     is_occluded: bool = False
     z_index: int = 0
+
+    # ML reranking metadata (optional - can be absent or null)
+    rerank_index: int | None = None  # 0-based, The rank after ML reranking
+    heuristic_index: int | None = None  # 0-based, Where it would have been without ML
+    ml_probability: float | None = None  # Confidence score from ONNX model (0.0 - 1.0)
+    ml_score: float | None = None  # Raw logit score (optional, for debugging)
 
 
 class Snapshot(BaseModel):
