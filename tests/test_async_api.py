@@ -10,10 +10,13 @@ from sentience.async_api import (
     click_async,
     click_rect_async,
     find,
+    find_text_rect_async,
     press_async,
     query,
+    screenshot_async,
     snapshot_async,
     type_text_async,
+    wait_for_async,
 )
 from sentience.models import BBox, SnapshotOptions
 
@@ -270,3 +273,63 @@ async def test_async_snapshot_with_goal():
         assert snap.status == "success"
         # Elements may have ML reranking metadata if API key is provided
         # (This test works with or without API key)
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_wait_for():
+    """Test async wait_for function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Wait for a link to appear
+        result = await wait_for_async(browser, "role=link", timeout=5.0)
+        assert result.found is True or result.timeout is True  # May or may not find link
+        assert result.duration_ms >= 0
+        if result.found:
+            assert result.element is not None
+            assert hasattr(result.element, "id")
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_screenshot():
+    """Test async screenshot function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Test PNG screenshot
+        data_url = await screenshot_async(browser, format="png")
+        assert data_url.startswith("data:image/png;base64,")
+        assert len(data_url) > 100  # Should have base64 data
+
+        # Test JPEG screenshot
+        data_url_jpeg = await screenshot_async(browser, format="jpeg", quality=85)
+        assert data_url_jpeg.startswith("data:image/jpeg;base64,")
+        assert len(data_url_jpeg) > 100
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_find_text_rect():
+    """Test async find_text_rect function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Find text on the page
+        result = await find_text_rect_async(browser, "Example", max_results=5)
+        assert result.status == "success"
+        assert result.query == "Example"
+        assert result.matches >= 0
+        assert isinstance(result.results, list)
+
+        # If matches found, verify structure
+        if result.results:
+            match = result.results[0]
+            assert hasattr(match, "text")
+            assert hasattr(match, "rect")
+            assert hasattr(match, "viewport_rect")
+            assert hasattr(match, "in_viewport")
