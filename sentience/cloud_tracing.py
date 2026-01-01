@@ -4,16 +4,19 @@ Cloud trace sink with pre-signed URL upload.
 Implements "Local Write, Batch Upload" pattern for enterprise cloud tracing.
 """
 
+import base64
 import gzip
 import json
 import os
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Protocol
 
 import requests
 
+from sentience.models import ScreenshotMetadata
 from sentience.tracing import TraceSink
 
 
@@ -103,9 +106,16 @@ class CloudTraceSink(TraceSink):
         self._closed = False
         self._upload_successful = False
 
-        # File size tracking (NEW)
+        # File size tracking
         self.trace_file_size_bytes = 0
         self.screenshot_total_size_bytes = 0
+
+        # Screenshot storage directory
+        self._screenshot_dir = cache_dir / f"{run_id}_screenshots"
+        self._screenshot_dir.mkdir(exist_ok=True)
+
+        # Screenshot metadata tracking (sequence -> ScreenshotMetadata)
+        self._screenshot_metadata: dict[int, ScreenshotMetadata] = {}
 
     def emit(self, event: dict[str, Any]) -> None:
         """
@@ -213,18 +223,21 @@ class CloudTraceSink(TraceSink):
                 if on_progress:
                     on_progress(compressed_size, compressed_size)
 
+                # Upload screenshots after trace upload succeeds
+                if self._screenshot_metadata:
+                    print(
+                        f"📸 [Sentience] Uploading {len(self._screenshot_metadata)} screenshots..."
+                    )
+                    self._upload_screenshots(on_progress)
+
                 # Upload trace index file
                 self._upload_index()
 
                 # Call /v1/traces/complete to report file sizes
                 self._complete_trace()
 
-                # Delete file only on successful upload
-                if os.path.exists(self._path):
-                    try:
-                        os.remove(self._path)
-                    except Exception:
-                        pass  # Ignore cleanup errors
+                # Delete files only on successful upload
+                self._cleanup_files()
             else:
                 self._upload_successful = False
                 print(f"❌ [Sentience] Upload failed: HTTP {response.status_code}")
@@ -353,6 +366,7 @@ class CloudTraceSink(TraceSink):
                     "stats": {
                         "trace_file_size_bytes": self.trace_file_size_bytes,
                         "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
+                        "screenshot_count": len(self._screenshot_metadata),
                     },
                 },
                 timeout=10,
