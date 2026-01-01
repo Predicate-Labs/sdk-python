@@ -16,7 +16,6 @@ from typing import Any, Protocol
 
 import requests
 
-from sentience.models import ScreenshotMetadata
 from sentience.tracing import TraceSink
 
 
@@ -109,13 +108,7 @@ class CloudTraceSink(TraceSink):
         # File size tracking
         self.trace_file_size_bytes = 0
         self.screenshot_total_size_bytes = 0
-
-        # Screenshot storage directory
-        self._screenshot_dir = cache_dir / f"{run_id}_screenshots"
-        self._screenshot_dir.mkdir(exist_ok=True)
-
-        # Screenshot metadata tracking (sequence -> ScreenshotMetadata)
-        self._screenshot_metadata: dict[int, ScreenshotMetadata] = {}
+        self.screenshot_count = 0  # Track number of screenshots extracted
 
     def emit(self, event: dict[str, Any]) -> None:
         """
@@ -175,21 +168,37 @@ class CloudTraceSink(TraceSink):
         """
         Internal upload method with progress tracking.
 
+        Extracts screenshots from trace events, uploads them separately,
+        then removes screenshot_base64 from events before uploading trace.
+
         Args:
             on_progress: Optional callback(uploaded_bytes, total_bytes) for progress updates
         """
         try:
-            # Read and compress
-            with open(self._path, "rb") as f:
+            # Step 1: Extract screenshots from trace events
+            screenshots = self._extract_screenshots_from_trace()
+            self.screenshot_count = len(screenshots)
+
+            # Step 2: Upload screenshots separately
+            if screenshots:
+                print(f"📸 [Sentience] Uploading {len(screenshots)} screenshots...")
+                self._upload_screenshots(screenshots, on_progress)
+
+            # Step 3: Create cleaned trace file (without screenshot_base64)
+            cleaned_trace_path = self._path.with_suffix(".cleaned.jsonl")
+            self._create_cleaned_trace(cleaned_trace_path)
+
+            # Step 4: Read and compress cleaned trace
+            with open(cleaned_trace_path, "rb") as f:
                 trace_data = f.read()
 
             compressed_data = gzip.compress(trace_data)
             compressed_size = len(compressed_data)
 
-            # Measure trace file size (NEW)
+            # Measure trace file size
             self.trace_file_size_bytes = compressed_size
 
-            # Log file sizes if logger is provided (NEW)
+            # Log file sizes if logger is provided
             if self.logger:
                 self.logger.info(
                     f"Trace file size: {self.trace_file_size_bytes / 1024 / 1024:.2f} MB"
@@ -202,7 +211,7 @@ class CloudTraceSink(TraceSink):
             if on_progress:
                 on_progress(0, compressed_size)
 
-            # Upload to DigitalOcean Spaces via pre-signed URL
+            # Step 5: Upload cleaned trace to cloud
             print(f"📤 [Sentience] Uploading trace to cloud ({compressed_size} bytes)...")
 
             response = requests.put(
@@ -223,13 +232,6 @@ class CloudTraceSink(TraceSink):
                 if on_progress:
                     on_progress(compressed_size, compressed_size)
 
-                # Upload screenshots after trace upload succeeds
-                if self._screenshot_metadata:
-                    print(
-                        f"📸 [Sentience] Uploading {len(self._screenshot_metadata)} screenshots..."
-                    )
-                    self._upload_screenshots(on_progress)
-
                 # Upload trace index file
                 self._upload_index()
 
@@ -238,6 +240,10 @@ class CloudTraceSink(TraceSink):
 
                 # Delete files only on successful upload
                 self._cleanup_files()
+
+                # Clean up temporary cleaned trace file
+                if cleaned_trace_path.exists():
+                    cleaned_trace_path.unlink()
             else:
                 self._upload_successful = False
                 print(f"❌ [Sentience] Upload failed: HTTP {response.status_code}")
@@ -366,7 +372,7 @@ class CloudTraceSink(TraceSink):
                     "stats": {
                         "trace_file_size_bytes": self.trace_file_size_bytes,
                         "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
-                        "screenshot_count": len(self._screenshot_metadata),
+                        "screenshot_count": self.screenshot_count,
                     },
                 },
                 timeout=10,
@@ -386,85 +392,104 @@ class CloudTraceSink(TraceSink):
             if self.logger:
                 self.logger.warning(f"Error reporting trace completion: {e}")
 
-    def store_screenshot(
-        self,
-        sequence: int,
-        screenshot_data: str,
-        format: str,
-        step_id: str | None = None,
-    ) -> None:
+    def _extract_screenshots_from_trace(self) -> dict[int, dict[str, Any]]:
         """
-        Store screenshot locally during execution.
-        
-        Called by agent when screenshot is captured.
-        Fast, non-blocking operation (~1-5ms per screenshot).
-        
-        Args:
-            sequence: Screenshot sequence number (1, 2, 3, ...)
-            screenshot_data: Base64-encoded data URL from snapshot
-            format: Image format ("jpeg" or "png")
-            step_id: Optional step ID for trace event association
+        Extract screenshots from trace events.
+
+        Returns:
+            dict mapping sequence number to screenshot data:
+            {seq: {"base64": str, "format": str, "step_id": str}}
         """
-        if self._closed:
-            raise RuntimeError("CloudTraceSink is closed")
-        
+        screenshots: dict[int, dict[str, Any]] = {}
+        sequence = 0
+
         try:
-            # Extract base64 string from data URL
-            # Format: "data:image/jpeg;base64,{base64_string}"
-            if "," in screenshot_data:
-                base64_string = screenshot_data.split(",", 1)[1]
-            else:
-                base64_string = screenshot_data  # Already base64, no prefix
-            
-            # Decode base64 to image bytes
-            image_bytes = base64.b64decode(base64_string)
-            image_size = len(image_bytes)
-            
-            # Save to file
-            filename = f"step_{sequence:04d}.{format}"
-            filepath = self._screenshot_dir / filename
-            
-            with open(filepath, "wb") as f:
-                f.write(image_bytes)
-            
-            # Track metadata using concrete type
-            metadata = ScreenshotMetadata(
-                sequence=sequence,
-                format=format,  # type: ignore[arg-type]
-                size_bytes=image_size,
-                step_id=step_id,
-                filepath=str(filepath),
-            )
-            self._screenshot_metadata[sequence] = metadata
-            
-            # Update total size
-            self.screenshot_total_size_bytes += image_size
-            
-            if self.logger:
-                self.logger.info(
-                    f"Screenshot {sequence} stored: {image_size / 1024:.1f} KB ({format})"
-                )
-        
+            with open(self._path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        event = json.loads(line)
+                        # Check if this is a snapshot event with screenshot
+                        if event.get("type") == "snapshot":
+                            data = event.get("data", {})
+                            screenshot_base64 = data.get("screenshot_base64")
+
+                            if screenshot_base64:
+                                sequence += 1
+                                screenshots[sequence] = {
+                                    "base64": screenshot_base64,
+                                    "format": data.get("screenshot_format", "jpeg"),
+                                    "step_id": event.get("step_id"),
+                                }
+                    except json.JSONDecodeError:
+                        continue
         except Exception as e:
-            # Log error but don't crash agent
             if self.logger:
-                self.logger.error(f"Failed to store screenshot {sequence}: {e}")
+                self.logger.error(f"Error extracting screenshots: {e}")
             else:
-                print(f"⚠️  [Sentience] Failed to store screenshot {sequence}: {e}")
+                print(f"⚠️  [Sentience] Error extracting screenshots: {e}")
+
+        return screenshots
+
+    def _create_cleaned_trace(self, output_path: Path) -> None:
+        """
+        Create trace file without screenshot_base64 fields.
+
+        Args:
+            output_path: Path to write cleaned trace file
+        """
+        try:
+            with (
+                open(self._path, encoding="utf-8") as infile,
+                open(output_path, "w", encoding="utf-8") as outfile,
+            ):
+                for line in infile:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        event = json.loads(line)
+                        # Remove screenshot_base64 from snapshot events
+                        if event.get("type") == "snapshot":
+                            data = event.get("data", {})
+                            if "screenshot_base64" in data:
+                                # Create copy without screenshot fields
+                                cleaned_data = {
+                                    k: v
+                                    for k, v in data.items()
+                                    if k not in ("screenshot_base64", "screenshot_format")
+                                }
+                                event["data"] = cleaned_data
+
+                        # Write cleaned event
+                        outfile.write(json.dumps(event, ensure_ascii=False) + "\n")
+                    except json.JSONDecodeError:
+                        # Skip invalid lines
+                        continue
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error creating cleaned trace: {e}")
+            else:
+                print(f"⚠️  [Sentience] Error creating cleaned trace: {e}")
+            raise
 
     def _request_screenshot_urls(self, sequences: list[int]) -> dict[int, str]:
         """
         Request pre-signed upload URLs for screenshots from gateway.
-        
+
         Args:
             sequences: List of screenshot sequence numbers
-            
+
         Returns:
             dict mapping sequence number to upload URL
         """
         if not self.api_key or not sequences:
             return {}
-        
+
         try:
             response = requests.post(
                 f"{self.api_url}/v1/screenshots/init",
@@ -475,7 +500,7 @@ class CloudTraceSink(TraceSink):
                 },
                 timeout=10,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 # Gateway returns sequences as strings in JSON, convert to int keys
@@ -494,56 +519,62 @@ class CloudTraceSink(TraceSink):
 
     def _upload_screenshots(
         self,
+        screenshots: dict[int, dict[str, Any]],
         on_progress: Callable[[int, int], None] | None = None,
     ) -> None:
         """
-        Upload all screenshots to cloud via pre-signed URLs.
-        
+        Upload screenshots extracted from trace events.
+
         Steps:
         1. Request pre-signed URLs from gateway (/v1/screenshots/init)
-        2. Upload screenshots in parallel (10 concurrent workers)
-        3. Track upload progress
-        4. Handle failures gracefully
-        
+        2. Decode base64 to image bytes
+        3. Upload screenshots in parallel (10 concurrent workers)
+        4. Track upload progress
+
         Args:
+            screenshots: dict mapping sequence to screenshot data
             on_progress: Optional callback(uploaded_count, total_count)
         """
-        if not self._screenshot_metadata:
-            return  # No screenshots to upload
-        
+        if not screenshots:
+            return
+
         # 1. Request pre-signed URLs from gateway
-        sequences = sorted(self._screenshot_metadata.keys())
+        sequences = sorted(screenshots.keys())
         upload_urls = self._request_screenshot_urls(sequences)
-        
+
         if not upload_urls:
             print("⚠️  [Sentience] No screenshot upload URLs received, skipping upload")
             return
-        
+
         # 2. Upload screenshots in parallel
         uploaded_count = 0
         total_count = len(upload_urls)
         failed_sequences: list[int] = []
-        
+
         def upload_one(seq: int, url: str) -> bool:
             """Upload a single screenshot. Returns True if successful."""
             try:
-                metadata = self._screenshot_metadata[seq]
-                filepath = Path(metadata.filepath)
-                
-                # Read image bytes from file
-                with open(filepath, "rb") as f:
-                    image_bytes = f.read()
-                
+                screenshot_data = screenshots[seq]
+                base64_str = screenshot_data["base64"]
+                format_str = screenshot_data.get("format", "jpeg")
+
+                # Decode base64 to image bytes
+                image_bytes = base64.b64decode(base64_str)
+                image_size = len(image_bytes)
+
+                # Update total size
+                self.screenshot_total_size_bytes += image_size
+
                 # Upload to pre-signed URL
                 response = requests.put(
                     url,
                     data=image_bytes,  # Binary image data
                     headers={
-                        "Content-Type": f"image/{metadata.format}",
+                        "Content-Type": f"image/{format_str}",
                     },
                     timeout=30,  # 30 second timeout per screenshot
                 )
-                
+
                 if response.status_code == 200:
                     return True
                 else:
@@ -556,14 +587,13 @@ class CloudTraceSink(TraceSink):
                 if self.logger:
                     self.logger.warning(f"Screenshot {seq} upload error: {e}")
                 return False
-        
+
         # Upload in parallel (max 10 concurrent)
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(upload_one, seq, url): seq
-                for seq, url in upload_urls.items()
+                executor.submit(upload_one, seq, url): seq for seq, url in upload_urls.items()
             }
-            
+
             for future in as_completed(futures):
                 seq = futures[future]
                 if future.result():
@@ -572,7 +602,7 @@ class CloudTraceSink(TraceSink):
                         on_progress(uploaded_count, total_count)
                 else:
                     failed_sequences.append(seq)
-        
+
         # 3. Report results
         if uploaded_count == total_count:
             print(f"✅ [Sentience] All {total_count} screenshots uploaded successfully")
@@ -580,7 +610,6 @@ class CloudTraceSink(TraceSink):
             print(f"⚠️  [Sentience] Uploaded {uploaded_count}/{total_count} screenshots")
             if failed_sequences:
                 print(f"   Failed sequences: {failed_sequences}")
-                print(f"   Failed screenshots remain at: {self._screenshot_dir}")
 
     def _cleanup_files(self) -> None:
         """Delete local files after successful upload."""
@@ -590,24 +619,6 @@ class CloudTraceSink(TraceSink):
                 os.remove(self._path)
             except Exception:
                 pass  # Ignore cleanup errors
-        
-        # Delete screenshot files and directory
-        if self._screenshot_dir.exists() and self._upload_successful:
-            try:
-                # Delete all screenshot files
-                for filepath in self._screenshot_dir.glob("step_*.jpeg"):
-                    filepath.unlink()
-                for filepath in self._screenshot_dir.glob("step_*.png"):
-                    filepath.unlink()
-                
-                # Delete directory if empty
-                try:
-                    self._screenshot_dir.rmdir()
-                except OSError:
-                    pass  # Directory not empty (some uploads failed)
-            except Exception as e:
-                if self.logger:
-                    self.logger.warning(f"Failed to cleanup screenshots: {e}")
 
     def __enter__(self):
         """Context manager support."""
