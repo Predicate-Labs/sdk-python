@@ -3,9 +3,9 @@ Tests for SentienceBrowser functionality
 """
 
 import pytest
+from playwright.sync_api import sync_playwright
 
 from sentience import SentienceBrowser
-from playwright.sync_api import sync_playwright
 
 
 @pytest.mark.requires_extension
@@ -168,4 +168,3 @@ def test_from_page_with_api_key():
         finally:
             context.close()
             browser_instance.close()
-

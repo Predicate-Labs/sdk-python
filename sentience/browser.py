@@ -11,7 +11,8 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
-from sentience.models import ProxyConfig, StorageState
+from sentience._extension_loader import find_extension_path
+from sentience.models import ProxyConfig, StorageState, Viewport
 
 # Import stealth for bot evasion (optional - graceful fallback if not available)
 try:
@@ -35,7 +36,7 @@ class SentienceBrowser:
         storage_state: str | Path | StorageState | dict | None = None,
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
-        viewport: dict[str, int] | None = None,
+        viewport: Viewport | dict[str, int] | None = None,
     ):
         """
         Initialize Sentience browser
@@ -68,11 +69,11 @@ class SentienceBrowser:
                              Examples: {"width": 1280, "height": 800} (default)
                                       {"width": 1920, "height": 1080} (1080p)
                              If None, defaults to 1280x800.
-            viewport: Optional viewport size as dict with 'width' and 'height' keys.
-                     Examples: {"width": 1280, "height": 800} (default)
-                              {"width": 1920, "height": 1080} (Full HD)
-                              {"width": 375, "height": 667} (iPhone)
-                     If None, defaults to 1280x800.
+            viewport: Optional viewport size as Viewport object or dict with 'width' and 'height' keys.
+                     Examples: Viewport(width=1280, height=800) (default)
+                              Viewport(width=1920, height=1080) (Full HD)
+                              {"width": 1280, "height": 800} (dict also supported)
+                     If None, defaults to Viewport(width=1280, height=800).
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -100,8 +101,13 @@ class SentienceBrowser:
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
 
-        # Viewport configuration
-        self.viewport = viewport or {"width": 1280, "height": 800}
+        # Viewport configuration - convert dict to Viewport if needed
+        if viewport is None:
+            self.viewport = Viewport(width=1280, height=800)
+        elif isinstance(viewport, dict):
+            self.viewport = Viewport(width=viewport["width"], height=viewport["height"])
+        else:
+            self.viewport = viewport
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -156,28 +162,8 @@ class SentienceBrowser:
 
     def start(self) -> None:
         """Launch browser with extension loaded"""
-        # Get extension source path (relative to project root/package)
-        # Handle both development (src/) and installed package cases
-
-        # 1. Try relative to this file (installed package structure)
-        # sentience/browser.py -> sentience/extension/
-        package_ext_path = Path(__file__).parent / "extension"
-
-        # 2. Try development root (if running from source repo)
-        # sentience/browser.py -> ../sentience-chrome
-        dev_ext_path = Path(__file__).parent.parent.parent / "sentience-chrome"
-
-        if package_ext_path.exists() and (package_ext_path / "manifest.json").exists():
-            extension_source = package_ext_path
-        elif dev_ext_path.exists() and (dev_ext_path / "manifest.json").exists():
-            extension_source = dev_ext_path
-        else:
-            raise FileNotFoundError(
-                f"Extension not found. Checked:\n"
-                f"1. {package_ext_path}\n"
-                f"2. {dev_ext_path}\n"
-                "Make sure the extension is built and 'sentience/extension' directory exists."
-            )
+        # Get extension source path using shared utility
+        extension_source = find_extension_path()
 
         # Create temporary extension bundle
         # We copy it to a temp dir to avoid file locking issues and ensure clean state
@@ -220,7 +206,7 @@ class SentienceBrowser:
             "user_data_dir": user_data_dir,
             "headless": False,  # IMPORTANT: See note above
             "args": args,
-            "viewport": self.viewport,
+            "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             # Remove "HeadlessChrome" from User Agent automatically
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
