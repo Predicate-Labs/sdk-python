@@ -35,6 +35,7 @@ class SentienceBrowser:
         storage_state: str | Path | StorageState | dict | None = None,
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
+        viewport: dict[str, int] | None = None,
     ):
         """
         Initialize Sentience browser
@@ -67,6 +68,11 @@ class SentienceBrowser:
                              Examples: {"width": 1280, "height": 800} (default)
                                       {"width": 1920, "height": 1080} (1080p)
                              If None, defaults to 1280x800.
+            viewport: Optional viewport size as dict with 'width' and 'height' keys.
+                     Examples: {"width": 1280, "height": 800} (default)
+                              {"width": 1920, "height": 1080} (Full HD)
+                              {"width": 375, "height": 667} (iPhone)
+                     If None, defaults to 1280x800.
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -93,6 +99,9 @@ class SentienceBrowser:
         # Video recording support
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
+
+        # Viewport configuration
+        self.viewport = viewport or {"width": 1280, "height": 800}
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -211,7 +220,7 @@ class SentienceBrowser:
             "user_data_dir": user_data_dir,
             "headless": False,  # IMPORTANT: See note above
             "args": args,
-            "viewport": {"width": 1280, "height": 800},
+            "viewport": self.viewport,
             # Remove "HeadlessChrome" from User Agent automatically
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
@@ -479,6 +488,97 @@ class SentienceBrowser:
                 final_path = temp_video_path
 
         return final_path
+
+    @classmethod
+    def from_existing(
+        cls,
+        context: BrowserContext,
+        api_key: str | None = None,
+        api_url: str | None = None,
+    ) -> "SentienceBrowser":
+        """
+        Create SentienceBrowser from an existing Playwright BrowserContext.
+
+        This allows you to use Sentience SDK with a browser context you've already created,
+        giving you more control over browser initialization.
+
+        Args:
+            context: Existing Playwright BrowserContext
+            api_key: Optional API key for server-side processing
+            api_url: Optional API URL (defaults to https://api.sentienceapi.com if api_key provided)
+
+        Returns:
+            SentienceBrowser instance configured to use the existing context
+
+        Example:
+            from playwright.sync_api import sync_playwright
+            from sentience import SentienceBrowser, snapshot
+
+            with sync_playwright() as p:
+                context = p.chromium.launch_persistent_context(...)
+                browser = SentienceBrowser.from_existing(context)
+                browser.page.goto("https://example.com")
+                snap = snapshot(browser)
+        """
+        instance = cls(api_key=api_key, api_url=api_url)
+        instance.context = context
+        instance.page = context.pages[0] if context.pages else context.new_page()
+
+        # Apply stealth if available
+        if STEALTH_AVAILABLE:
+            stealth_sync(instance.page)
+
+        # Wait for extension to be ready (if extension is loaded)
+        time.sleep(0.5)
+
+        return instance
+
+    @classmethod
+    def from_page(
+        cls,
+        page: Page,
+        api_key: str | None = None,
+        api_url: str | None = None,
+    ) -> "SentienceBrowser":
+        """
+        Create SentienceBrowser from an existing Playwright Page.
+
+        This allows you to use Sentience SDK with a page you've already created,
+        giving you more control over browser initialization.
+
+        Args:
+            page: Existing Playwright Page
+            api_key: Optional API key for server-side processing
+            api_url: Optional API URL (defaults to https://api.sentienceapi.com if api_key provided)
+
+        Returns:
+            SentienceBrowser instance configured to use the existing page
+
+        Example:
+            from playwright.sync_api import sync_playwright
+            from sentience import SentienceBrowser, snapshot
+
+            with sync_playwright() as p:
+                browser_instance = p.chromium.launch()
+                context = browser_instance.new_context()
+                page = context.new_page()
+                page.goto("https://example.com")
+
+                browser = SentienceBrowser.from_page(page)
+                snap = snapshot(browser)
+        """
+        instance = cls(api_key=api_key, api_url=api_url)
+        instance.page = page
+        instance.context = page.context
+
+        # Apply stealth if available
+        if STEALTH_AVAILABLE:
+            stealth_sync(instance.page)
+
+        # Wait for extension to be ready (if extension is loaded)
+        time.sleep(0.5)
+
+        return instance
 
     def __enter__(self):
         """Context manager entry"""
