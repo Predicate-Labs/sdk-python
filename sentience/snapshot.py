@@ -8,7 +8,6 @@ import os
 import time
 from typing import Any, Optional
 
-import aiohttp
 import requests
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
@@ -468,6 +467,9 @@ async def _snapshot_via_api_async(
     }
 
     try:
+        # Lazy import aiohttp - only needed for async API calls
+        import aiohttp
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{browser.api_url}/v1/snapshot",
