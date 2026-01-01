@@ -277,9 +277,10 @@ class TestScreenshotUpload:
             "2": "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/screenshots/step_0002.png?signature=...",
         }
 
-        with patch("sentience.cloud_tracing.requests.post") as mock_post, patch(
-            "sentience.cloud_tracing.requests.put"
-        ) as mock_put:
+        with (
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+        ):
             # Mock gateway response
             mock_gateway_response = Mock()
             mock_gateway_response.status_code = 200
@@ -387,4 +388,3 @@ class TestScreenshotUpload:
             for f in screenshot_dir.glob("step_*"):
                 f.unlink()
             screenshot_dir.rmdir()
-

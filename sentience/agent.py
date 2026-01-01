@@ -81,8 +81,6 @@ class SentienceAgent(BaseAgent):
         self.config = config or AgentConfig()
 
         # Screenshot sequence counter
-        self._screenshot_sequence = 0
-
         # Execution history
         self.history: list[dict[str, Any]] = []
 
@@ -174,21 +172,6 @@ class SentienceAgent(BaseAgent):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
-                # Store screenshot if captured
-                if snap.screenshot and self.tracer:
-                    self._screenshot_sequence += 1
-                    seq = self._screenshot_sequence
-
-                    # Store screenshot in CloudTraceSink if available
-                    if hasattr(self.tracer.sink, "store_screenshot"):
-                        self.tracer.sink.store_screenshot(
-                            sequence=seq,
-                            screenshot_data=snap.screenshot,
-                            format=snap.screenshot_format
-                            or (self.config.screenshot_format if self.config else "jpeg"),
-                            step_id=step_id,
-                        )
-
                 # Apply element filtering based on goal
                 filtered_elements = self.filter_elements(snap, goal)
 
@@ -211,14 +194,36 @@ class SentienceAgent(BaseAgent):
                         for el in filtered_elements[:50]  # Limit to first 50 for performance
                     ]
 
+                    # Build snapshot event data
+                    snapshot_data = {
+                        "url": snap.url,
+                        "element_count": len(snap.elements),
+                        "timestamp": snap.timestamp,
+                        "elements": elements_data,  # Add element data for overlay
+                    }
+
+                    # Always include screenshot in trace event for studio viewer compatibility
+                    # CloudTraceSink will extract and upload screenshots separately, then remove
+                    # screenshot_base64 from events before uploading the trace file.
+                    if snap.screenshot:
+                        # Extract base64 string from data URL if needed
+                        if snap.screenshot.startswith("data:image"):
+                            # Format: "data:image/jpeg;base64,{base64_string}"
+                            screenshot_base64 = (
+                                snap.screenshot.split(",", 1)[1]
+                                if "," in snap.screenshot
+                                else snap.screenshot
+                            )
+                        else:
+                            screenshot_base64 = snap.screenshot
+
+                        snapshot_data["screenshot_base64"] = screenshot_base64
+                        if snap.screenshot_format:
+                            snapshot_data["screenshot_format"] = snap.screenshot_format
+
                     self.tracer.emit(
                         "snapshot",
-                        {
-                            "url": snap.url,
-                            "element_count": len(snap.elements),
-                            "timestamp": snap.timestamp,
-                            "elements": elements_data,  # Add element data for overlay
-                        },
+                        snapshot_data,
                         step_id=step_id,
                     )
 
@@ -757,8 +762,6 @@ class SentienceAgentAsync(BaseAgentAsync):
         self.config = config or AgentConfig()
 
         # Screenshot sequence counter
-        self._screenshot_sequence = 0
-
         # Execution history
         self.history: list[dict[str, Any]] = []
 
@@ -847,21 +850,6 @@ class SentienceAgentAsync(BaseAgentAsync):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
-                # Store screenshot if captured
-                if snap.screenshot and self.tracer:
-                    self._screenshot_sequence += 1
-                    seq = self._screenshot_sequence
-
-                    # Store screenshot in CloudTraceSink if available
-                    if hasattr(self.tracer.sink, "store_screenshot"):
-                        self.tracer.sink.store_screenshot(
-                            sequence=seq,
-                            screenshot_data=snap.screenshot,
-                            format=snap.screenshot_format
-                            or (self.config.screenshot_format if self.config else "jpeg"),
-                            step_id=step_id,
-                        )
-
                 # Apply element filtering based on goal
                 filtered_elements = self.filter_elements(snap, goal)
 
@@ -884,14 +872,36 @@ class SentienceAgentAsync(BaseAgentAsync):
                         for el in filtered_elements[:50]  # Limit to first 50 for performance
                     ]
 
+                    # Build snapshot event data
+                    snapshot_data = {
+                        "url": snap.url,
+                        "element_count": len(snap.elements),
+                        "timestamp": snap.timestamp,
+                        "elements": elements_data,  # Add element data for overlay
+                    }
+
+                    # Always include screenshot in trace event for studio viewer compatibility
+                    # CloudTraceSink will extract and upload screenshots separately, then remove
+                    # screenshot_base64 from events before uploading the trace file.
+                    if snap.screenshot:
+                        # Extract base64 string from data URL if needed
+                        if snap.screenshot.startswith("data:image"):
+                            # Format: "data:image/jpeg;base64,{base64_string}"
+                            screenshot_base64 = (
+                                snap.screenshot.split(",", 1)[1]
+                                if "," in snap.screenshot
+                                else snap.screenshot
+                            )
+                        else:
+                            screenshot_base64 = snap.screenshot
+
+                        snapshot_data["screenshot_base64"] = screenshot_base64
+                        if snap.screenshot_format:
+                            snapshot_data["screenshot_format"] = snap.screenshot_format
+
                     self.tracer.emit(
                         "snapshot",
-                        {
-                            "url": snap.url,
-                            "element_count": len(snap.elements),
-                            "timestamp": snap.timestamp,
-                            "elements": elements_data,  # Add element data for overlay
-                        },
+                        snapshot_data,
                         step_id=step_id,
                     )
 
