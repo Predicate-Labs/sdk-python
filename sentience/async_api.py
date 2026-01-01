@@ -498,7 +498,7 @@ class AsyncSentienceBrowser:
 # ========== Async Snapshot Functions ==========
 
 
-async def snapshot(
+async def snapshot_async(
     browser: AsyncSentienceBrowser,
     options: SnapshotOptions | None = None,
 ) -> Snapshot:
@@ -515,10 +515,10 @@ async def snapshot(
 
     Example:
         # Basic snapshot with defaults
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
 
         # With options
-        snap = await snapshot(browser, SnapshotOptions(
+        snap = await snapshot_async(browser, SnapshotOptions(
             screenshot=True,
             limit=100,
             show_overlay=True
@@ -535,13 +535,13 @@ async def snapshot(
 
     if should_use_api and browser.api_key:
         # Use server-side API (Pro/Enterprise tier)
-        return await _snapshot_via_api(browser, options)
+        return await _snapshot_via_api_async(browser, options)
     else:
         # Use local extension (Free tier)
-        return await _snapshot_via_extension(browser, options)
+        return await _snapshot_via_extension_async(browser, options)
 
 
-async def _snapshot_via_extension(
+async def _snapshot_via_extension_async(
     browser: AsyncSentienceBrowser,
     options: SnapshotOptions,
 ) -> Snapshot:
@@ -619,7 +619,7 @@ async def _snapshot_via_extension(
     return snapshot_obj
 
 
-async def _snapshot_via_api(
+async def _snapshot_via_api_async(
     browser: AsyncSentienceBrowser,
     options: SnapshotOptions,
 ) -> Snapshot:
@@ -747,7 +747,7 @@ async def _snapshot_via_api(
 # ========== Async Action Functions ==========
 
 
-async def click(
+async def click_async(
     browser: AsyncSentienceBrowser,
     element_id: int,
     use_mouse: bool = True,
@@ -773,7 +773,7 @@ async def click(
 
     if use_mouse:
         try:
-            snap = await snapshot(browser)
+            snap = await snapshot_async(browser)
             element = None
             for el in snap.elements:
                 if el.id == element_id:
@@ -851,7 +851,7 @@ async def click(
     snapshot_after: Snapshot | None = None
     if take_snapshot:
         try:
-            snapshot_after = await snapshot(browser)
+            snapshot_after = await snapshot_async(browser)
         except Exception:
             pass
 
@@ -872,7 +872,7 @@ async def click(
     )
 
 
-async def type_text(
+async def type_text_async(
     browser: AsyncSentienceBrowser, element_id: int, text: str, take_snapshot: bool = False
 ) -> ActionResult:
     """
@@ -927,7 +927,7 @@ async def type_text(
 
     snapshot_after: Snapshot | None = None
     if take_snapshot:
-        snapshot_after = await snapshot(browser)
+        snapshot_after = await snapshot_async(browser)
 
     return ActionResult(
         success=True,
@@ -938,7 +938,7 @@ async def type_text(
     )
 
 
-async def press(
+async def press_async(
     browser: AsyncSentienceBrowser, key: str, take_snapshot: bool = False
 ) -> ActionResult:
     """
@@ -972,7 +972,7 @@ async def press(
 
     snapshot_after: Snapshot | None = None
     if take_snapshot:
-        snapshot_after = await snapshot(browser)
+        snapshot_after = await snapshot_async(browser)
 
     return ActionResult(
         success=True,
@@ -983,7 +983,7 @@ async def press(
     )
 
 
-async def _highlight_rect(
+async def _highlight_rect_async(
     browser: AsyncSentienceBrowser, rect: dict[str, float], duration_sec: float = 2.0
 ) -> None:
     """Highlight a rectangle with a red border overlay (async)"""
@@ -1038,7 +1038,7 @@ async def _highlight_rect(
     )
 
 
-async def click_rect(
+async def click_rect_async(
     browser: AsyncSentienceBrowser,
     rect: dict[str, float] | BBox,
     highlight: bool = True,
@@ -1093,7 +1093,7 @@ async def click_rect(
 
     # Show highlight before clicking
     if highlight:
-        await _highlight_rect(browser, {"x": x, "y": y, "w": w, "h": h}, highlight_duration)
+        await _highlight_rect_async(browser, {"x": x, "y": y, "w": w, "h": h}, highlight_duration)
         await browser.page.wait_for_timeout(50)
 
     # Use Playwright's native mouse click
@@ -1123,7 +1123,7 @@ async def click_rect(
     # Optional snapshot after
     snapshot_after: Snapshot | None = None
     if take_snapshot:
-        snapshot_after = await snapshot(browser)
+        snapshot_after = await snapshot_async(browser)
 
     return ActionResult(
         success=success,
@@ -1150,11 +1150,11 @@ from sentience.query import find, query
 
 __all__ = [
     "AsyncSentienceBrowser",
-    "snapshot",
-    "click",
-    "type_text",
-    "press",
-    "click_rect",
+    "snapshot_async",
+    "click_async",
+    "type_text_async",
+    "press_async",
+    "click_rect_async",
     "find",
     "query",
 ]

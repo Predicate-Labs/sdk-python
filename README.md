@@ -487,6 +487,28 @@ for match in result.results:
 
 ---
 
+## 🔄 Async API
+
+For asyncio contexts (FastAPI, async frameworks):
+
+```python
+from sentience.async_api import AsyncSentienceBrowser, snapshot_async, click_async, find
+
+async def main():
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        snap = await snapshot_async(browser)
+        button = find(snap, "role=button")
+        if button:
+            await click_async(browser, button.id)
+
+asyncio.run(main())
+```
+
+**See example:** `examples/async_api_demo.py`
+
+---
+
 ## 📋 Reference
 
 <details>

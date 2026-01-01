@@ -7,13 +7,13 @@ from playwright.async_api import async_playwright
 
 from sentience.async_api import (
     AsyncSentienceBrowser,
-    click,
-    click_rect,
+    click_async,
+    click_rect_async,
     find,
-    press,
+    press_async,
     query,
-    snapshot,
-    type_text,
+    snapshot_async,
+    type_text_async,
 )
 from sentience.models import BBox, SnapshotOptions
 
@@ -69,7 +69,7 @@ async def test_async_snapshot():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         assert isinstance(snap, type(snap))  # Check it's a Snapshot object
         assert snap.status == "success"
         assert len(snap.elements) > 0
@@ -85,7 +85,7 @@ async def test_async_snapshot_with_options():
         await browser.page.wait_for_load_state("networkidle")
 
         options = SnapshotOptions(limit=10, screenshot=False)
-        snap = await snapshot(browser, options)
+        snap = await snapshot_async(browser, options)
         assert snap.status == "success"
         assert len(snap.elements) <= 10
 
@@ -98,11 +98,11 @@ async def test_async_click():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         link = find(snap, "role=link")
 
         if link:
-            result = await click(browser, link.id)
+            result = await click_async(browser, link.id)
             assert result.success is True
             assert result.duration_ms > 0
             assert result.outcome in ["navigated", "dom_updated"]
@@ -116,11 +116,11 @@ async def test_async_type_text():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         textbox = find(snap, "role=textbox")
 
         if textbox:
-            result = await type_text(browser, textbox.id, "hello")
+            result = await type_text_async(browser, textbox.id, "hello")
             assert result.success is True
             assert result.duration_ms > 0
 
@@ -133,7 +133,7 @@ async def test_async_press():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        result = await press(browser, "Enter")
+        result = await press_async(browser, "Enter")
         assert result.success is True
         assert result.duration_ms > 0
 
@@ -147,7 +147,7 @@ async def test_async_click_rect():
         await browser.page.wait_for_load_state("networkidle")
 
         # Click at specific coordinates
-        result = await click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30}, highlight=False)
+        result = await click_rect_async(browser, {"x": 100, "y": 200, "w": 50, "h": 30}, highlight=False)
         assert result.success is True
         assert result.duration_ms > 0
 
@@ -160,7 +160,7 @@ async def test_async_click_rect_with_bbox():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         if snap.elements:
             element = snap.elements[0]
             bbox = BBox(
@@ -169,7 +169,7 @@ async def test_async_click_rect_with_bbox():
                 width=element.bbox.width,
                 height=element.bbox.height,
             )
-            result = await click_rect(browser, bbox, highlight=False)
+            result = await click_rect_async(browser, bbox, highlight=False)
             assert result.success is True
 
 
@@ -181,7 +181,7 @@ async def test_async_find():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         link = find(snap, "role=link")
         # May or may not find a link, but should not raise an error
         assert link is None or hasattr(link, "id")
@@ -195,7 +195,7 @@ async def test_async_query():
         await browser.goto("https://example.com")
         await browser.page.wait_for_load_state("networkidle")
 
-        snap = await snapshot(browser)
+        snap = await snapshot_async(browser)
         links = query(snap, "role=link")
         assert isinstance(links, list)
         # All results should be Element objects
@@ -264,7 +264,7 @@ async def test_async_snapshot_with_goal():
         await browser.page.wait_for_load_state("networkidle")
 
         options = SnapshotOptions(goal="Click the main link", limit=10)
-        snap = await snapshot(browser, options)
+        snap = await snapshot_async(browser, options)
         assert snap.status == "success"
         # Elements may have ML reranking metadata if API key is provided
         # (This test works with or without API key)
