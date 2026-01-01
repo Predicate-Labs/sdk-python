@@ -1,5 +1,6 @@
 """Tests for sentience.cloud_tracing module"""
 
+import base64
 import gzip
 import json
 import os
@@ -11,6 +12,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from sentience.cloud_tracing import CloudTraceSink
+from sentience.models import ScreenshotMetadata
 from sentience.tracer_factory import create_tracer
 from sentience.tracing import JsonlTraceSink, Tracer
 
@@ -230,6 +232,85 @@ class TestCloudTraceSink:
             assert len(progress_calls) > 0, "Progress callback should be called"
             # Last call should have uploaded == total
             assert progress_calls[-1][0] == progress_calls[-1][1], "Final progress should be 100%"
+
+    def test_cloud_trace_sink_uploads_screenshots_after_trace(self):
+        """Test that CloudTraceSink uploads screenshots after trace upload succeeds."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-screenshot-integration-1"
+        api_key = "sk_test_123"
+
+        # Create test screenshot
+        test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        test_data_url = f"data:image/png;base64,{test_image_base64}"
+
+        sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
+        sink.store_screenshot(sequence=1, screenshot_data=test_data_url, format="png")
+
+        # Mock all HTTP calls
+        mock_upload_urls = {
+            "1": "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/screenshots/step_0001.png?signature=...",
+        }
+
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
+            # Mock trace upload (first PUT)
+            mock_trace_response = Mock()
+            mock_trace_response.status_code = 200
+            mock_put.return_value = mock_trace_response
+
+            # Mock screenshot init (first POST)
+            mock_init_response = Mock()
+            mock_init_response.status_code = 200
+            mock_init_response.json.return_value = {"upload_urls": mock_upload_urls}
+
+            # Mock screenshot upload (second PUT)
+            mock_screenshot_response = Mock()
+            mock_screenshot_response.status_code = 200
+
+            # Mock complete (second POST)
+            mock_complete_response = Mock()
+            mock_complete_response.status_code = 200
+
+            # Setup mock to return different responses for different calls
+            def put_side_effect(*args, **kwargs):
+                url = args[0] if args else kwargs.get("url", "")
+                if "screenshots" in url:
+                    return mock_screenshot_response
+                return mock_trace_response
+
+            def post_side_effect(*args, **kwargs):
+                url = args[0] if args else kwargs.get("url", "")
+                if "screenshots/init" in url:
+                    return mock_init_response
+                return mock_complete_response
+
+            mock_put.side_effect = put_side_effect
+            mock_post.side_effect = post_side_effect
+
+            # Emit trace event and close
+            sink.emit({"v": 1, "type": "run_start", "seq": 1})
+            sink.close()
+
+            # Verify trace was uploaded
+            assert mock_put.call_count >= 1
+
+            # Verify screenshot init was called
+            post_calls = [call[0][0] for call in mock_post.call_args_list]
+            assert any("screenshots/init" in url for url in post_calls)
+
+            # Verify screenshot was uploaded (second PUT call)
+            put_urls = [call[0][0] for call in mock_put.call_args_list]
+            assert any("screenshots" in url for url in put_urls)
+
+        # Cleanup
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        screenshot_dir = cache_dir / f"{run_id}_screenshots"
+        if screenshot_dir.exists():
+            for f in screenshot_dir.glob("step_*"):
+                f.unlink()
+            screenshot_dir.rmdir()
 
 
 class TestTracerFactory:

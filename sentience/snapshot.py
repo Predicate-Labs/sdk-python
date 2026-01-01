@@ -120,7 +120,11 @@ def _snapshot_via_extension(
     # Build options dict for extension API (exclude save_trace/trace_path)
     ext_options: dict[str, Any] = {}
     if options.screenshot is not False:
-        ext_options["screenshot"] = options.screenshot
+        # Serialize ScreenshotConfig to dict if it's a Pydantic model
+        if hasattr(options.screenshot, "model_dump"):
+            ext_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            ext_options["screenshot"] = options.screenshot
     if options.limit != 50:
         ext_options["limit"] = options.limit
     if options.filter is not None:
@@ -355,7 +359,11 @@ async def _snapshot_via_extension_async(
     # Build options dict for extension API
     ext_options: dict[str, Any] = {}
     if options.screenshot is not False:
-        ext_options["screenshot"] = options.screenshot
+        # Serialize ScreenshotConfig to dict if it's a Pydantic model
+        if hasattr(options.screenshot, "model_dump"):
+            ext_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            ext_options["screenshot"] = options.screenshot
     if options.limit != 50:
         ext_options["limit"] = options.limit
     if options.filter is not None:

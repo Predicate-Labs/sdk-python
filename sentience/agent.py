@@ -9,6 +9,7 @@ import time
 from typing import TYPE_CHECKING, Any, Optional
 
 from .actions import click, click_async, press, press_async, type_text, type_text_async
+from .agent_config import AgentConfig
 from .base_agent import BaseAgent, BaseAgentAsync
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .llm_provider import LLMProvider, LLMResponse
@@ -25,7 +26,6 @@ from .models import (
 from .snapshot import snapshot, snapshot_async
 
 if TYPE_CHECKING:
-    from .agent_config import AgentConfig
     from .tracing import Tracer
 
 
@@ -78,7 +78,10 @@ class SentienceAgent(BaseAgent):
         self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
         self.tracer = tracer
-        self.config = config
+        self.config = config or AgentConfig()
+
+        # Screenshot sequence counter
+        self._screenshot_sequence = 0
 
         # Execution history
         self.history: list[dict[str, Any]] = []
@@ -150,11 +153,41 @@ class SentienceAgent(BaseAgent):
                 if snap_opts.goal is None:
                     snap_opts.goal = goal
 
+                # Apply AgentConfig screenshot settings if not overridden by snapshot_options
+                if snapshot_options is None and self.config:
+                    if self.config.capture_screenshots:
+                        # Create ScreenshotConfig from AgentConfig
+                        snap_opts.screenshot = ScreenshotConfig(
+                            format=self.config.screenshot_format,
+                            quality=(
+                                self.config.screenshot_quality
+                                if self.config.screenshot_format == "jpeg"
+                                else None
+                            ),
+                        )
+                    else:
+                        snap_opts.screenshot = False
+
                 # Call snapshot with options object (matches TypeScript API)
                 snap = snapshot(self.browser, snap_opts)
 
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
+
+                # Store screenshot if captured
+                if snap.screenshot and self.tracer:
+                    self._screenshot_sequence += 1
+                    seq = self._screenshot_sequence
+
+                    # Store screenshot in CloudTraceSink if available
+                    if hasattr(self.tracer.sink, "store_screenshot"):
+                        self.tracer.sink.store_screenshot(
+                            sequence=seq,
+                            screenshot_data=snap.screenshot,
+                            format=snap.screenshot_format
+                            or (self.config.screenshot_format if self.config else "jpeg"),
+                            step_id=step_id,
+                        )
 
                 # Apply element filtering based on goal
                 filtered_elements = self.filter_elements(snap, goal)
@@ -721,7 +754,10 @@ class SentienceAgentAsync(BaseAgentAsync):
         self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
         self.tracer = tracer
-        self.config = config
+        self.config = config or AgentConfig()
+
+        # Screenshot sequence counter
+        self._screenshot_sequence = 0
 
         # Execution history
         self.history: list[dict[str, Any]] = []
@@ -790,11 +826,41 @@ class SentienceAgentAsync(BaseAgentAsync):
                 if snap_opts.goal is None:
                     snap_opts.goal = goal
 
+                # Apply AgentConfig screenshot settings if not overridden by snapshot_options
+                if snapshot_options is None and self.config:
+                    if self.config.capture_screenshots:
+                        # Create ScreenshotConfig from AgentConfig
+                        snap_opts.screenshot = ScreenshotConfig(
+                            format=self.config.screenshot_format,
+                            quality=(
+                                self.config.screenshot_quality
+                                if self.config.screenshot_format == "jpeg"
+                                else None
+                            ),
+                        )
+                    else:
+                        snap_opts.screenshot = False
+
                 # Call snapshot with options object (matches TypeScript API)
                 snap = await snapshot_async(self.browser, snap_opts)
 
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
+
+                # Store screenshot if captured
+                if snap.screenshot and self.tracer:
+                    self._screenshot_sequence += 1
+                    seq = self._screenshot_sequence
+
+                    # Store screenshot in CloudTraceSink if available
+                    if hasattr(self.tracer.sink, "store_screenshot"):
+                        self.tracer.sink.store_screenshot(
+                            sequence=seq,
+                            screenshot_data=snap.screenshot,
+                            format=snap.screenshot_format
+                            or (self.config.screenshot_format if self.config else "jpeg"),
+                            step_id=step_id,
+                        )
 
                 # Apply element filtering based on goal
                 filtered_elements = self.filter_elements(snap, goal)
