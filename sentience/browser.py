@@ -10,7 +10,10 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from playwright.async_api import BrowserContext as AsyncBrowserContext, Page as AsyncPage, Playwright as AsyncPlaywright, async_playwright
+from playwright.async_api import BrowserContext as AsyncBrowserContext
+from playwright.async_api import Page as AsyncPage
+from playwright.async_api import Playwright as AsyncPlaywright
+from playwright.async_api import async_playwright
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from sentience._extension_loader import find_extension_path
