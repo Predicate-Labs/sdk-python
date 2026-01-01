@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from sentience._extension_loader import find_extension_path
-from sentience.models import ProxyConfig, StorageState
+from sentience.models import ProxyConfig, StorageState, Viewport
 
 # Import stealth for bot evasion (optional - graceful fallback if not available)
 try:
@@ -36,7 +36,7 @@ class SentienceBrowser:
         storage_state: str | Path | StorageState | dict | None = None,
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
-        viewport: dict[str, int] | None = None,
+        viewport: Viewport | dict[str, int] | None = None,
     ):
         """
         Initialize Sentience browser
@@ -69,11 +69,11 @@ class SentienceBrowser:
                              Examples: {"width": 1280, "height": 800} (default)
                                       {"width": 1920, "height": 1080} (1080p)
                              If None, defaults to 1280x800.
-            viewport: Optional viewport size as dict with 'width' and 'height' keys.
-                     Examples: {"width": 1280, "height": 800} (default)
-                              {"width": 1920, "height": 1080} (Full HD)
-                              {"width": 375, "height": 667} (iPhone)
-                     If None, defaults to 1280x800.
+            viewport: Optional viewport size as Viewport object or dict with 'width' and 'height' keys.
+                     Examples: Viewport(width=1280, height=800) (default)
+                              Viewport(width=1920, height=1080) (Full HD)
+                              {"width": 1280, "height": 800} (dict also supported)
+                     If None, defaults to Viewport(width=1280, height=800).
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -101,8 +101,13 @@ class SentienceBrowser:
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
 
-        # Viewport configuration
-        self.viewport = viewport or {"width": 1280, "height": 800}
+        # Viewport configuration - convert dict to Viewport if needed
+        if viewport is None:
+            self.viewport = Viewport(width=1280, height=800)
+        elif isinstance(viewport, dict):
+            self.viewport = Viewport(width=viewport["width"], height=viewport["height"])
+        else:
+            self.viewport = viewport
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -201,7 +206,7 @@ class SentienceBrowser:
             "user_data_dir": user_data_dir,
             "headless": False,  # IMPORTANT: See note above
             "args": args,
-            "viewport": self.viewport,
+            "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             # Remove "HeadlessChrome" from User Agent automatically
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
