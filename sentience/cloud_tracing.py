@@ -386,6 +386,229 @@ class CloudTraceSink(TraceSink):
             if self.logger:
                 self.logger.warning(f"Error reporting trace completion: {e}")
 
+    def store_screenshot(
+        self,
+        sequence: int,
+        screenshot_data: str,
+        format: str,
+        step_id: str | None = None,
+    ) -> None:
+        """
+        Store screenshot locally during execution.
+        
+        Called by agent when screenshot is captured.
+        Fast, non-blocking operation (~1-5ms per screenshot).
+        
+        Args:
+            sequence: Screenshot sequence number (1, 2, 3, ...)
+            screenshot_data: Base64-encoded data URL from snapshot
+            format: Image format ("jpeg" or "png")
+            step_id: Optional step ID for trace event association
+        """
+        if self._closed:
+            raise RuntimeError("CloudTraceSink is closed")
+        
+        try:
+            # Extract base64 string from data URL
+            # Format: "data:image/jpeg;base64,{base64_string}"
+            if "," in screenshot_data:
+                base64_string = screenshot_data.split(",", 1)[1]
+            else:
+                base64_string = screenshot_data  # Already base64, no prefix
+            
+            # Decode base64 to image bytes
+            image_bytes = base64.b64decode(base64_string)
+            image_size = len(image_bytes)
+            
+            # Save to file
+            filename = f"step_{sequence:04d}.{format}"
+            filepath = self._screenshot_dir / filename
+            
+            with open(filepath, "wb") as f:
+                f.write(image_bytes)
+            
+            # Track metadata using concrete type
+            metadata = ScreenshotMetadata(
+                sequence=sequence,
+                format=format,  # type: ignore[arg-type]
+                size_bytes=image_size,
+                step_id=step_id,
+                filepath=str(filepath),
+            )
+            self._screenshot_metadata[sequence] = metadata
+            
+            # Update total size
+            self.screenshot_total_size_bytes += image_size
+            
+            if self.logger:
+                self.logger.info(
+                    f"Screenshot {sequence} stored: {image_size / 1024:.1f} KB ({format})"
+                )
+        
+        except Exception as e:
+            # Log error but don't crash agent
+            if self.logger:
+                self.logger.error(f"Failed to store screenshot {sequence}: {e}")
+            else:
+                print(f"⚠️  [Sentience] Failed to store screenshot {sequence}: {e}")
+
+    def _request_screenshot_urls(self, sequences: list[int]) -> dict[int, str]:
+        """
+        Request pre-signed upload URLs for screenshots from gateway.
+        
+        Args:
+            sequences: List of screenshot sequence numbers
+            
+        Returns:
+            dict mapping sequence number to upload URL
+        """
+        if not self.api_key or not sequences:
+            return {}
+        
+        try:
+            response = requests.post(
+                f"{self.api_url}/v1/screenshots/init",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "run_id": self.run_id,
+                    "sequences": sequences,
+                },
+                timeout=10,
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Gateway returns sequences as strings in JSON, convert to int keys
+                upload_urls = data.get("upload_urls", {})
+                return {int(k): v for k, v in upload_urls.items()}
+            else:
+                if self.logger:
+                    self.logger.warning(
+                        f"Failed to get screenshot URLs: HTTP {response.status_code}"
+                    )
+                return {}
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Error requesting screenshot URLs: {e}")
+            return {}
+
+    def _upload_screenshots(
+        self,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> None:
+        """
+        Upload all screenshots to cloud via pre-signed URLs.
+        
+        Steps:
+        1. Request pre-signed URLs from gateway (/v1/screenshots/init)
+        2. Upload screenshots in parallel (10 concurrent workers)
+        3. Track upload progress
+        4. Handle failures gracefully
+        
+        Args:
+            on_progress: Optional callback(uploaded_count, total_count)
+        """
+        if not self._screenshot_metadata:
+            return  # No screenshots to upload
+        
+        # 1. Request pre-signed URLs from gateway
+        sequences = sorted(self._screenshot_metadata.keys())
+        upload_urls = self._request_screenshot_urls(sequences)
+        
+        if not upload_urls:
+            print("⚠️  [Sentience] No screenshot upload URLs received, skipping upload")
+            return
+        
+        # 2. Upload screenshots in parallel
+        uploaded_count = 0
+        total_count = len(upload_urls)
+        failed_sequences: list[int] = []
+        
+        def upload_one(seq: int, url: str) -> bool:
+            """Upload a single screenshot. Returns True if successful."""
+            try:
+                metadata = self._screenshot_metadata[seq]
+                filepath = Path(metadata.filepath)
+                
+                # Read image bytes from file
+                with open(filepath, "rb") as f:
+                    image_bytes = f.read()
+                
+                # Upload to pre-signed URL
+                response = requests.put(
+                    url,
+                    data=image_bytes,  # Binary image data
+                    headers={
+                        "Content-Type": f"image/{metadata.format}",
+                    },
+                    timeout=30,  # 30 second timeout per screenshot
+                )
+                
+                if response.status_code == 200:
+                    return True
+                else:
+                    if self.logger:
+                        self.logger.warning(
+                            f"Screenshot {seq} upload failed: HTTP {response.status_code}"
+                        )
+                    return False
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Screenshot {seq} upload error: {e}")
+                return False
+        
+        # Upload in parallel (max 10 concurrent)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(upload_one, seq, url): seq
+                for seq, url in upload_urls.items()
+            }
+            
+            for future in as_completed(futures):
+                seq = futures[future]
+                if future.result():
+                    uploaded_count += 1
+                    if on_progress:
+                        on_progress(uploaded_count, total_count)
+                else:
+                    failed_sequences.append(seq)
+        
+        # 3. Report results
+        if uploaded_count == total_count:
+            print(f"✅ [Sentience] All {total_count} screenshots uploaded successfully")
+        else:
+            print(f"⚠️  [Sentience] Uploaded {uploaded_count}/{total_count} screenshots")
+            if failed_sequences:
+                print(f"   Failed sequences: {failed_sequences}")
+                print(f"   Failed screenshots remain at: {self._screenshot_dir}")
+
+    def _cleanup_files(self) -> None:
+        """Delete local files after successful upload."""
+        # Delete trace file
+        if os.path.exists(self._path):
+            try:
+                os.remove(self._path)
+            except Exception:
+                pass  # Ignore cleanup errors
+        
+        # Delete screenshot files and directory
+        if self._screenshot_dir.exists() and self._upload_successful:
+            try:
+                # Delete all screenshot files
+                for filepath in self._screenshot_dir.glob("step_*.jpeg"):
+                    filepath.unlink()
+                for filepath in self._screenshot_dir.glob("step_*.png"):
+                    filepath.unlink()
+                
+                # Delete directory if empty
+                try:
+                    self._screenshot_dir.rmdir()
+                except OSError:
+                    pass  # Directory not empty (some uploads failed)
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Failed to cleanup screenshots: {e}")
+
     def __enter__(self):
         """Context manager support."""
         return self
