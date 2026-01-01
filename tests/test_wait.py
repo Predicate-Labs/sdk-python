@@ -10,7 +10,7 @@ def test_wait_for():
     # Auto-detect headless mode (True in CI, False locally)
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=10000)
 
         result = wait_for(browser, "role=link", timeout=5.0)
         assert result.found is True
@@ -23,7 +23,7 @@ def test_wait_for_timeout():
     """Test wait_for timeout"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=10000)
 
         # Wait for non-existent element
         result = wait_for(browser, "role=button text~'NonExistentButton'", timeout=1.0)
@@ -35,7 +35,7 @@ def test_expect_to_exist():
     """Test expect().to_exist()"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=10000)
 
         element = expect(browser, "role=link").to_exist(timeout=5.0)
         assert element is not None
@@ -46,7 +46,7 @@ def test_expect_to_be_visible():
     """Test expect().to_be_visible()"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=10000)
 
         element = expect(browser, "role=link").to_be_visible(timeout=5.0)
         assert element is not None
