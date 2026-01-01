@@ -168,4 +168,3 @@ def test_from_page_with_api_key():
         finally:
             context.close()
             browser_instance.close()
-
