@@ -38,3 +38,4 @@ def find_extension_path() -> Path:
             f"2. {dev_ext_path}\n"
             "Make sure the extension is built and 'sentience/extension' directory exists."
         )
+
