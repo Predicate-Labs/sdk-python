@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentienceapi"
-version = "0.90.16"
+version = "0.90.17"
 description = "Python SDK for Sentience AI Agent Browser Automation"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,7 +25,8 @@ dependencies = [
     "playwright>=1.40.0",
     "pydantic>=2.0.0",
     "jsonschema>=4.0.0",
-    "requests>=2.31.0",  # For server-side API calls
+    "requests>=2.31.0",  # For server-side API calls (sync)
+    "httpx>=0.25.0",  # For async API calls
     "playwright-stealth>=1.0.6",  # Bot evasion and stealth mode
     "markdownify>=0.11.6",  # Enhanced HTML to Markdown conversion
 ]

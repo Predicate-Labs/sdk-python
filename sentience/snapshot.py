@@ -2,6 +2,7 @@
 Snapshot functionality - calls window.sentience.snapshot() or server-side API
 """
 
+import asyncio
 import json
 import os
 import time
@@ -9,7 +10,7 @@ from typing import Any, Optional
 
 import requests
 
-from .browser import SentienceBrowser
+from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .models import Snapshot, SnapshotOptions
 
 # Maximum payload size for API requests (10MB server limit)
@@ -271,4 +272,245 @@ def _snapshot_via_api(
 
         return Snapshot(**snapshot_data)
     except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"API request failed: {e}")
+
+
+# ========== Async Snapshot Functions ==========
+
+
+async def snapshot_async(
+    browser: AsyncSentienceBrowser,
+    options: SnapshotOptions | None = None,
+) -> Snapshot:
+    """
+    Take a snapshot of the current page (async)
+
+    Args:
+        browser: AsyncSentienceBrowser instance
+        options: Snapshot options (screenshot, limit, filter, etc.)
+                If None, uses default options.
+
+    Returns:
+        Snapshot object
+
+    Example:
+        # Basic snapshot with defaults
+        snap = await snapshot_async(browser)
+
+        # With options
+        snap = await snapshot_async(browser, SnapshotOptions(
+            screenshot=True,
+            limit=100,
+            show_overlay=True
+        ))
+    """
+    # Use default options if none provided
+    if options is None:
+        options = SnapshotOptions()
+
+    # Determine if we should use server-side API
+    should_use_api = (
+        options.use_api if options.use_api is not None else (browser.api_key is not None)
+    )
+
+    if should_use_api and browser.api_key:
+        # Use server-side API (Pro/Enterprise tier)
+        return await _snapshot_via_api_async(browser, options)
+    else:
+        # Use local extension (Free tier)
+        return await _snapshot_via_extension_async(browser, options)
+
+
+async def _snapshot_via_extension_async(
+    browser: AsyncSentienceBrowser,
+    options: SnapshotOptions,
+) -> Snapshot:
+    """Take snapshot using local extension (Free tier) - async"""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    # Wait for extension injection to complete
+    try:
+        await browser.page.wait_for_function(
+            "typeof window.sentience !== 'undefined'",
+            timeout=5000,
+        )
+    except Exception as e:
+        try:
+            diag = await browser.page.evaluate(
+                """() => ({
+                    sentience_defined: typeof window.sentience !== 'undefined',
+                    extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
+                    url: window.location.href
+                })"""
+            )
+        except Exception:
+            diag = {"error": "Could not gather diagnostics"}
+
+        raise RuntimeError(
+            f"Sentience extension failed to inject window.sentience API. "
+            f"Is the extension loaded? Diagnostics: {diag}"
+        ) from e
+
+    # Build options dict for extension API
+    ext_options: dict[str, Any] = {}
+    if options.screenshot is not False:
+        ext_options["screenshot"] = options.screenshot
+    if options.limit != 50:
+        ext_options["limit"] = options.limit
+    if options.filter is not None:
+        ext_options["filter"] = (
+            options.filter.model_dump() if hasattr(options.filter, "model_dump") else options.filter
+        )
+
+    # Call extension API
+    result = await browser.page.evaluate(
+        """
+        (options) => {
+            return window.sentience.snapshot(options);
+        }
+        """,
+        ext_options,
+    )
+
+    # Save trace if requested
+    if options.save_trace:
+        _save_trace_to_file(result.get("raw_elements", []), options.trace_path)
+
+    # Show visual overlay if requested
+    if options.show_overlay:
+        raw_elements = result.get("raw_elements", [])
+        if raw_elements:
+            await browser.page.evaluate(
+                """
+                (elements) => {
+                    if (window.sentience && window.sentience.showOverlay) {
+                        window.sentience.showOverlay(elements, null);
+                    }
+                }
+                """,
+                raw_elements,
+            )
+
+    # Validate and parse with Pydantic
+    snapshot_obj = Snapshot(**result)
+    return snapshot_obj
+
+
+async def _snapshot_via_api_async(
+    browser: AsyncSentienceBrowser,
+    options: SnapshotOptions,
+) -> Snapshot:
+    """Take snapshot using server-side API (Pro/Enterprise tier) - async"""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    if not browser.api_key:
+        raise ValueError("API key required for server-side processing")
+
+    if not browser.api_url:
+        raise ValueError("API URL required for server-side processing")
+
+    # Wait for extension injection
+    try:
+        await browser.page.wait_for_function(
+            "typeof window.sentience !== 'undefined'", timeout=5000
+        )
+    except Exception as e:
+        raise RuntimeError(
+            "Sentience extension failed to inject. Cannot collect raw data for API processing."
+        ) from e
+
+    # Step 1: Get raw data from local extension
+    raw_options: dict[str, Any] = {}
+    if options.screenshot is not False:
+        raw_options["screenshot"] = options.screenshot
+
+    raw_result = await browser.page.evaluate(
+        """
+        (options) => {
+            return window.sentience.snapshot(options);
+        }
+        """,
+        raw_options,
+    )
+
+    # Save trace if requested
+    if options.save_trace:
+        _save_trace_to_file(raw_result.get("raw_elements", []), options.trace_path)
+
+    # Step 2: Send to server for smart ranking/filtering
+    payload = {
+        "raw_elements": raw_result.get("raw_elements", []),
+        "url": raw_result.get("url", ""),
+        "viewport": raw_result.get("viewport"),
+        "goal": options.goal,
+        "options": {
+            "limit": options.limit,
+            "filter": options.filter.model_dump() if options.filter else None,
+        },
+    }
+
+    # Check payload size
+    payload_json = json.dumps(payload)
+    payload_size = len(payload_json.encode("utf-8"))
+    if payload_size > MAX_PAYLOAD_BYTES:
+        raise ValueError(
+            f"Payload size ({payload_size / 1024 / 1024:.2f}MB) exceeds server limit "
+            f"({MAX_PAYLOAD_BYTES / 1024 / 1024:.0f}MB). "
+            f"Try reducing the number of elements on the page or filtering elements."
+        )
+
+    headers = {
+        "Authorization": f"Bearer {browser.api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        # Lazy import httpx - only needed for async API calls
+        import httpx
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{browser.api_url}/v1/snapshot",
+                content=payload_json,
+                headers=headers,
+            )
+            response.raise_for_status()
+            api_result = response.json()
+
+        # Merge API result with local data
+        snapshot_data = {
+            "status": api_result.get("status", "success"),
+            "timestamp": api_result.get("timestamp"),
+            "url": api_result.get("url", raw_result.get("url", "")),
+            "viewport": api_result.get("viewport", raw_result.get("viewport")),
+            "elements": api_result.get("elements", []),
+            "screenshot": raw_result.get("screenshot"),
+            "screenshot_format": raw_result.get("screenshot_format"),
+            "error": api_result.get("error"),
+        }
+
+        # Show visual overlay if requested
+        if options.show_overlay:
+            elements = api_result.get("elements", [])
+            if elements:
+                await browser.page.evaluate(
+                    """
+                    (elements) => {
+                        if (window.sentience && window.sentience.showOverlay) {
+                            window.sentience.showOverlay(elements, null);
+                        }
+                    }
+                    """,
+                    elements,
+                )
+
+        return Snapshot(**snapshot_data)
+    except ImportError:
+        # Fallback to requests if httpx not available (shouldn't happen in async context)
+        raise RuntimeError(
+            "httpx is required for async API calls. Install it with: pip install httpx"
+        )
+    except Exception as e:
         raise RuntimeError(f"API request failed: {e}")

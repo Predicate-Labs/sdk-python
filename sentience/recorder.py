@@ -6,9 +6,9 @@ import json
 from datetime import datetime
 from typing import Any
 
-from .browser import SentienceBrowser
+from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .models import Element, Snapshot
-from .snapshot import snapshot
+from .snapshot import snapshot, snapshot_async
 
 
 class TraceStep:
@@ -367,3 +367,223 @@ def record(browser: SentienceBrowser, capture_snapshots: bool = False) -> Record
         Recorder instance
     """
     return Recorder(browser, capture_snapshots=capture_snapshots)
+
+
+class RecorderAsync:
+    """Recorder for capturing user actions (async)"""
+
+    def __init__(self, browser: AsyncSentienceBrowser, capture_snapshots: bool = False):
+        self.browser = browser
+        self.capture_snapshots = capture_snapshots
+        self.trace: Trace | None = None
+        self._active = False
+        self._mask_patterns: list[str] = []  # Patterns to mask (e.g., "password", "email")
+
+    async def start(self) -> None:
+        """Start recording"""
+        if not self.browser.page:
+            raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+        self._active = True
+        start_url = self.browser.page.url
+        self.trace = Trace(start_url)
+
+        # Set up event listeners in the browser
+        self._setup_listeners()
+
+    def stop(self) -> None:
+        """Stop recording"""
+        self._active = False
+        self._cleanup_listeners()
+
+    def add_mask_pattern(self, pattern: str) -> None:
+        """Add a pattern to mask in recorded text (e.g., "password", "email")"""
+        self._mask_patterns.append(pattern.lower())
+
+    def _should_mask(self, text: str) -> bool:
+        """Check if text should be masked"""
+        text_lower = text.lower()
+        return any(pattern in text_lower for pattern in self._mask_patterns)
+
+    def _setup_listeners(self) -> None:
+        """Set up event listeners to capture actions"""
+        # Note: We'll capture actions through the SDK methods rather than DOM events
+        # This is cleaner and more reliable
+        pass
+
+    def _cleanup_listeners(self) -> None:
+        """Clean up event listeners"""
+        pass
+
+    async def _infer_selector(self, element_id: int) -> str | None:  # noqa: C901
+        """
+        Infer a semantic selector for an element (async)
+
+        Uses heuristics to build a robust selector:
+        - role=... text~"..."
+        - If text empty: use name/aria-label/placeholder
+        - Include clickable=true when relevant
+        - Validate against snapshot (should match 1 element)
+        """
+        try:
+            # Take a snapshot to get element info
+            snap = await snapshot_async(self.browser)
+
+            # Find the element in the snapshot
+            element = None
+            for el in snap.elements:
+                if el.id == element_id:
+                    element = el
+                    break
+
+            if not element:
+                return None
+
+            # Build candidate selector
+            parts = []
+
+            # Add role
+            if element.role and element.role != "generic":
+                parts.append(f"role={element.role}")
+
+            # Add text if available
+            if element.text:
+                # Use contains match for text
+                text_part = element.text.replace('"', '\\"')[:50]  # Limit length
+                parts.append(f'text~"{text_part}"')
+            else:
+                # Try to get name/aria-label/placeholder from DOM
+                try:
+                    el = await self.browser.page.evaluate(
+                        f"""
+                        () => {{
+                            const el = window.sentience_registry[{element_id}];
+                            if (!el) return null;
+                            return {{
+                                name: el.name || null,
+                                ariaLabel: el.getAttribute('aria-label') || null,
+                                placeholder: el.placeholder || null
+                            }};
+                        }}
+                    """
+                    )
+
+                    if el:
+                        if el.get("name"):
+                            parts.append(f'name="{el["name"]}"')
+                        elif el.get("ariaLabel"):
+                            parts.append(f'text~"{el["ariaLabel"]}"')
+                        elif el.get("placeholder"):
+                            parts.append(f'text~"{el["placeholder"]}"')
+                except Exception:
+                    pass
+
+            # Add clickable if relevant
+            if element.visual_cues.is_clickable:
+                parts.append("clickable=true")
+
+            if not parts:
+                return None
+
+            selector = " ".join(parts)
+
+            # Validate selector - should match exactly 1 element
+            matches = [el for el in snap.elements if self._match_element(el, selector)]
+
+            if len(matches) == 1:
+                return selector
+            elif len(matches) > 1:
+                # Add more constraints (importance threshold, near-center)
+                # For now, just return the selector with a note
+                return selector
+            else:
+                # Selector doesn't match - return None (will use element_id)
+                return None
+
+        except Exception:
+            return None
+
+    def _match_element(self, element: Element, selector: str) -> bool:
+        """Simple selector matching (basic implementation)"""
+        # This is a simplified version - in production, use the full query engine
+        from .query import match_element, parse_selector
+
+        try:
+            query_dict = parse_selector(selector)
+            return match_element(element, query_dict)
+        except Exception:
+            return False
+
+    def record_navigation(self, url: str) -> None:
+        """Record a navigation event"""
+        if self._active and self.trace:
+            self.trace.add_navigation(url)
+
+    async def record_click(self, element_id: int, selector: str | None = None) -> None:
+        """Record a click event with smart selector inference (async)"""
+        if self._active and self.trace:
+            # If no selector provided, try to infer one
+            if selector is None:
+                selector = await self._infer_selector(element_id)
+
+            # Optionally capture snapshot
+            if self.capture_snapshots:
+                try:
+                    snap = await snapshot_async(self.browser)
+                    step = TraceStep(
+                        ts=int((datetime.now() - self.trace._start_time).total_seconds() * 1000),
+                        type="click",
+                        element_id=element_id,
+                        selector=selector,
+                        snapshot=snap,
+                    )
+                    self.trace.add_step(step)
+                except Exception:
+                    # If snapshot fails, just record without it
+                    self.trace.add_click(element_id, selector)
+            else:
+                self.trace.add_click(element_id, selector)
+
+    async def record_type(self, element_id: int, text: str, selector: str | None = None) -> None:
+        """Record a type event with smart selector inference (async)"""
+        if self._active and self.trace:
+            # If no selector provided, try to infer one
+            if selector is None:
+                selector = await self._infer_selector(element_id)
+
+            mask = self._should_mask(text)
+            self.trace.add_type(element_id, text, selector, mask=mask)
+
+    def record_press(self, key: str) -> None:
+        """Record a key press event"""
+        if self._active and self.trace:
+            self.trace.add_press(key)
+
+    def save(self, filepath: str) -> None:
+        """Save trace to file"""
+        if not self.trace:
+            raise RuntimeError("No trace to save. Start recording first.")
+        self.trace.save(filepath)
+
+    async def __aenter__(self):
+        """Context manager entry"""
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        self.stop()
+
+
+def record_async(browser: AsyncSentienceBrowser, capture_snapshots: bool = False) -> RecorderAsync:
+    """
+    Create a recorder instance (async)
+
+    Args:
+        browser: AsyncSentienceBrowser instance
+        capture_snapshots: Whether to capture snapshots at each step
+
+    Returns:
+        RecorderAsync instance
+    """
+    return RecorderAsync(browser, capture_snapshots=capture_snapshots)
