@@ -21,38 +21,41 @@ You can also import directly from their respective modules:
     from sentience.actions import click_async
 """
 
+# ========== Actions (Phase 1) ==========
+# Re-export async action functions from actions.py
+from sentience.actions import click_async, click_rect_async, press_async, type_text_async
+
 # ========== Browser ==========
 # Re-export AsyncSentienceBrowser from browser.py (moved there for better organization)
 from sentience.browser import AsyncSentienceBrowser
+
+# Re-export async expect functions from expect.py
+from sentience.expect import ExpectationAsync, expect_async
+
+# Re-export async overlay functions from overlay.py
+from sentience.overlay import clear_overlay_async, show_overlay_async
+
+# ========== Query Functions (Pure Functions - No Async Needed) ==========
+# Re-export query functions (pure functions, no async needed)
+from sentience.query import find, query
+
+# ========== Phase 2B: Supporting Utilities ==========
+# Re-export async read function from read.py
+from sentience.read import read_async
+
+# Re-export async screenshot function from screenshot.py
+from sentience.screenshot import screenshot_async
 
 # ========== Snapshot (Phase 1) ==========
 # Re-export async snapshot functions from snapshot.py
 from sentience.snapshot import snapshot_async
 
-# ========== Actions (Phase 1) ==========
-# Re-export async action functions from actions.py
-from sentience.actions import (
-    click_async,
-    type_text_async,
-    press_async,
-    click_rect_async,
-)
+# Re-export async text search function from text_search.py
+from sentience.text_search import find_text_rect_async
 
 # ========== Phase 2A: Core Utilities ==========
 # Re-export async wait function from wait.py
 from sentience.wait import wait_for_async
-
-# Re-export async screenshot function from screenshot.py
-from sentience.screenshot import screenshot_async
-
-# Re-export async text search function from text_search.py
-from sentience.text_search import find_text_rect_async
-
-# ========== Phase 2B: Supporting Utilities (Future) ==========
-# TODO: Re-export when implemented
-# from sentience.read import read_async
-# from sentience.overlay import show_overlay_async, clear_overlay_async
-# from sentience.expect import expect_async, ExpectationAsync
 
 # ========== Phase 2C: Agent Layer (Future) ==========
 # TODO: Re-export when implemented
@@ -64,9 +67,6 @@ from sentience.text_search import find_text_rect_async
 # from sentience.recorder import RecorderAsync
 # from sentience.inspector import InspectorAsync
 
-# ========== Query Functions (Pure Functions - No Async Needed) ==========
-# Re-export query functions (pure functions, no async needed)
-from sentience.query import find, query
 
 __all__ = [
     # Browser
@@ -82,12 +82,12 @@ __all__ = [
     "wait_for_async",  # Re-exported from wait.py
     "screenshot_async",  # Re-exported from screenshot.py
     "find_text_rect_async",  # Re-exported from text_search.py
-    # Phase 2B: Supporting Utilities (Future - uncomment when implemented)
-    # "read_async",
-    # "show_overlay_async",
-    # "clear_overlay_async",
-    # "expect_async",
-    # "ExpectationAsync",
+    # Phase 2B: Supporting Utilities
+    "read_async",  # Re-exported from read.py
+    "show_overlay_async",  # Re-exported from overlay.py
+    "clear_overlay_async",  # Re-exported from overlay.py
+    "expect_async",  # Re-exported from expect.py
+    "ExpectationAsync",  # Re-exported from expect.py
     # Phase 2C: Agent Layer (Future - uncomment when implemented)
     # "SentienceAgentAsync",
     # "BaseAgentAsync",

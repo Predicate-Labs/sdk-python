@@ -7,13 +7,18 @@ from playwright.async_api import async_playwright
 
 from sentience.async_api import (
     AsyncSentienceBrowser,
+    ExpectationAsync,
+    clear_overlay_async,
     click_async,
     click_rect_async,
+    expect_async,
     find,
     find_text_rect_async,
     press_async,
     query,
+    read_async,
     screenshot_async,
+    show_overlay_async,
     snapshot_async,
     type_text_async,
     wait_for_async,
@@ -333,3 +338,147 @@ async def test_async_find_text_rect():
             assert hasattr(match, "rect")
             assert hasattr(match, "viewport_rect")
             assert hasattr(match, "in_viewport")
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_read():
+    """Test async read function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+        # Wait a bit more for extension to be ready
+        await browser.page.wait_for_timeout(500)
+
+        # Test raw HTML format
+        result = await read_async(browser, output_format="raw")
+        assert result["status"] == "success"
+        assert "content" in result
+        assert "url" in result
+        assert "format" in result
+        assert result["format"] == "raw"
+        assert len(result["content"]) > 0
+
+        # Test text format
+        result = await read_async(browser, output_format="text")
+        assert result["status"] == "success"
+        assert result["format"] == "text"
+        assert len(result["content"]) > 0
+
+        # Test markdown format (may fallback to extension's markdown)
+        result = await read_async(browser, output_format="markdown")
+        assert result["status"] == "success"
+        assert result["format"] == "markdown"
+        assert len(result["content"]) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_show_overlay():
+    """Test async show_overlay function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Get snapshot
+        snap = await snapshot_async(browser)
+        assert len(snap.elements) > 0
+
+        # Show overlay with snapshot
+        await show_overlay_async(browser, snap)
+        # No exception means success
+
+        # Show overlay with target element
+        if len(snap.elements) > 0:
+            target_id = snap.elements[0].id
+            await show_overlay_async(browser, snap, target_element_id=target_id)
+
+        # Show overlay with element list
+        elements = [el.model_dump() for el in snap.elements[:5]]  # First 5 elements
+        await show_overlay_async(browser, elements)
+
+        # Clear overlay
+        await clear_overlay_async(browser)
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_clear_overlay():
+    """Test async clear_overlay function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Clear overlay (should not raise even if no overlay is shown)
+        await clear_overlay_async(browser)
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_expect_to_be_visible():
+    """Test async expect to_be_visible"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Expect a link to be visible (more reliable on example.com)
+        element = await expect_async(browser, "role=link").to_be_visible()
+        assert element is not None
+        assert element.in_viewport is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_expect_to_exist():
+    """Test async expect to_exist"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Expect a link to exist (more reliable on example.com)
+        element = await expect_async(browser, "role=link").to_exist()
+        assert element is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_expect_to_have_text():
+    """Test async expect to_have_text"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Expect link to have "more" text (common on example.com)
+        element = await expect_async(browser, "role=link").to_have_text("more")
+        assert element is not None
+        assert "more" in element.text.lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_expect_to_have_count():
+    """Test async expect to_have_count"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Expect at least one link (more reliable on example.com)
+        await expect_async(browser, "role=link").to_have_count(1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_async_expectation_class():
+    """Test ExpectationAsync class directly"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Create expectation instance
+        expectation = ExpectationAsync(browser, "role=link")
+        assert expectation.browser == browser
+        assert expectation.selector == "role=link"
+
+        # Use expectation methods
+        element = await expectation.to_exist()
+        assert element is not None
