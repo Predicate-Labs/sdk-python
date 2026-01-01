@@ -1,6 +1,7 @@
 """Tests for screenshot extraction and upload in CloudTraceSink"""
 
 import base64
+import gzip
 import json
 import os
 from pathlib import Path
@@ -184,7 +185,7 @@ class TestCleanedTrace:
         sink._create_cleaned_trace(cleaned_trace_path)
 
         # Read cleaned trace
-        with open(cleaned_trace_path, "r") as f:
+        with open(cleaned_trace_path) as f:
             cleaned_event = json.loads(f.readline())
 
         # Verify screenshot fields are removed
@@ -233,7 +234,7 @@ class TestCleanedTrace:
         sink._create_cleaned_trace(cleaned_trace_path)
 
         # Read cleaned trace
-        with open(cleaned_trace_path, "r") as f:
+        with open(cleaned_trace_path) as f:
             cleaned_event = json.loads(f.readline())
 
         # Verify action event is unchanged
@@ -401,3 +402,111 @@ class TestScreenshotUpload:
             assert stats["screenshot_count"] == 2
 
         sink.close(blocking=False)
+
+    def test_upload_removes_screenshot_base64_from_trace(self):
+        """Test that uploaded trace data does not contain screenshot_base64."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-screenshot-upload-clean-1"
+        api_key = "sk_test_123"
+
+        test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
+
+        # Emit snapshot event with screenshot
+        sink.emit(
+            {
+                "v": 1,
+                "type": "snapshot",
+                "ts": "2026-01-01T00:00:00.000Z",
+                "run_id": run_id,
+                "seq": 1,
+                "step_id": "step-1",
+                "data": {
+                    "url": "https://example.com",
+                    "element_count": 10,
+                    "screenshot_base64": test_image_base64,
+                    "screenshot_format": "png",
+                },
+            }
+        )
+
+        sink.close(blocking=False)
+        import time
+
+        time.sleep(0.1)
+
+        # Mock gateway and upload responses
+        mock_upload_urls = {
+            "1": "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/screenshots/step_0001.png?signature=...",
+        }
+
+        with (
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+        ):
+            # Mock gateway response for screenshot URLs
+            mock_gateway_response = Mock()
+            mock_gateway_response.status_code = 200
+            mock_gateway_response.json.return_value = {"upload_urls": mock_upload_urls}
+            mock_post.return_value = mock_gateway_response
+
+            # Mock screenshot upload response
+            mock_screenshot_upload = Mock()
+            mock_screenshot_upload.status_code = 200
+            mock_put.return_value = mock_screenshot_upload
+
+            # Call _do_upload to simulate the full upload process
+            sink._do_upload()
+
+            # Verify trace was uploaded (PUT was called)
+            assert mock_put.called
+
+            # Find the trace upload call (not screenshot upload)
+            # Screenshot uploads happen first, then trace upload
+            put_calls = mock_put.call_args_list
+            trace_upload_call = None
+            for call in put_calls:
+                # Trace upload has Content-Type: application/x-gzip
+                headers = call[1].get("headers", {})
+                if headers.get("Content-Type") == "application/x-gzip":
+                    trace_upload_call = call
+                    break
+
+            assert trace_upload_call is not None, "Trace upload should have been called"
+
+            # Decompress and verify the uploaded trace data
+            compressed_data = trace_upload_call[1]["data"]
+            decompressed_data = gzip.decompress(compressed_data)
+            trace_content = decompressed_data.decode("utf-8")
+
+            # Parse the trace events
+            events = [
+                json.loads(line) for line in trace_content.strip().split("\n") if line.strip()
+            ]
+
+            # Find snapshot event
+            snapshot_events = [e for e in events if e.get("type") == "snapshot"]
+            assert len(snapshot_events) > 0, "Should have at least one snapshot event"
+
+            # Verify screenshot_base64 is NOT in the uploaded trace
+            for event in snapshot_events:
+                data = event.get("data", {})
+                assert (
+                    "screenshot_base64" not in data
+                ), "screenshot_base64 should be removed from uploaded trace"
+                assert (
+                    "screenshot_format" not in data
+                ), "screenshot_format should be removed from uploaded trace"
+                # Verify other fields are preserved
+                assert "url" in data
+                assert "element_count" in data
+
+        # Cleanup
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        cleaned_trace_path = cache_dir / f"{run_id}.cleaned.jsonl"
+        if trace_path.exists():
+            trace_path.unlink()
+        if cleaned_trace_path.exists():
+            cleaned_trace_path.unlink()
