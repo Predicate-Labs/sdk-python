@@ -26,6 +26,7 @@ from sentience.models import (
     Snapshot,
     SnapshotOptions,
     StorageState,
+    Viewport,
     WaitResult,
 )
 
@@ -51,7 +52,7 @@ class AsyncSentienceBrowser:
         storage_state: str | Path | StorageState | dict | None = None,
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
-        viewport: dict[str, int] | None = None,
+        viewport: Viewport | dict[str, int] | None = None,
     ):
         """
         Initialize Async Sentience browser
@@ -66,8 +67,11 @@ class AsyncSentienceBrowser:
             storage_state: Optional storage state to inject (cookies + localStorage)
             record_video_dir: Optional directory path to save video recordings
             record_video_size: Optional video resolution as dict with 'width' and 'height' keys
-            viewport: Optional viewport size as dict with 'width' and 'height' keys.
-                     Defaults to {"width": 1280, "height": 800}
+            viewport: Optional viewport size as Viewport object or dict with 'width' and 'height' keys.
+                     Examples: Viewport(width=1280, height=800) (default)
+                              Viewport(width=1920, height=1080) (Full HD)
+                              {"width": 1280, "height": 800} (dict also supported)
+                     If None, defaults to Viewport(width=1280, height=800).
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -94,8 +98,13 @@ class AsyncSentienceBrowser:
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
 
-        # Viewport configuration
-        self.viewport = viewport or {"width": 1280, "height": 800}
+        # Viewport configuration - convert dict to Viewport if needed
+        if viewport is None:
+            self.viewport = Viewport(width=1280, height=800)
+        elif isinstance(viewport, dict):
+            self.viewport = Viewport(width=viewport["width"], height=viewport["height"])
+        else:
+            self.viewport = viewport
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -185,7 +194,7 @@ class AsyncSentienceBrowser:
             "user_data_dir": user_data_dir,
             "headless": False,
             "args": args,
-            "viewport": self.viewport,
+            "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
 
