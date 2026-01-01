@@ -25,12 +25,18 @@ You can also import directly from their respective modules:
 # Re-export async action functions from actions.py
 from sentience.actions import click_async, click_rect_async, press_async, type_text_async
 
+# ========== Phase 2C: Agent Layer ==========
+# Re-export async agent classes from agent.py and base_agent.py
+from sentience.agent import SentienceAgentAsync
+from sentience.base_agent import BaseAgentAsync
+
 # ========== Browser ==========
 # Re-export AsyncSentienceBrowser from browser.py (moved there for better organization)
 from sentience.browser import AsyncSentienceBrowser
 
 # Re-export async expect functions from expect.py
 from sentience.expect import ExpectationAsync, expect_async
+from sentience.inspector import InspectorAsync, inspect_async
 
 # Re-export async overlay functions from overlay.py
 from sentience.overlay import clear_overlay_async, show_overlay_async
@@ -42,6 +48,10 @@ from sentience.query import find, query
 # ========== Phase 2B: Supporting Utilities ==========
 # Re-export async read function from read.py
 from sentience.read import read_async
+
+# ========== Phase 2D: Developer Tools ==========
+# Re-export async recorder and inspector from their modules
+from sentience.recorder import RecorderAsync, record_async
 
 # Re-export async screenshot function from screenshot.py
 from sentience.screenshot import screenshot_async
@@ -56,17 +66,6 @@ from sentience.text_search import find_text_rect_async
 # ========== Phase 2A: Core Utilities ==========
 # Re-export async wait function from wait.py
 from sentience.wait import wait_for_async
-
-# ========== Phase 2C: Agent Layer (Future) ==========
-# TODO: Re-export when implemented
-# from sentience.agent import SentienceAgentAsync
-# from sentience.base_agent import BaseAgentAsync
-
-# ========== Phase 2D: Developer Tools (Future) ==========
-# TODO: Re-export when implemented
-# from sentience.recorder import RecorderAsync
-# from sentience.inspector import InspectorAsync
-
 
 __all__ = [
     # Browser
@@ -88,12 +87,14 @@ __all__ = [
     "clear_overlay_async",  # Re-exported from overlay.py
     "expect_async",  # Re-exported from expect.py
     "ExpectationAsync",  # Re-exported from expect.py
-    # Phase 2C: Agent Layer (Future - uncomment when implemented)
-    # "SentienceAgentAsync",
-    # "BaseAgentAsync",
-    # Phase 2D: Developer Tools (Future - uncomment when implemented)
-    # "RecorderAsync",
-    # "InspectorAsync",
+    # Phase 2C: Agent Layer
+    "SentienceAgentAsync",  # Re-exported from agent.py
+    "BaseAgentAsync",  # Re-exported from base_agent.py
+    # Phase 2D: Developer Tools
+    "RecorderAsync",  # Re-exported from recorder.py
+    "record_async",  # Re-exported from recorder.py
+    "InspectorAsync",  # Re-exported from inspector.py
+    "inspect_async",  # Re-exported from inspector.py
     # Query Functions
     "find",  # Re-exported from query.py
     "query",  # Re-exported from query.py

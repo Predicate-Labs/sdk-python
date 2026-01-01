@@ -7,16 +7,22 @@ from playwright.async_api import async_playwright
 
 from sentience.async_api import (
     AsyncSentienceBrowser,
+    BaseAgentAsync,
     ExpectationAsync,
+    InspectorAsync,
+    RecorderAsync,
+    SentienceAgentAsync,
     clear_overlay_async,
     click_async,
     click_rect_async,
     expect_async,
     find,
     find_text_rect_async,
+    inspect_async,
     press_async,
     query,
     read_async,
+    record_async,
     screenshot_async,
     show_overlay_async,
     snapshot_async,
@@ -482,3 +488,188 @@ async def test_async_expectation_class():
         # Use expectation methods
         element = await expectation.to_exist()
         assert element is not None
+
+
+# ========== Phase 2C: Agent Layer Tests ==========
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_base_agent_async_interface():
+    """Test BaseAgentAsync is an abstract class"""
+    # BaseAgentAsync should be abstract and cannot be instantiated
+    assert issubclass(BaseAgentAsync, BaseAgentAsync)
+    # Check that it has the required abstract methods
+    assert hasattr(BaseAgentAsync, "act")
+    assert hasattr(BaseAgentAsync, "get_history")
+    assert hasattr(BaseAgentAsync, "get_token_stats")
+    assert hasattr(BaseAgentAsync, "clear_history")
+    assert hasattr(BaseAgentAsync, "filter_elements")
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_sentience_agent_async_initialization():
+    """Test SentienceAgentAsync can be initialized"""
+    from sentience.llm_provider import LLMProvider, LLMResponse
+
+    # Create a simple mock LLM provider
+    class MockLLMProvider(LLMProvider):
+        def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
+            return LLMResponse(
+                content="CLICK(1)",
+                model_name="mock",
+                prompt_tokens=10,
+                completion_tokens=5,
+                total_tokens=15,
+            )
+
+        def supports_json_mode(self) -> bool:
+            return True
+
+        @property
+        def model_name(self) -> str:
+            return "mock-model"
+
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        # Create a mock LLM provider
+        llm = MockLLMProvider()
+        agent = SentienceAgentAsync(browser, llm, verbose=False)
+
+        assert agent.browser == browser
+        assert agent.llm == llm
+        assert agent.default_snapshot_limit == 50
+        assert len(agent.history) == 0
+
+        # Test history methods
+        history = agent.get_history()
+        assert isinstance(history, list)
+        assert len(history) == 0
+
+        stats = agent.get_token_stats()
+        assert stats.total_tokens == 0
+        assert stats.total_prompt_tokens == 0
+        assert stats.total_completion_tokens == 0
+
+        # Test clear_history
+        agent.clear_history()
+        assert len(agent.history) == 0
+
+
+# ========== Phase 2D: Developer Tools Tests ==========
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_recorder_async_initialization():
+    """Test RecorderAsync can be initialized"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        recorder = RecorderAsync(browser, capture_snapshots=False)
+        assert recorder.browser == browser
+        assert recorder.capture_snapshots is False
+        assert recorder._active is False
+        assert recorder.trace is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_recorder_async_context_manager():
+    """Test RecorderAsync context manager"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        async with RecorderAsync(browser) as recorder:
+            assert recorder._active is True
+            assert recorder.trace is not None
+            assert recorder.trace.start_url == browser.page.url
+
+        # After context exit, recorder should be stopped
+        assert recorder._active is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_recorder_async_record_methods():
+    """Test RecorderAsync record methods"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        recorder = RecorderAsync(browser)
+        await recorder.start()
+
+        # Record navigation
+        recorder.record_navigation("https://example.com/page2")
+        assert len(recorder.trace.steps) == 1
+        assert recorder.trace.steps[0].type == "navigation"
+
+        # Record press
+        recorder.record_press("Enter")
+        assert len(recorder.trace.steps) == 2
+        assert recorder.trace.steps[1].type == "press"
+        assert recorder.trace.steps[1].key == "Enter"
+
+        recorder.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_record_async_function():
+    """Test record_async convenience function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        recorder = record_async(browser, capture_snapshots=False)
+        assert isinstance(recorder, RecorderAsync)
+        assert recorder.browser == browser
+        assert recorder.capture_snapshots is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_inspector_async_initialization():
+    """Test InspectorAsync can be initialized"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        inspector = InspectorAsync(browser)
+        assert inspector.browser == browser
+        assert inspector._active is False
+        assert inspector._last_element_id is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_inspector_async_context_manager():
+    """Test InspectorAsync context manager"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        async with InspectorAsync(browser) as inspector:
+            assert inspector._active is True
+
+        # After context exit, inspector should be stopped
+        assert inspector._active is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_extension
+async def test_inspect_async_function():
+    """Test inspect_async convenience function"""
+    async with AsyncSentienceBrowser() as browser:
+        await browser.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        inspector = inspect_async(browser)
+        assert isinstance(inspector, InspectorAsync)
+        assert inspector.browser == browser
