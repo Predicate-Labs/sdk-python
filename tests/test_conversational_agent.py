@@ -212,10 +212,10 @@ def test_execute_find_and_click_step():
         "parameters": {"element_description": "button"},
     }
 
-    # Patch at the agent module level where it's imported
+    # Patch at the action_executor level where click is actually called
     with (
         patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.agent.click") as mock_click,
+        patch("sentience.action_executor.click") as mock_click,
     ):
         from sentience.models import ActionResult
 
@@ -241,10 +241,10 @@ def test_execute_find_and_type_step():
         "parameters": {"element_description": "search box", "text": "magic mouse"},
     }
 
-    # Patch at the agent module level where it's imported
+    # Patch at the action_executor level where type_text is actually called
     with (
         patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.agent.type_text") as mock_type,
+        patch("sentience.action_executor.type_text") as mock_type,
     ):
         from sentience.models import ActionResult
 
