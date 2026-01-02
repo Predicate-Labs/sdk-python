@@ -19,9 +19,7 @@ from .sentience_methods import SentienceMethod
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
-def _save_trace_to_file(
-    raw_elements: list[dict[str, Any]], trace_path: str | None = None
-) -> None:
+def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | None = None) -> None:
     """
     Save raw_elements to a JSON file for benchmarking/training
 

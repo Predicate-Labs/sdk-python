@@ -21,7 +21,7 @@ class BrowserEvaluator:
 
     @staticmethod
     def wait_for_extension(
-        page: Union[Page, AsyncPage],
+        page: Page | AsyncPage,
         timeout_ms: int = 5000,
     ) -> None:
         """
@@ -79,7 +79,7 @@ class BrowserEvaluator:
             ) from e
 
     @staticmethod
-    def _gather_diagnostics(page: Union[Page, AsyncPage]) -> dict[str, Any]:
+    def _gather_diagnostics(page: Page | AsyncPage) -> dict[str, Any]:
         """
         Gather diagnostics about extension state.
 
@@ -297,4 +297,3 @@ class BrowserEvaluator:
             return await page.evaluate(f"typeof window.sentience.{method_name} !== 'undefined'")
         except Exception:
             return False
-

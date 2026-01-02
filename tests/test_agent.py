@@ -174,7 +174,7 @@ def test_agent_build_context():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     snap = create_mock_snapshot()
-    context = agent._build_context(snap, "test goal")
+    context = agent.llm_handler.build_context(snap, "test goal")
 
     # Should contain both elements
     assert "[1]" in context
@@ -196,15 +196,15 @@ def test_agent_execute_click_action():
 
     snap = create_mock_snapshot()
 
-    # Mock click function
-    with patch("sentience.agent.click") as mock_click:
+    # Mock click function via ActionExecutor
+    with patch("sentience.action_executor.click") as mock_click:
         from sentience.models import ActionResult
 
         mock_click.return_value = ActionResult(
             success=True, duration_ms=150, outcome="dom_updated", url_changed=False
         )
 
-        result = agent._execute_action("CLICK(1)", snap)
+        result = agent.action_executor.execute("CLICK(1)", snap)
 
         assert result["success"] is True
         assert result["action"] == "click"
@@ -220,13 +220,13 @@ def test_agent_execute_type_action():
 
     snap = create_mock_snapshot()
 
-    # Mock type_text function
-    with patch("sentience.agent.type_text") as mock_type:
+    # Mock type_text function via ActionExecutor
+    with patch("sentience.action_executor.type_text") as mock_type:
         from sentience.models import ActionResult
 
         mock_type.return_value = ActionResult(success=True, duration_ms=200, outcome="dom_updated")
 
-        result = agent._execute_action('TYPE(2, "hello world")', snap)
+        result = agent.action_executor.execute('TYPE(2, "hello world")', snap)
 
         assert result["success"] is True
         assert result["action"] == "type"
@@ -243,13 +243,13 @@ def test_agent_execute_press_action():
 
     snap = create_mock_snapshot()
 
-    # Mock press function
-    with patch("sentience.agent.press") as mock_press:
+    # Mock press function via ActionExecutor
+    with patch("sentience.action_executor.press") as mock_press:
         from sentience.models import ActionResult
 
         mock_press.return_value = ActionResult(success=True, duration_ms=50, outcome="dom_updated")
 
-        result = agent._execute_action('PRESS("Enter")', snap)
+        result = agent.action_executor.execute('PRESS("Enter")', snap)
 
         assert result["success"] is True
         assert result["action"] == "press"
@@ -264,7 +264,7 @@ def test_agent_execute_finish_action():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     snap = create_mock_snapshot()
-    result = agent._execute_action("FINISH()", snap)
+    result = agent.action_executor.execute("FINISH()", snap)
 
     assert result["success"] is True
     assert result["action"] == "finish"
@@ -279,7 +279,7 @@ def test_agent_execute_invalid_action():
     snap = create_mock_snapshot()
 
     with pytest.raises(ValueError, match="Unknown action format"):
-        agent._execute_action("INVALID_ACTION", snap)
+        agent.action_executor.execute("INVALID_ACTION", snap)
 
 
 def test_agent_act_full_cycle():
@@ -291,7 +291,7 @@ def test_agent_act_full_cycle():
     # Mock snapshot and click
     with (
         patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.agent.click") as mock_click,
+        patch("sentience.action_executor.click") as mock_click,
     ):
         from sentience.models import ActionResult
 
@@ -389,7 +389,7 @@ def test_agent_retry_on_failure():
     # Mock snapshot and click (click will fail)
     with (
         patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.agent.click") as mock_click,
+        patch("sentience.action_executor.click") as mock_click,
     ):
         mock_snapshot.return_value = create_mock_snapshot()
         # Simulate click failure
@@ -411,9 +411,9 @@ def test_agent_action_parsing_variations():
     snap = create_mock_snapshot()
 
     with (
-        patch("sentience.agent.click") as mock_click,
-        patch("sentience.agent.type_text") as mock_type,
-        patch("sentience.agent.press") as mock_press,
+        patch("sentience.action_executor.click") as mock_click,
+        patch("sentience.action_executor.type_text") as mock_type,
+        patch("sentience.action_executor.press") as mock_press,
     ):
         from sentience.models import ActionResult
 
@@ -423,11 +423,11 @@ def test_agent_action_parsing_variations():
         mock_press.return_value = mock_result
 
         # Test variations
-        agent._execute_action("click(1)", snap)  # lowercase
-        agent._execute_action("CLICK( 1 )", snap)  # extra spaces
-        agent._execute_action("TYPE(2, 'single quotes')", snap)  # single quotes
-        agent._execute_action("PRESS('Enter')", snap)  # single quotes
-        agent._execute_action("finish()", snap)  # lowercase finish
+        agent.action_executor.execute("click(1)", snap)  # lowercase
+        agent.action_executor.execute("CLICK( 1 )", snap)  # extra spaces
+        agent.action_executor.execute("TYPE(2, 'single quotes')", snap)  # single quotes
+        agent.action_executor.execute("PRESS('Enter')", snap)  # single quotes
+        agent.action_executor.execute("finish()", snap)  # lowercase finish
 
         assert mock_click.call_count == 2
         assert mock_type.call_count == 1
@@ -441,29 +441,28 @@ def test_agent_extract_action_from_llm_response():
     agent = SentienceAgent(browser, llm, verbose=False)
 
     # Test clean action (should pass through)
-    assert agent._extract_action_from_response("CLICK(42)") == "CLICK(42)"
-    assert agent._extract_action_from_response('TYPE(15, "test")') == 'TYPE(15, "test")'
-    assert agent._extract_action_from_response('PRESS("Enter")') == 'PRESS("Enter")'
-    assert agent._extract_action_from_response("FINISH()") == "FINISH()"
+    assert agent.llm_handler.extract_action("CLICK(42)") == "CLICK(42)"
+    assert agent.llm_handler.extract_action('TYPE(15, "test")') == 'TYPE(15, "test")'
+    assert agent.llm_handler.extract_action('PRESS("Enter")') == 'PRESS("Enter")'
+    assert agent.llm_handler.extract_action("FINISH()") == "FINISH()"
 
     # Test with natural language prefix (the bug case)
     assert (
-        agent._extract_action_from_response("The next step is to click the button. CLICK(42)")
+        agent.llm_handler.extract_action("The next step is to click the button. CLICK(42)")
         == "CLICK(42)"
     )
     assert (
-        agent._extract_action_from_response(
+        agent.llm_handler.extract_action(
             'The next step is to type "Sentience AI agent SDK" into the search field. TYPE(15, "Sentience AI agent SDK")'
         )
         == 'TYPE(15, "Sentience AI agent SDK")'
     )
 
     # Test with markdown code blocks
-    assert agent._extract_action_from_response("```\nCLICK(42)\n```") == "CLICK(42)"
+    assert agent.llm_handler.extract_action("```\nCLICK(42)\n```") == "CLICK(42)"
     assert (
-        agent._extract_action_from_response('```python\nTYPE(15, "test")\n```')
-        == 'TYPE(15, "test")'
+        agent.llm_handler.extract_action('```python\nTYPE(15, "test")\n```') == 'TYPE(15, "test")'
     )
 
     # Test with explanation after action
-    assert agent._extract_action_from_response("CLICK(42) to submit the form") == "CLICK(42)"
+    assert agent.llm_handler.extract_action("CLICK(42) to submit the form") == "CLICK(42)"

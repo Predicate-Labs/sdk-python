@@ -8,6 +8,9 @@ Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from .llm_provider_utils import get_api_key_from_env, handle_provider_error, require_package
+from .llm_response_builder import LLMResponseBuilder
+
 
 @dataclass
 class LLMResponse:
@@ -32,6 +35,15 @@ class LLMProvider(ABC):
     - Azure OpenAI
     - Any other completion API
     """
+
+    def __init__(self, model: str):
+        """
+        Initialize LLM provider with model name.
+
+        Args:
+            model: Model identifier (e.g., "gpt-4o", "claude-3-sonnet")
+        """
+        self._model_name = model
 
     @abstractmethod
     def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
@@ -97,13 +109,16 @@ class OpenAIProvider(LLMProvider):
             base_url: Custom API base URL (for compatible APIs)
             organization: OpenAI organization ID
         """
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise ImportError("OpenAI package not installed. Install with: pip install openai")
+        super().__init__(model)  # Initialize base class with model name
+
+        OpenAI = require_package(
+            "openai",
+            "openai",
+            "OpenAI",
+            "pip install openai",
+        )
 
         self.client = OpenAI(api_key=api_key, base_url=base_url, organization=organization)
-        self._model_name = model
 
     def generate(
         self,
@@ -150,12 +165,15 @@ class OpenAIProvider(LLMProvider):
         api_params.update(kwargs)
 
         # Call OpenAI API
-        response = self.client.chat.completions.create(**api_params)
+        try:
+            response = self.client.chat.completions.create(**api_params)
+        except Exception as e:
+            handle_provider_error(e, "OpenAI", "generate response")
 
         choice = response.choices[0]
         usage = response.usage
 
-        return LLMResponse(
+        return LLMResponseBuilder.from_openai_format(
             content=choice.message.content,
             prompt_tokens=usage.prompt_tokens if usage else None,
             completion_tokens=usage.completion_tokens if usage else None,
@@ -193,15 +211,16 @@ class AnthropicProvider(LLMProvider):
             api_key: Anthropic API key (or set ANTHROPIC_API_KEY env var)
             model: Model name (claude-3-opus, claude-3-sonnet, claude-3-haiku, etc.)
         """
-        try:
-            from anthropic import Anthropic
-        except ImportError:
-            raise ImportError(
-                "Anthropic package not installed. Install with: pip install anthropic"
-            )
+        super().__init__(model)  # Initialize base class with model name
+
+        Anthropic = require_package(
+            "anthropic",
+            "anthropic",
+            "Anthropic",
+            "pip install anthropic",
+        )
 
         self.client = Anthropic(api_key=api_key)
-        self._model_name = model
 
     def generate(
         self,
@@ -239,21 +258,19 @@ class AnthropicProvider(LLMProvider):
         api_params.update(kwargs)
 
         # Call Anthropic API
-        response = self.client.messages.create(**api_params)
+        try:
+            response = self.client.messages.create(**api_params)
+        except Exception as e:
+            handle_provider_error(e, "Anthropic", "generate response")
 
         content = response.content[0].text if response.content else ""
 
-        return LLMResponse(
+        return LLMResponseBuilder.from_anthropic_format(
             content=content,
-            prompt_tokens=response.usage.input_tokens if hasattr(response, "usage") else None,
-            completion_tokens=response.usage.output_tokens if hasattr(response, "usage") else None,
-            total_tokens=(
-                (response.usage.input_tokens + response.usage.output_tokens)
-                if hasattr(response, "usage")
-                else None
-            ),
+            input_tokens=response.usage.input_tokens if hasattr(response, "usage") else None,
+            output_tokens=response.usage.output_tokens if hasattr(response, "usage") else None,
             model_name=response.model,
-            finish_reason=response.stop_reason,
+            stop_reason=response.stop_reason,
         )
 
     def supports_json_mode(self) -> bool:
@@ -287,13 +304,16 @@ class GLMProvider(LLMProvider):
             api_key: Zhipu AI API key (or set GLM_API_KEY env var)
             model: Model name (glm-4-plus, glm-4, glm-4-air, glm-4-flash, etc.)
         """
-        try:
-            from zhipuai import ZhipuAI
-        except ImportError:
-            raise ImportError("ZhipuAI package not installed. Install with: pip install zhipuai")
+        super().__init__(model)  # Initialize base class with model name
+
+        ZhipuAI = require_package(
+            "zhipuai",
+            "zhipuai",
+            "ZhipuAI",
+            "pip install zhipuai",
+        )
 
         self.client = ZhipuAI(api_key=api_key)
-        self._model_name = model
 
     def generate(
         self,
@@ -335,12 +355,15 @@ class GLMProvider(LLMProvider):
         api_params.update(kwargs)
 
         # Call GLM API
-        response = self.client.chat.completions.create(**api_params)
+        try:
+            response = self.client.chat.completions.create(**api_params)
+        except Exception as e:
+            handle_provider_error(e, "GLM", "generate response")
 
         choice = response.choices[0]
         usage = response.usage
 
-        return LLMResponse(
+        return LLMResponseBuilder.from_openai_format(
             content=choice.message.content,
             prompt_tokens=usage.prompt_tokens if usage else None,
             completion_tokens=usage.completion_tokens if usage else None,
@@ -380,25 +403,20 @@ class GeminiProvider(LLMProvider):
             api_key: Google API key (or set GEMINI_API_KEY or GOOGLE_API_KEY env var)
             model: Model name (gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, etc.)
         """
-        try:
-            import google.generativeai as genai
-        except ImportError:
-            raise ImportError(
-                "Google Generative AI package not installed. Install with: pip install google-generativeai"
-            )
+        super().__init__(model)  # Initialize base class with model name
 
-        # Configure API key
+        genai = require_package(
+            "google-generativeai",
+            "google.generativeai",
+            install_command="pip install google-generativeai",
+        )
+
+        # Configure API key (check parameter first, then environment variables)
+        api_key = get_api_key_from_env(["GEMINI_API_KEY", "GOOGLE_API_KEY"], api_key)
         if api_key:
             genai.configure(api_key=api_key)
-        else:
-            import os
-
-            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            if api_key:
-                genai.configure(api_key=api_key)
 
         self.genai = genai
-        self._model_name = model
         self.model = genai.GenerativeModel(model)
 
     def generate(
@@ -437,7 +455,10 @@ class GeminiProvider(LLMProvider):
         generation_config.update(kwargs)
 
         # Call Gemini API
-        response = self.model.generate_content(full_prompt, generation_config=generation_config)
+        try:
+            response = self.model.generate_content(full_prompt, generation_config=generation_config)
+        except Exception as e:
+            handle_provider_error(e, "Gemini", "generate response")
 
         # Extract content
         content = response.text if response.text else ""
@@ -452,13 +473,12 @@ class GeminiProvider(LLMProvider):
             completion_tokens = response.usage_metadata.candidates_token_count
             total_tokens = response.usage_metadata.total_token_count
 
-        return LLMResponse(
+        return LLMResponseBuilder.from_gemini_format(
             content=content,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             model_name=self._model_name,
-            finish_reason=None,  # Gemini uses different finish reason format
         )
 
     def supports_json_mode(self) -> bool:
@@ -505,6 +525,9 @@ class LocalLLMProvider(LLMProvider):
             load_in_8bit: Use 8-bit quantization (saves 50% memory)
             torch_dtype: Data type ("auto", "float16", "bfloat16", "float32")
         """
+        super().__init__(model_name)  # Initialize base class with model name
+
+        # Import required packages with consistent error handling
         try:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -513,8 +536,6 @@ class LocalLLMProvider(LLMProvider):
                 "transformers and torch required for local LLM. "
                 "Install with: pip install transformers torch"
             )
-
-        self._model_name = model_name
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -622,11 +643,10 @@ class LocalLLMProvider(LLMProvider):
         generated_tokens = outputs[0][input_length:]
         response_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
 
-        return LLMResponse(
+        return LLMResponseBuilder.from_local_format(
             content=response_text,
             prompt_tokens=input_length,
             completion_tokens=len(generated_tokens),
-            total_tokens=input_length + len(generated_tokens),
             model_name=self._model_name,
         )
 
