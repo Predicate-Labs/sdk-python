@@ -881,6 +881,24 @@ class SentienceAgentAsync(BaseAgentAsync):
         # Step counter for tracing
         self._step_count = 0
 
+    def _compute_hash(self, text: str) -> str:
+        """Compute SHA256 hash of text."""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
+        """Get bounding box for an element from snapshot."""
+        if element_id is None:
+            return None
+        for el in snap.elements:
+            if el.id == element_id:
+                return {
+                    "x": el.bbox.x,
+                    "y": el.bbox.y,
+                    "width": el.bbox.width,
+                    "height": el.bbox.height,
+                }
+        return None
+
     async def act(  # noqa: C901
         self,
         goal: str,
