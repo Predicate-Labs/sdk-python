@@ -58,13 +58,18 @@ def _compute_snapshot_digest(snapshot_data: dict[str, Any]) -> str:
     # Canonicalize elements
     canonical_elements = []
     for elem in elements:
+        # Extract is_primary and is_clickable from visual_cues if present
+        visual_cues = elem.get("visual_cues", {})
+        is_primary = visual_cues.get("is_primary", False) if isinstance(visual_cues, dict) else elem.get("is_primary", False)
+        is_clickable = visual_cues.get("is_clickable", False) if isinstance(visual_cues, dict) else elem.get("is_clickable", False)
+        
         canonical_elem = {
             "id": elem.get("id"),
             "role": elem.get("role", ""),
             "text_norm": _normalize_text(elem.get("text")),
             "bbox": _round_bbox(elem.get("bbox", {"x": 0, "y": 0, "width": 0, "height": 0})),
-            "is_primary": elem.get("is_primary", False),
-            "is_clickable": elem.get("is_clickable", False),
+            "is_primary": is_primary,
+            "is_clickable": is_clickable,
         }
         canonical_elements.append(canonical_elem)
 
