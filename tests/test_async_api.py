@@ -514,6 +514,9 @@ async def test_sentience_agent_async_initialization():
 
     # Create a simple mock LLM provider
     class MockLLMProvider(LLMProvider):
+        def __init__(self):
+            super().__init__("mock-model")
+
         def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
             return LLMResponse(
                 content="CLICK(1)",
