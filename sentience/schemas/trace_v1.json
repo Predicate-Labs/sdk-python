@@ -119,7 +119,15 @@
               "required": ["response_text", "response_hash"],
               "properties": {
                 "response_text": {"type": "string"},
-                "response_hash": {"type": "string"}
+                "response_hash": {"type": "string"},
+                "usage": {
+                  "type": "object",
+                  "properties": {
+                    "prompt_tokens": {"type": "integer"},
+                    "completion_tokens": {"type": "integer"},
+                    "total_tokens": {"type": "integer"}
+                  }
+                }
               }
             },
             "action": {
@@ -145,7 +153,17 @@
                 "text": {"type": "string"},
                 "key": {"type": "string"},
                 "url_changed": {"type": ["boolean", "null"]},
-                "duration_ms": {"type": "integer"}
+                "duration_ms": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "bounding_box": {
+                  "type": "object",
+                  "properties": {
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                    "width": {"type": "number"},
+                    "height": {"type": "number"}
+                  }
+                }
               }
             },
             "post": {
@@ -162,7 +180,31 @@
               "properties": {
                 "policy": {"type": "string"},
                 "passed": {"type": "boolean"},
-                "signals": {"type": "object"}
+                "signals": {
+                  "type": "object",
+                  "properties": {
+                    "url_changed": {"type": "boolean"},
+                    "error": {"type": ["string", "null"]},
+                    "elements_found": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {"type": "string"},
+                          "bounding_box": {
+                            "type": "object",
+                            "properties": {
+                              "x": {"type": "number"},
+                              "y": {"type": "number"},
+                              "width": {"type": "number"},
+                              "height": {"type": "number"}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             },
             "recovery": {

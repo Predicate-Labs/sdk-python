@@ -4,6 +4,7 @@ Implements observe-think-act loop for natural language commands
 """
 
 import asyncio
+import hashlib
 import re
 import time
 from typing import TYPE_CHECKING, Any, Optional
@@ -94,6 +95,24 @@ class SentienceAgent(BaseAgent):
 
         # Step counter for tracing
         self._step_count = 0
+
+    def _compute_hash(self, text: str) -> str:
+        """Compute SHA256 hash of text."""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
+        """Get bounding box for an element from snapshot."""
+        if element_id is None:
+            return None
+        for el in snap.elements:
+            if el.id == element_id:
+                return {
+                    "x": el.bbox.x,
+                    "y": el.bbox.y,
+                    "width": el.bbox.width,
+                    "height": el.bbox.height,
+                }
+        return None
 
     def act(  # noqa: C901
         self,
@@ -343,15 +362,99 @@ class SentienceAgent(BaseAgent):
 
                 # Emit step completion trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit(
-                        "step_end",
-                        {
-                            "success": result.success,
-                            "duration_ms": duration_ms,
-                            "action": result.action,
+                    # Get pre_url from step_start (stored in tracer or use current)
+                    pre_url = snap.url
+                    post_url = self.browser.page.url if self.browser.page else None
+
+                    # Compute snapshot digest (simplified - use URL + timestamp)
+                    snapshot_digest = f"sha256:{self._compute_hash(f'{pre_url}{snap.timestamp}')}"
+
+                    # Build LLM data
+                    llm_response_text = llm_response.content
+                    llm_response_hash = f"sha256:{self._compute_hash(llm_response_text)}"
+                    llm_data = {
+                        "response_text": llm_response_text,
+                        "response_hash": llm_response_hash,
+                        "usage": {
+                            "prompt_tokens": llm_response.prompt_tokens or 0,
+                            "completion_tokens": llm_response.completion_tokens or 0,
+                            "total_tokens": llm_response.total_tokens or 0,
                         },
-                        step_id=step_id,
+                    }
+
+                    # Build exec data
+                    exec_data = {
+                        "success": result.success,
+                        "action": result.action,
+                        "outcome": result.outcome
+                        or (
+                            f"Action {result.action} executed successfully"
+                            if result.success
+                            else f"Action {result.action} failed"
+                        ),
+                        "duration_ms": duration_ms,
+                    }
+
+                    # Add optional exec fields
+                    if result.element_id is not None:
+                        exec_data["element_id"] = result.element_id
+                        # Add bounding box if element found
+                        bbox = self._get_element_bbox(result.element_id, snap)
+                        if bbox:
+                            exec_data["bounding_box"] = bbox
+                    if result.text is not None:
+                        exec_data["text"] = result.text
+                    if result.key is not None:
+                        exec_data["key"] = result.key
+                    if result.error is not None:
+                        exec_data["error"] = result.error
+
+                    # Build verify data (simplified - based on success and url_changed)
+                    verify_passed = result.success and (
+                        result.url_changed or result.action != "click"
                     )
+                    verify_signals = {
+                        "url_changed": result.url_changed or False,
+                    }
+                    if result.error:
+                        verify_signals["error"] = result.error
+
+                    # Add elements_found array if element was targeted
+                    if result.element_id is not None:
+                        bbox = self._get_element_bbox(result.element_id, snap)
+                        if bbox:
+                            verify_signals["elements_found"] = [
+                                {
+                                    "label": f"Element {result.element_id}",
+                                    "bounding_box": bbox,
+                                }
+                            ]
+
+                    verify_data = {
+                        "passed": verify_passed,
+                        "signals": verify_signals,
+                    }
+
+                    # Build complete step_end event
+                    step_end_data = {
+                        "v": 1,
+                        "step_id": step_id,
+                        "step_index": self._step_count,
+                        "goal": goal,
+                        "attempt": attempt,
+                        "pre": {
+                            "url": pre_url,
+                            "snapshot_digest": snapshot_digest,
+                        },
+                        "llm": llm_data,
+                        "exec": exec_data,
+                        "post": {
+                            "url": post_url,
+                        },
+                        "verify": verify_data,
+                    }
+
+                    self.tracer.emit("step_end", step_end_data, step_id=step_id)
 
                 return result
 
@@ -1026,15 +1129,99 @@ class SentienceAgentAsync(BaseAgentAsync):
 
                 # Emit step completion trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit(
-                        "step_end",
-                        {
-                            "success": result.success,
-                            "duration_ms": duration_ms,
-                            "action": result.action,
+                    # Get pre_url from step_start (stored in tracer or use current)
+                    pre_url = snap.url
+                    post_url = self.browser.page.url if self.browser.page else None
+
+                    # Compute snapshot digest (simplified - use URL + timestamp)
+                    snapshot_digest = f"sha256:{self._compute_hash(f'{pre_url}{snap.timestamp}')}"
+
+                    # Build LLM data
+                    llm_response_text = llm_response.content
+                    llm_response_hash = f"sha256:{self._compute_hash(llm_response_text)}"
+                    llm_data = {
+                        "response_text": llm_response_text,
+                        "response_hash": llm_response_hash,
+                        "usage": {
+                            "prompt_tokens": llm_response.prompt_tokens or 0,
+                            "completion_tokens": llm_response.completion_tokens or 0,
+                            "total_tokens": llm_response.total_tokens or 0,
                         },
-                        step_id=step_id,
+                    }
+
+                    # Build exec data
+                    exec_data = {
+                        "success": result.success,
+                        "action": result.action,
+                        "outcome": result.outcome
+                        or (
+                            f"Action {result.action} executed successfully"
+                            if result.success
+                            else f"Action {result.action} failed"
+                        ),
+                        "duration_ms": duration_ms,
+                    }
+
+                    # Add optional exec fields
+                    if result.element_id is not None:
+                        exec_data["element_id"] = result.element_id
+                        # Add bounding box if element found
+                        bbox = self._get_element_bbox(result.element_id, snap)
+                        if bbox:
+                            exec_data["bounding_box"] = bbox
+                    if result.text is not None:
+                        exec_data["text"] = result.text
+                    if result.key is not None:
+                        exec_data["key"] = result.key
+                    if result.error is not None:
+                        exec_data["error"] = result.error
+
+                    # Build verify data (simplified - based on success and url_changed)
+                    verify_passed = result.success and (
+                        result.url_changed or result.action != "click"
                     )
+                    verify_signals = {
+                        "url_changed": result.url_changed or False,
+                    }
+                    if result.error:
+                        verify_signals["error"] = result.error
+
+                    # Add elements_found array if element was targeted
+                    if result.element_id is not None:
+                        bbox = self._get_element_bbox(result.element_id, snap)
+                        if bbox:
+                            verify_signals["elements_found"] = [
+                                {
+                                    "label": f"Element {result.element_id}",
+                                    "bounding_box": bbox,
+                                }
+                            ]
+
+                    verify_data = {
+                        "passed": verify_passed,
+                        "signals": verify_signals,
+                    }
+
+                    # Build complete step_end event
+                    step_end_data = {
+                        "v": 1,
+                        "step_id": step_id,
+                        "step_index": self._step_count,
+                        "goal": goal,
+                        "attempt": attempt,
+                        "pre": {
+                            "url": pre_url,
+                            "snapshot_digest": snapshot_digest,
+                        },
+                        "llm": llm_data,
+                        "exec": exec_data,
+                        "post": {
+                            "url": post_url,
+                        },
+                        "verify": verify_data,
+                    }
+
+                    self.tracer.emit("step_end", step_end_data, step_id=step_id)
 
                 return result
 
