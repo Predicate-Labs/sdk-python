@@ -226,6 +226,7 @@ class CloudTraceSink(TraceSink):
 
             if response.status_code == 200:
                 self._upload_successful = True
+                print("✅ [Sentience] Trace uploaded successfully")
                 if self.logger:
                     self.logger.info("Trace uploaded successfully")
 
@@ -247,17 +248,20 @@ class CloudTraceSink(TraceSink):
                     cleaned_trace_path.unlink()
             else:
                 self._upload_successful = False
+                print(f"❌ [Sentience] Upload failed: HTTP {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
+                print(f"   Local trace preserved at: {self._path}")
                 if self.logger:
                     self.logger.error(
                         f"Upload failed: HTTP {response.status_code}, Response: {response.text[:200]}"
                     )
-                # Don't print - rely on logger or silent failure
 
         except Exception as e:
             self._upload_successful = False
+            print(f"❌ [Sentience] Error uploading trace: {e}")
+            print(f"   Local trace preserved at: {self._path}")
             if self.logger:
                 self.logger.error(f"Error uploading trace: {e}")
-            # Don't print - rely on logger or silent failure
             # Don't raise - preserve trace locally even if upload fails
 
     def _generate_index(self) -> None:
@@ -268,6 +272,7 @@ class CloudTraceSink(TraceSink):
             write_trace_index(str(self._path))
         except Exception as e:
             # Non-fatal: log but don't crash
+            print(f"⚠️  Failed to generate trace index: {e}")
             if self.logger:
                 self.logger.warning(f"Failed to generate trace index: {e}")
 

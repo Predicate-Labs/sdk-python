@@ -74,10 +74,6 @@ def create_tracer(
     if api_key and upload_trace:
         try:
             # Request pre-signed upload URL from backend
-            print(f"🔗 [Sentience] Attempting to initialize cloud tracing...")
-            print(f"   API URL: {api_url}/v1/traces/init")
-            print(f"   Run ID: {run_id}")
-
             response = requests.post(
                 f"{api_url}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -85,14 +81,12 @@ def create_tracer(
                 timeout=10,
             )
 
-            print(f"   Response Status: HTTP {response.status_code}")
-
             if response.status_code == 200:
                 data = response.json()
                 upload_url = data.get("upload_url")
 
                 if upload_url:
-                    print("☁️  [Sentience] Cloud tracing enabled")
+                    print("☁️  [Sentience] Cloud tracing enabled (Pro tier)")
                     return Tracer(
                         run_id=run_id,
                         sink=CloudTraceSink(
@@ -109,8 +103,7 @@ def create_tracer(
                     print("   Falling back to local-only tracing")
 
             elif response.status_code == 403:
-                print("⚠️  [Sentience] Cloud tracing requires Pro/Enterprise tier")
-                print("   Your account tier may not support cloud tracing")
+                print("⚠️  [Sentience] Cloud tracing requires Pro tier")
                 try:
                     error_data = response.json()
                     error_msg = error_data.get("error") or error_data.get("message", "")
