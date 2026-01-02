@@ -16,7 +16,7 @@ from .conversational_agent import ConversationalAgent
 from .expect import expect
 
 # Formatting (v0.12.0+)
-from .formatting import format_snapshot_for_llm
+from .utils.formatting import format_snapshot_for_llm
 from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
 from .llm_provider import (
@@ -62,6 +62,7 @@ from .tracer_factory import SENTIENCE_API_URL, create_tracer
 from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
 
 # Utilities (v0.12.0+)
+# Import from utils package (re-exports from submodules for backward compatibility)
 from .utils import (
     canonical_snapshot_loose,
     canonical_snapshot_strict,

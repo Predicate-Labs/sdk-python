@@ -64,7 +64,7 @@ class ElementFilter:
     @staticmethod
     def filter_by_goal(
         snapshot: Snapshot,
-        goal: str | None,
+        goal: Optional[str],
         max_elements: int = 50,
     ) -> list[Element]:
         """
