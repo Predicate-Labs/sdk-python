@@ -165,6 +165,8 @@ class SentienceAgent(BaseAgent):
                         )
                     else:
                         snap_opts.screenshot = False
+                    # Apply show_overlay from AgentConfig
+                    snap_opts.show_overlay = self.config.show_overlay
 
                 # Call snapshot with options object (matches TypeScript API)
                 snap = snapshot(self.browser, snap_opts)
@@ -845,6 +847,9 @@ class SentienceAgentAsync(BaseAgentAsync):
                         )
                     else:
                         snap_opts.screenshot = False
+                    # Apply show_overlay from AgentConfig
+                    # Note: User can override by explicitly passing show_overlay in snapshot_options
+                    snap_opts.show_overlay = self.config.show_overlay
 
                 # Call snapshot with options object (matches TypeScript API)
                 snap = await snapshot_async(self.browser, snap_opts)

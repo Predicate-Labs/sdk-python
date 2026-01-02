@@ -41,3 +41,6 @@ class AgentConfig:
     capture_screenshots: bool = True
     screenshot_format: str = "jpeg"  # "png" or "jpeg"
     screenshot_quality: int = 80  # 1-100 (for JPEG only)
+
+    # Visual overlay options
+    show_overlay: bool = False  # Show green bbox overlay in browser
