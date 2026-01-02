@@ -9,6 +9,7 @@ import time
 from typing import TYPE_CHECKING, Any, Optional
 
 from .actions import click, click_async, press, press_async, type_text, type_text_async
+from .agent_config import AgentConfig
 from .base_agent import BaseAgent, BaseAgentAsync
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .llm_provider import LLMProvider, LLMResponse
@@ -25,7 +26,6 @@ from .models import (
 from .snapshot import snapshot, snapshot_async
 
 if TYPE_CHECKING:
-    from .agent_config import AgentConfig
     from .tracing import Tracer
 
 
@@ -78,8 +78,9 @@ class SentienceAgent(BaseAgent):
         self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
         self.tracer = tracer
-        self.config = config
+        self.config = config or AgentConfig()
 
+        # Screenshot sequence counter
         # Execution history
         self.history: list[dict[str, Any]] = []
 
@@ -150,6 +151,21 @@ class SentienceAgent(BaseAgent):
                 if snap_opts.goal is None:
                     snap_opts.goal = goal
 
+                # Apply AgentConfig screenshot settings if not overridden by snapshot_options
+                if snapshot_options is None and self.config:
+                    if self.config.capture_screenshots:
+                        # Create ScreenshotConfig from AgentConfig
+                        snap_opts.screenshot = ScreenshotConfig(
+                            format=self.config.screenshot_format,
+                            quality=(
+                                self.config.screenshot_quality
+                                if self.config.screenshot_format == "jpeg"
+                                else None
+                            ),
+                        )
+                    else:
+                        snap_opts.screenshot = False
+
                 # Call snapshot with options object (matches TypeScript API)
                 snap = snapshot(self.browser, snap_opts)
 
@@ -178,14 +194,36 @@ class SentienceAgent(BaseAgent):
                         for el in filtered_elements[:50]  # Limit to first 50 for performance
                     ]
 
+                    # Build snapshot event data
+                    snapshot_data = {
+                        "url": snap.url,
+                        "element_count": len(snap.elements),
+                        "timestamp": snap.timestamp,
+                        "elements": elements_data,  # Add element data for overlay
+                    }
+
+                    # Always include screenshot in trace event for studio viewer compatibility
+                    # CloudTraceSink will extract and upload screenshots separately, then remove
+                    # screenshot_base64 from events before uploading the trace file.
+                    if snap.screenshot:
+                        # Extract base64 string from data URL if needed
+                        if snap.screenshot.startswith("data:image"):
+                            # Format: "data:image/jpeg;base64,{base64_string}"
+                            screenshot_base64 = (
+                                snap.screenshot.split(",", 1)[1]
+                                if "," in snap.screenshot
+                                else snap.screenshot
+                            )
+                        else:
+                            screenshot_base64 = snap.screenshot
+
+                        snapshot_data["screenshot_base64"] = screenshot_base64
+                        if snap.screenshot_format:
+                            snapshot_data["screenshot_format"] = snap.screenshot_format
+
                     self.tracer.emit(
                         "snapshot",
-                        {
-                            "url": snap.url,
-                            "element_count": len(snap.elements),
-                            "timestamp": snap.timestamp,
-                            "elements": elements_data,  # Add element data for overlay
-                        },
+                        snapshot_data,
                         step_id=step_id,
                     )
 
@@ -721,8 +759,9 @@ class SentienceAgentAsync(BaseAgentAsync):
         self.default_snapshot_limit = default_snapshot_limit
         self.verbose = verbose
         self.tracer = tracer
-        self.config = config
+        self.config = config or AgentConfig()
 
+        # Screenshot sequence counter
         # Execution history
         self.history: list[dict[str, Any]] = []
 
@@ -790,6 +829,23 @@ class SentienceAgentAsync(BaseAgentAsync):
                 if snap_opts.goal is None:
                     snap_opts.goal = goal
 
+                # Apply AgentConfig screenshot settings if not overridden by snapshot_options
+                # Only apply if snapshot_options wasn't provided OR if screenshot wasn't explicitly set
+                # (snapshot_options.screenshot defaults to False, so we check if it's still False)
+                if self.config and (snapshot_options is None or snap_opts.screenshot is False):
+                    if self.config.capture_screenshots:
+                        # Create ScreenshotConfig from AgentConfig
+                        snap_opts.screenshot = ScreenshotConfig(
+                            format=self.config.screenshot_format,
+                            quality=(
+                                self.config.screenshot_quality
+                                if self.config.screenshot_format == "jpeg"
+                                else None
+                            ),
+                        )
+                    else:
+                        snap_opts.screenshot = False
+
                 # Call snapshot with options object (matches TypeScript API)
                 snap = await snapshot_async(self.browser, snap_opts)
 
@@ -818,14 +874,36 @@ class SentienceAgentAsync(BaseAgentAsync):
                         for el in filtered_elements[:50]  # Limit to first 50 for performance
                     ]
 
+                    # Build snapshot event data
+                    snapshot_data = {
+                        "url": snap.url,
+                        "element_count": len(snap.elements),
+                        "timestamp": snap.timestamp,
+                        "elements": elements_data,  # Add element data for overlay
+                    }
+
+                    # Always include screenshot in trace event for studio viewer compatibility
+                    # CloudTraceSink will extract and upload screenshots separately, then remove
+                    # screenshot_base64 from events before uploading the trace file.
+                    if snap.screenshot:
+                        # Extract base64 string from data URL if needed
+                        if snap.screenshot.startswith("data:image"):
+                            # Format: "data:image/jpeg;base64,{base64_string}"
+                            screenshot_base64 = (
+                                snap.screenshot.split(",", 1)[1]
+                                if "," in snap.screenshot
+                                else snap.screenshot
+                            )
+                        else:
+                            screenshot_base64 = snap.screenshot
+
+                        snapshot_data["screenshot_base64"] = screenshot_base64
+                        if snap.screenshot_format:
+                            snapshot_data["screenshot_format"] = snap.screenshot_format
+
                     self.tracer.emit(
                         "snapshot",
-                        {
-                            "url": snap.url,
-                            "element_count": len(snap.elements),
-                            "timestamp": snap.timestamp,
-                            "elements": elements_data,  # Add element data for overlay
-                        },
+                        snapshot_data,
                         step_id=step_id,
                     )
 

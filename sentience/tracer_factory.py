@@ -99,13 +99,42 @@ def create_tracer(
                     )
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
+                    print(f"   Response data: {data}")
                     print("   Falling back to local-only tracing")
 
             elif response.status_code == 403:
                 print("⚠️  [Sentience] Cloud tracing requires Pro tier")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get("message", "")
+                    if error_msg:
+                        print(f"   API Error: {error_msg}")
+                except Exception:
+                    pass
+                print("   Falling back to local-only tracing")
+            elif response.status_code == 401:
+                print("⚠️  [Sentience] Cloud init failed: HTTP 401 Unauthorized")
+                print("   API key is invalid or expired")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get("message", "")
+                    if error_msg:
+                        print(f"   API Error: {error_msg}")
+                except Exception:
+                    pass
                 print("   Falling back to local-only tracing")
             else:
                 print(f"⚠️  [Sentience] Cloud init failed: HTTP {response.status_code}")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get(
+                        "message", "Unknown error"
+                    )
+                    print(f"   Error: {error_msg}")
+                    if "tier" in error_msg.lower() or "subscription" in error_msg.lower():
+                        print(f"   💡 This may be a tier/subscription issue")
+                except Exception:
+                    print(f"   Response: {response.text[:200]}")
                 print("   Falling back to local-only tracing")
 
         except requests.exceptions.Timeout:
@@ -149,10 +178,23 @@ def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> 
     if not orphaned:
         return
 
-    print(f"⚠️  [Sentience] Found {len(orphaned)} un-uploaded trace(s) from previous runs")
+    # Filter out test files (run_ids that start with "test-" or are clearly test data)
+    # These are likely from local testing and shouldn't be uploaded
+    test_patterns = ["test-", "test_", "test."]
+    valid_orphaned = [
+        f
+        for f in orphaned
+        if not any(f.stem.startswith(pattern) for pattern in test_patterns)
+        and not f.stem.startswith("test")
+    ]
+
+    if not valid_orphaned:
+        return
+
+    print(f"⚠️  [Sentience] Found {len(valid_orphaned)} un-uploaded trace(s) from previous runs")
     print("   Attempting to upload now...")
 
-    for trace_file in orphaned:
+    for trace_file in valid_orphaned:
         try:
             # Extract run_id from filename (format: {run_id}.jsonl)
             run_id = trace_file.stem
@@ -166,6 +208,11 @@ def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> 
             )
 
             if response.status_code != 200:
+                # HTTP 422 typically means invalid run_id (e.g., test files)
+                # Skip silently for 422, but log other errors
+                if response.status_code == 422:
+                    # Likely a test file or invalid run_id, skip silently
+                    continue
                 print(f"❌ Failed to get upload URL for {run_id}: HTTP {response.status_code}")
                 continue
 
