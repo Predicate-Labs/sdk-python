@@ -13,6 +13,7 @@ from .actions import click, click_async, press, press_async, type_text, type_tex
 from .agent_config import AgentConfig
 from .base_agent import BaseAgent, BaseAgentAsync
 from .browser import AsyncSentienceBrowser, SentienceBrowser
+from .element_filter import ElementFilter
 from .llm_provider import LLMProvider, LLMResponse
 from .models import (
     ActionHistory,
@@ -25,6 +26,7 @@ from .models import (
     TokenStats,
 )
 from .snapshot import snapshot, snapshot_async
+from .trace_event_builder import TraceEventBuilder
 
 if TYPE_CHECKING:
     from .tracing import Tracer
@@ -100,9 +102,7 @@ class SentienceAgent(BaseAgent):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def _get_element_bbox(
-        self, element_id: int | None, snap: Snapshot
-    ) -> dict[str, float] | None:
+    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
         """Get bounding box for an element from snapshot."""
         if element_id is None:
             return None
@@ -200,17 +200,8 @@ class SentienceAgent(BaseAgent):
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Include ALL elements with full data for DOM tree display
-                    # Use snap.elements (all elements) not filtered_elements
-                    elements_data = [el.model_dump() for el in snap.elements]
-
                     # Build snapshot event data
-                    snapshot_data = {
-                        "url": snap.url,
-                        "element_count": len(snap.elements),
-                        "timestamp": snap.timestamp,
-                        "elements": elements_data,  # Full element data for DOM tree
-                    }
+                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap)
 
                     # Always include screenshot in trace event for studio viewer compatibility
                     # CloudTraceSink will extract and upload screenshots separately, then remove
@@ -425,23 +416,18 @@ class SentienceAgent(BaseAgent):
                     }
 
                     # Build complete step_end event
-                    step_end_data = {
-                        "v": 1,
-                        "step_id": step_id,
-                        "step_index": self._step_count,
-                        "goal": goal,
-                        "attempt": attempt,
-                        "pre": {
-                            "url": pre_url,
-                            "snapshot_digest": snapshot_digest,
-                        },
-                        "llm": llm_data,
-                        "exec": exec_data,
-                        "post": {
-                            "url": post_url,
-                        },
-                        "verify": verify_data,
-                    }
+                    step_end_data = TraceEventBuilder.build_step_end_event(
+                        step_id=step_id,
+                        step_index=self._step_count,
+                        goal=goal,
+                        attempt=attempt,
+                        pre_url=pre_url,
+                        post_url=post_url,
+                        snapshot_digest=snapshot_digest,
+                        llm_data=llm_data,
+                        exec_data=exec_data,
+                        verify_data=verify_data,
+                    )
 
                     self.tracer.emit("step_end", step_end_data, step_id=step_id)
 
@@ -723,8 +709,8 @@ INCORRECT Examples (DO NOT DO THIS):
         """
         Filter elements from snapshot based on goal context.
 
-        This default implementation applies goal-based keyword matching to boost
-        relevant elements and filters out irrelevant ones.
+        This implementation uses ElementFilter to apply goal-based keyword matching
+        to boost relevant elements and filters out irrelevant ones.
 
         Args:
             snapshot: Current page snapshot
@@ -733,76 +719,7 @@ INCORRECT Examples (DO NOT DO THIS):
         Returns:
             Filtered list of elements
         """
-        elements = snapshot.elements
-
-        # If no goal provided, return all elements (up to limit)
-        if not goal:
-            return elements[: self.default_snapshot_limit]
-
-        goal_lower = goal.lower()
-
-        # Extract keywords from goal
-        keywords = self._extract_keywords(goal_lower)
-
-        # Boost elements matching goal keywords
-        scored_elements = []
-        for el in elements:
-            score = el.importance
-
-            # Boost if element text matches goal
-            if el.text and any(kw in el.text.lower() for kw in keywords):
-                score += 0.3
-
-            # Boost if role matches goal intent
-            if "click" in goal_lower and el.visual_cues.is_clickable:
-                score += 0.2
-            if "type" in goal_lower and el.role in ["textbox", "searchbox"]:
-                score += 0.2
-            if "search" in goal_lower:
-                # Filter out non-interactive elements for search tasks
-                if el.role in ["link", "img"] and not el.visual_cues.is_primary:
-                    score -= 0.5
-
-            scored_elements.append((score, el))
-
-        # Re-sort by boosted score
-        scored_elements.sort(key=lambda x: x[0], reverse=True)
-        elements = [el for _, el in scored_elements]
-
-        return elements[: self.default_snapshot_limit]
-
-    def _extract_keywords(self, text: str) -> list[str]:
-        """
-        Extract meaningful keywords from goal text
-
-        Args:
-            text: Text to extract keywords from
-
-        Returns:
-            List of keywords
-        """
-        stopwords = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "from",
-            "as",
-            "is",
-            "was",
-        }
-        words = text.split()
-        return [w for w in words if w not in stopwords and len(w) > 2]
+        return ElementFilter.filter_by_goal(snapshot, goal, self.default_snapshot_limit)
 
 
 class SentienceAgentAsync(BaseAgentAsync):
@@ -874,9 +791,7 @@ class SentienceAgentAsync(BaseAgentAsync):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def _get_element_bbox(
-        self, element_id: int | None, snap: Snapshot
-    ) -> dict[str, float] | None:
+    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
         """Get bounding box for an element from snapshot."""
         if element_id is None:
             return None
@@ -974,17 +889,8 @@ class SentienceAgentAsync(BaseAgentAsync):
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Include ALL elements with full data for DOM tree display
-                    # Use snap.elements (all elements) not filtered_elements
-                    elements_data = [el.model_dump() for el in snap.elements]
-
                     # Build snapshot event data
-                    snapshot_data = {
-                        "url": snap.url,
-                        "element_count": len(snap.elements),
-                        "timestamp": snap.timestamp,
-                        "elements": elements_data,  # Full element data for DOM tree
-                    }
+                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap)
 
                     # Always include screenshot in trace event for studio viewer compatibility
                     # CloudTraceSink will extract and upload screenshots separately, then remove
@@ -1199,23 +1105,18 @@ class SentienceAgentAsync(BaseAgentAsync):
                     }
 
                     # Build complete step_end event
-                    step_end_data = {
-                        "v": 1,
-                        "step_id": step_id,
-                        "step_index": self._step_count,
-                        "goal": goal,
-                        "attempt": attempt,
-                        "pre": {
-                            "url": pre_url,
-                            "snapshot_digest": snapshot_digest,
-                        },
-                        "llm": llm_data,
-                        "exec": exec_data,
-                        "post": {
-                            "url": post_url,
-                        },
-                        "verify": verify_data,
-                    }
+                    step_end_data = TraceEventBuilder.build_step_end_event(
+                        step_id=step_id,
+                        step_index=self._step_count,
+                        goal=goal,
+                        attempt=attempt,
+                        pre_url=pre_url,
+                        post_url=post_url,
+                        snapshot_digest=snapshot_digest,
+                        llm_data=llm_data,
+                        exec_data=exec_data,
+                        verify_data=verify_data,
+                    )
 
                     self.tracer.emit("step_end", step_end_data, step_id=step_id)
 
@@ -1447,66 +1348,17 @@ INCORRECT Examples (DO NOT DO THIS):
         }
 
     def filter_elements(self, snapshot: Snapshot, goal: str | None = None) -> list[Element]:
-        """Filter elements from snapshot based on goal context (same as sync version)"""
-        elements = snapshot.elements
+        """
+        Filter elements from snapshot based on goal context.
 
-        # If no goal provided, return all elements (up to limit)
-        if not goal:
-            return elements[: self.default_snapshot_limit]
+        This implementation uses ElementFilter to apply goal-based keyword matching
+        to boost relevant elements and filters out irrelevant ones.
 
-        goal_lower = goal.lower()
+        Args:
+            snapshot: Current page snapshot
+            goal: User's goal (can inform filtering)
 
-        # Extract keywords from goal
-        keywords = self._extract_keywords(goal_lower)
-
-        # Boost elements matching goal keywords
-        scored_elements = []
-        for el in elements:
-            score = el.importance
-
-            # Boost if element text matches goal
-            if el.text and any(kw in el.text.lower() for kw in keywords):
-                score += 0.3
-
-            # Boost if role matches goal intent
-            if "click" in goal_lower and el.visual_cues.is_clickable:
-                score += 0.2
-            if "type" in goal_lower and el.role in ["textbox", "searchbox"]:
-                score += 0.2
-            if "search" in goal_lower:
-                # Filter out non-interactive elements for search tasks
-                if el.role in ["link", "img"] and not el.visual_cues.is_primary:
-                    score -= 0.5
-
-            scored_elements.append((score, el))
-
-        # Re-sort by boosted score
-        scored_elements.sort(key=lambda x: x[0], reverse=True)
-        elements = [el for _, el in scored_elements]
-
-        return elements[: self.default_snapshot_limit]
-
-    def _extract_keywords(self, text: str) -> list[str]:
-        """Extract meaningful keywords from goal text (same as sync version)"""
-        stopwords = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "from",
-            "as",
-            "is",
-            "was",
-        }
-        words = text.split()
-        return [w for w in words if w not in stopwords and len(w) > 2]
+        Returns:
+            Filtered list of elements
+        """
+        return ElementFilter.filter_by_goal(snapshot, goal, self.default_snapshot_limit)

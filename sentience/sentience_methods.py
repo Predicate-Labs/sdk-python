@@ -84,4 +84,3 @@ class AgentAction(str, Enum):
     def __str__(self) -> str:
         """Return the action name as a string."""
         return self.value
-
