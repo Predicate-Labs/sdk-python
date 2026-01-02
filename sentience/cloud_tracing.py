@@ -270,7 +270,10 @@ class CloudTraceSink(TraceSink):
         try:
             from .trace_indexing import write_trace_index
 
-            write_trace_index(str(self._path))
+            # Use frontend format to ensure 'step' field is present (1-based)
+            # Frontend derives sequence from step.step - 1, so step must be valid
+            index_path = Path(str(self._path).replace(".jsonl", ".index.json"))
+            write_trace_index(str(self._path), str(index_path), frontend_format=True)
         except Exception as e:
             # Non-fatal: log but don't crash
             print(f"⚠️  Failed to generate trace index: {e}")
@@ -323,7 +326,7 @@ class CloudTraceSink(TraceSink):
                 return
 
             # Read index file and update trace_file.path to cloud storage path
-            with open(index_path, "r", encoding="utf-8") as f:
+            with open(index_path, encoding="utf-8") as f:
                 index_json = json.load(f)
 
             # Extract cloud storage path from trace upload URL
@@ -331,6 +334,7 @@ class CloudTraceSink(TraceSink):
             # Extract path: traces/{run_id}.jsonl.gz
             try:
                 from urllib.parse import urlparse
+
                 parsed_url = urlparse(self.upload_url)
                 # Extract path after domain (e.g., /traces/run-123.jsonl.gz -> traces/run-123.jsonl.gz)
                 cloud_trace_path = parsed_url.path.lstrip("/")
