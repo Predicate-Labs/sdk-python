@@ -64,7 +64,7 @@ class ElementFilter:
     @staticmethod
     def filter_by_goal(
         snapshot: Snapshot,
-        goal: Optional[str],
+        goal: str | None,
         max_elements: int = 50,
     ) -> list[Element]:
         """
@@ -132,4 +132,3 @@ class ElementFilter:
         """
         words = text.split()
         return [w for w in words if w not in ElementFilter.STOPWORDS and len(w) > 2]
-

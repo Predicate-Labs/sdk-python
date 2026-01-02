@@ -54,7 +54,7 @@ class TraceEventBuilder:
         attempt: int,
         pre_url: str,
         post_url: str,
-        snapshot_digest: Optional[str],
+        snapshot_digest: str | None,
         llm_data: dict[str, Any],
         exec_data: dict[str, Any],
         verify_data: dict[str, Any],
@@ -94,4 +94,3 @@ class TraceEventBuilder:
             },
             "verify": verify_data,
         }
-
