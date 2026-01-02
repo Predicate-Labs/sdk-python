@@ -208,6 +208,16 @@ def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> 
             )
 
             if response.status_code != 200:
+                # HTTP 409 means trace already exists (already uploaded)
+                # Treat as success and delete local file
+                if response.status_code == 409:
+                    print(f"✅ Trace {run_id} already exists in cloud (skipping re-upload)")
+                    # Delete local file since it's already in cloud
+                    try:
+                        os.remove(trace_file)
+                    except Exception:
+                        pass  # Ignore cleanup errors
+                    continue
                 # HTTP 422 typically means invalid run_id (e.g., test files)
                 # Skip silently for 422, but log other errors
                 if response.status_code == 422:

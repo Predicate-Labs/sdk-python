@@ -109,6 +109,7 @@ class CloudTraceSink(TraceSink):
         self.trace_file_size_bytes = 0
         self.screenshot_total_size_bytes = 0
         self.screenshot_count = 0  # Track number of screenshots extracted
+        self.index_file_size_bytes = 0  # Track index file size
 
     def emit(self, event: dict[str, Any]) -> None:
         """
@@ -327,6 +328,7 @@ class CloudTraceSink(TraceSink):
 
             compressed_index = gzip.compress(index_data)
             index_size = len(compressed_index)
+            self.index_file_size_bytes = index_size  # Track index file size
 
             if self.logger:
                 self.logger.info(f"Index file size: {index_size / 1024:.2f} KB")
@@ -361,9 +363,158 @@ class CloudTraceSink(TraceSink):
             if self.logger:
                 self.logger.warning(f"Error uploading trace index: {e}")
 
+    def _infer_final_status_from_trace(self) -> str:
+        """
+        Infer final status from trace events by reading the trace file.
+
+        Returns:
+            Final status: "success", "failure", "partial", or "unknown"
+        """
+        try:
+            # Read trace file to analyze events
+            with open(self._path, encoding="utf-8") as f:
+                events = []
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError:
+                        continue
+
+            if not events:
+                return "unknown"
+
+            # Check for run_end event with status
+            for event in reversed(events):
+                if event.get("type") == "run_end":
+                    status = event.get("data", {}).get("status")
+                    if status in ("success", "failure", "partial", "unknown"):
+                        return status
+
+            # Infer from error events
+            has_errors = any(e.get("type") == "error" for e in events)
+            if has_errors:
+                # Check if there are successful steps too (partial success)
+                step_ends = [e for e in events if e.get("type") == "step_end"]
+                if step_ends:
+                    return "partial"
+                return "failure"
+
+            # If we have step_end events and no errors, likely success
+            step_ends = [e for e in events if e.get("type") == "step_end"]
+            if step_ends:
+                return "success"
+
+            return "unknown"
+
+        except Exception:
+            # If we can't read the trace, default to unknown
+            return "unknown"
+
+    def _extract_stats_from_trace(self) -> dict[str, Any]:
+        """
+        Extract execution statistics from trace file.
+
+        Returns:
+            Dictionary with stats fields for /v1/traces/complete
+        """
+        try:
+            # Read trace file to extract stats
+            with open(self._path, encoding="utf-8") as f:
+                events = []
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError:
+                        continue
+
+            if not events:
+                return {
+                    "total_steps": 0,
+                    "total_events": 0,
+                    "duration_ms": None,
+                    "final_status": "unknown",
+                    "started_at": None,
+                    "ended_at": None,
+                }
+
+            # Find run_start and run_end events
+            run_start = next((e for e in events if e.get("type") == "run_start"), None)
+            run_end = next((e for e in events if e.get("type") == "run_end"), None)
+
+            # Extract timestamps
+            started_at: str | None = None
+            ended_at: str | None = None
+            if run_start:
+                started_at = run_start.get("ts")
+            if run_end:
+                ended_at = run_end.get("ts")
+
+            # Calculate duration
+            duration_ms: int | None = None
+            if started_at and ended_at:
+                try:
+                    from datetime import datetime
+
+                    start_dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+                    delta = end_dt - start_dt
+                    duration_ms = int(delta.total_seconds() * 1000)
+                except Exception:
+                    pass
+
+            # Count steps (from step_start events, only first attempt)
+            step_indices = set()
+            for event in events:
+                if event.get("type") == "step_start":
+                    step_index = event.get("data", {}).get("step_index")
+                    if step_index is not None:
+                        step_indices.add(step_index)
+            total_steps = len(step_indices) if step_indices else 0
+
+            # If run_end has steps count, use that (more accurate)
+            if run_end:
+                steps_from_end = run_end.get("data", {}).get("steps")
+                if steps_from_end is not None:
+                    total_steps = max(total_steps, steps_from_end)
+
+            # Count total events
+            total_events = len(events)
+
+            # Infer final status
+            final_status = self._infer_final_status_from_trace()
+
+            return {
+                "total_steps": total_steps,
+                "total_events": total_events,
+                "duration_ms": duration_ms,
+                "final_status": final_status,
+                "started_at": started_at,
+                "ended_at": ended_at,
+            }
+
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Error extracting stats from trace: {e}")
+            return {
+                "total_steps": 0,
+                "total_events": 0,
+                "duration_ms": None,
+                "final_status": "unknown",
+                "started_at": None,
+                "ended_at": None,
+            }
+
     def _complete_trace(self) -> None:
         """
-        Call /v1/traces/complete to report file sizes to gateway.
+        Call /v1/traces/complete to report file sizes and stats to gateway.
 
         This is a best-effort call - failures are logged but don't affect upload success.
         """
@@ -372,16 +523,25 @@ class CloudTraceSink(TraceSink):
             return
 
         try:
+            # Extract stats from trace file
+            stats = self._extract_stats_from_trace()
+
+            # Add file size fields
+            stats.update(
+                {
+                    "trace_file_size_bytes": self.trace_file_size_bytes,
+                    "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
+                    "screenshot_count": self.screenshot_count,
+                    "index_file_size_bytes": self.index_file_size_bytes,
+                }
+            )
+
             response = requests.post(
                 f"{self.api_url}/v1/traces/complete",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
                     "run_id": self.run_id,
-                    "stats": {
-                        "trace_file_size_bytes": self.trace_file_size_bytes,
-                        "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
-                        "screenshot_count": self.screenshot_count,
-                    },
+                    "stats": stats,
                 },
                 timeout=10,
             )
