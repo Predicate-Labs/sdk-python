@@ -3,7 +3,7 @@ Screenshot functionality - standalone screenshot capture
 """
 
 import base64
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 

@@ -4,7 +4,7 @@ Recorder - captures user actions into a trace
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .models import Element, Snapshot

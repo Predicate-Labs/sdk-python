@@ -3,7 +3,7 @@ Pydantic models for Sentience SDK - matches spec/snapshot.schema.json
 """
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -411,6 +411,45 @@ class TextRectSearchResult(BaseModel):
     )
     viewport: Viewport | None = Field(None, description="Current viewport dimensions")
     error: str | None = Field(None, description="Error message if status is 'error'")
+
+
+class ReadResult(BaseModel):
+    """Result of read() or read_async() operation"""
+
+    status: Literal["success", "error"]
+    url: str
+    format: Literal["raw", "text", "markdown"]
+    content: str
+    length: int
+    error: str | None = None
+
+
+class TraceStats(BaseModel):
+    """Execution statistics for trace completion"""
+
+    total_steps: int
+    total_events: int
+    duration_ms: int | None = None
+    final_status: Literal["success", "failure", "partial", "unknown"]
+    started_at: str | None = None
+    ended_at: str | None = None
+
+
+class StepExecutionResult(BaseModel):
+    """Result of executing a single step in ConversationalAgent"""
+
+    success: bool
+    action: str
+    data: dict[str, Any]  # Flexible data field for step-specific results
+    error: str | None = None
+
+
+class ExtractionResult(BaseModel):
+    """Result of extracting information from a page"""
+
+    found: bool
+    data: dict[str, Any]  # Extracted data fields
+    summary: str  # Brief description of what was found
 
 
 @dataclass

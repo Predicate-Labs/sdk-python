@@ -12,10 +12,12 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol, Union
+from collections.abc import Callable
 
 import requests
 
+from sentience.models import TraceStats
 from sentience.tracing import TraceSink
 
 
@@ -457,14 +459,14 @@ class CloudTraceSink(TraceSink):
                         continue
 
             if not events:
-                return {
-                    "total_steps": 0,
-                    "total_events": 0,
-                    "duration_ms": None,
-                    "final_status": "unknown",
-                    "started_at": None,
-                    "ended_at": None,
-                }
+                return TraceStats(
+                    total_steps=0,
+                    total_events=0,
+                    duration_ms=None,
+                    final_status="unknown",
+                    started_at=None,
+                    ended_at=None,
+                )
 
             # Find run_start and run_end events
             run_start = next((e for e in events if e.get("type") == "run_start"), None)
@@ -512,26 +514,26 @@ class CloudTraceSink(TraceSink):
             # Infer final status
             final_status = self._infer_final_status_from_trace()
 
-            return {
-                "total_steps": total_steps,
-                "total_events": total_events,
-                "duration_ms": duration_ms,
-                "final_status": final_status,
-                "started_at": started_at,
-                "ended_at": ended_at,
-            }
+            return TraceStats(
+                total_steps=total_steps,
+                total_events=total_events,
+                duration_ms=duration_ms,
+                final_status=final_status,
+                started_at=started_at,
+                ended_at=ended_at,
+            )
 
         except Exception as e:
             if self.logger:
                 self.logger.warning(f"Error extracting stats from trace: {e}")
-            return {
-                "total_steps": 0,
-                "total_events": 0,
-                "duration_ms": None,
-                "final_status": "unknown",
-                "started_at": None,
-                "ended_at": None,
-            }
+            return TraceStats(
+                total_steps=0,
+                total_events=0,
+                duration_ms=None,
+                final_status="unknown",
+                started_at=None,
+                ended_at=None,
+            )
 
     def _complete_trace(self) -> None:
         """
@@ -547,22 +549,21 @@ class CloudTraceSink(TraceSink):
             # Extract stats from trace file
             stats = self._extract_stats_from_trace()
 
-            # Add file size fields
-            stats.update(
-                {
-                    "trace_file_size_bytes": self.trace_file_size_bytes,
-                    "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
-                    "screenshot_count": self.screenshot_count,
-                    "index_file_size_bytes": self.index_file_size_bytes,
-                }
-            )
+            # Build completion payload with stats and file size fields
+            completion_payload = {
+                **stats.model_dump(),  # Convert TraceStats to dict
+                "trace_file_size_bytes": self.trace_file_size_bytes,
+                "screenshot_total_size_bytes": self.screenshot_total_size_bytes,
+                "screenshot_count": self.screenshot_count,
+                "index_file_size_bytes": self.index_file_size_bytes,
+            }
 
             response = requests.post(
                 f"{self.api_url}/v1/traces/complete",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
                     "run_id": self.run_id,
-                    "stats": stats,
+                    "stats": completion_payload,
                 },
                 timeout=10,
             )

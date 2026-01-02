@@ -358,24 +358,23 @@ async def test_async_read():
 
         # Test raw HTML format
         result = await read_async(browser, output_format="raw")
-        assert result["status"] == "success"
-        assert "content" in result
-        assert "url" in result
-        assert "format" in result
-        assert result["format"] == "raw"
-        assert len(result["content"]) > 0
+        assert result.status == "success"
+        assert result.content is not None
+        assert result.url is not None
+        assert result.format == "raw"
+        assert len(result.content) > 0
 
         # Test text format
         result = await read_async(browser, output_format="text")
-        assert result["status"] == "success"
-        assert result["format"] == "text"
-        assert len(result["content"]) > 0
+        assert result.status == "success"
+        assert result.format == "text"
+        assert len(result.content) > 0
 
         # Test markdown format (may fallback to extension's markdown)
         result = await read_async(browser, output_format="markdown")
-        assert result["status"] == "success"
-        assert result["format"] == "markdown"
-        assert len(result["content"]) > 0
+        assert result.status == "success"
+        assert result.format == "markdown"
+        assert len(result.content) > 0
 
 
 @pytest.mark.asyncio

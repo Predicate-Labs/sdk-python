@@ -2,7 +2,7 @@
 Visual overlay utilities - show/clear element highlights in browser
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .models import Element, Snapshot

@@ -10,7 +10,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+from .models import TraceStats
 
 
 @dataclass
@@ -111,12 +113,12 @@ class JsonlTraceSink(TraceSink):
         # Generate index after closing file
         self._generate_index()
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> TraceStats:
         """
         Extract execution statistics from trace file (for local traces).
 
         Returns:
-            Dictionary with stats fields (same format as Tracer.get_stats())
+            TraceStats with execution statistics
         """
         try:
             # Read trace file to extract stats
@@ -133,14 +135,14 @@ class JsonlTraceSink(TraceSink):
                         continue
 
             if not events:
-                return {
-                    "total_steps": 0,
-                    "total_events": 0,
-                    "duration_ms": None,
-                    "final_status": "unknown",
-                    "started_at": None,
-                    "ended_at": None,
-                }
+                return TraceStats(
+                    total_steps=0,
+                    total_events=0,
+                    duration_ms=None,
+                    final_status="unknown",
+                    started_at=None,
+                    ended_at=None,
+                )
 
             # Find run_start and run_end events
             run_start = next((e for e in events if e.get("type") == "run_start"), None)
@@ -206,24 +208,24 @@ class JsonlTraceSink(TraceSink):
                     if step_ends:
                         final_status = "success"
 
-            return {
-                "total_steps": total_steps,
-                "total_events": total_events,
-                "duration_ms": duration_ms,
-                "final_status": final_status,
-                "started_at": started_at,
-                "ended_at": ended_at,
-            }
+            return TraceStats(
+                total_steps=total_steps,
+                total_events=total_events,
+                duration_ms=duration_ms,
+                final_status=final_status,
+                started_at=started_at,
+                ended_at=ended_at,
+            )
 
         except Exception:
-            return {
-                "total_steps": 0,
-                "total_events": 0,
-                "duration_ms": None,
-                "final_status": "unknown",
-                "started_at": None,
-                "ended_at": None,
-            }
+            return TraceStats(
+                total_steps=0,
+                total_events=0,
+                duration_ms=None,
+                final_status="unknown",
+                started_at=None,
+                ended_at=None,
+            )
 
     def _generate_index(self) -> None:
         """Generate trace index file (automatic on close)."""
@@ -431,26 +433,26 @@ class Tracer:
             )
         self.final_status = status
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> TraceStats:
         """
         Get execution statistics for trace completion.
 
         Returns:
-            Dictionary with stats fields for /v1/traces/complete
+            TraceStats with execution statistics
         """
         duration_ms: int | None = None
         if self.started_at and self.ended_at:
             delta = self.ended_at - self.started_at
             duration_ms = int(delta.total_seconds() * 1000)
 
-        return {
-            "total_steps": self.total_steps,
-            "total_events": self.total_events,
-            "duration_ms": duration_ms,
-            "final_status": self.final_status,
-            "started_at": self.started_at.isoformat() + "Z" if self.started_at else None,
-            "ended_at": self.ended_at.isoformat() + "Z" if self.ended_at else None,
-        }
+        return TraceStats(
+            total_steps=self.total_steps,
+            total_events=self.total_events,
+            duration_ms=duration_ms,
+            final_status=self.final_status,
+            started_at=self.started_at.isoformat() + "Z" if self.started_at else None,
+            ended_at=self.ended_at.isoformat() + "Z" if self.ended_at else None,
+        )
 
     def _infer_final_status(self) -> None:
         """

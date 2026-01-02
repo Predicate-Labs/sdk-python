@@ -3,6 +3,7 @@ Text search utilities - find text and get pixel coordinates
 """
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
+from .browser_evaluator import BrowserEvaluator
 from .models import TextRectSearchResult
 
 
@@ -91,43 +92,14 @@ def find_text_rect(
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # The new architecture loads injected_api.js asynchronously, so window.sentience
     # may not be immediately available after page load
-    try:
-        browser.page.wait_for_function(
-            "typeof window.sentience !== 'undefined'",
-            timeout=5000,  # 5 second timeout
-        )
-    except Exception as e:
-        # Gather diagnostics if wait fails
-        try:
-            diag = browser.page.evaluate(
-                """() => ({
-                    sentience_defined: typeof window.sentience !== 'undefined',
-                    extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
-                    url: window.location.href
-                })"""
-            )
-        except Exception:
-            diag = {"error": "Could not gather diagnostics"}
-
-        raise RuntimeError(
-            f"Sentience extension failed to inject window.sentience API. "
-            f"Is the extension loaded? Diagnostics: {diag}"
-        ) from e
+    BrowserEvaluator.wait_for_extension(browser.page, timeout_ms=5000)
 
     # Verify findTextRect method exists (for older extension versions that don't have it)
-    try:
-        has_find_text_rect = browser.page.evaluate(
-            "typeof window.sentience.findTextRect !== 'undefined'"
+    if not BrowserEvaluator.verify_method_exists(browser.page, "findTextRect"):
+        raise RuntimeError(
+            "window.sentience.findTextRect is not available. "
+            "Please update the Sentience extension to the latest version."
         )
-        if not has_find_text_rect:
-            raise RuntimeError(
-                "window.sentience.findTextRect is not available. "
-                "Please update the Sentience extension to the latest version."
-            )
-    except RuntimeError:
-        raise
-    except Exception as e:
-        raise RuntimeError(f"Failed to verify findTextRect availability: {e}") from e
 
     # Call the extension's findTextRect method
     result_dict = browser.page.evaluate(

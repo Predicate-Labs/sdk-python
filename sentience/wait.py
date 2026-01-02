@@ -1,3 +1,5 @@
+from typing import Optional
+
 """
 Wait functionality - wait_for element matching selector
 """

@@ -10,7 +10,7 @@ from typing import Any
 from .agent import SentienceAgent
 from .browser import SentienceBrowser
 from .llm_provider import LLMProvider
-from .models import Snapshot, SnapshotOptions
+from .models import ExtractionResult, Snapshot, SnapshotOptions, StepExecutionResult
 from .snapshot import snapshot
 
 
@@ -90,7 +90,7 @@ class ConversationalAgent:
             step_result = self._execute_step(step)
             execution_results.append(step_result)
 
-            if not step_result.get("success", False):
+            if not step_result.success:
                 # Early exit on failure
                 if self.verbose:
                     print(f"⚠️  Step failed: {step['description']}")
@@ -203,7 +203,7 @@ Create a step-by-step execution plan."""
                 "expected_outcome": "Complete user request",
             }
 
-    def _execute_step(self, step: dict[str, Any]) -> dict[str, Any]:
+    def _execute_step(self, step: dict[str, Any]) -> StepExecutionResult:
         """
         Execute a single atomic step from the plan
 
@@ -230,46 +230,42 @@ Create a step-by-step execution plan."""
                 self.execution_context["current_url"] = url
                 time.sleep(1)  # Brief wait for page to settle
 
-                return {"success": True, "action": action, "data": {"url": url}}
+                return StepExecutionResult(success=True, action=action, data={"url": url})
 
             elif action == "FIND_AND_CLICK":
                 element_desc = params["element_description"]
                 # Use technical agent to find and click (returns AgentActionResult)
                 result = self.technical_agent.act(f"Click the {element_desc}")
-                return {
-                    "success": result.success,  # Use attribute access
-                    "action": action,
-                    "data": result.model_dump(),  # Convert to dict for flexibility
-                }
+                return StepExecutionResult(
+                    success=result.success,
+                    action=action,
+                    data=result.model_dump(),  # Convert to dict for flexibility
+                )
 
             elif action == "FIND_AND_TYPE":
                 element_desc = params["element_description"]
                 text = params["text"]
                 # Use technical agent to find input and type (returns AgentActionResult)
                 result = self.technical_agent.act(f"Type '{text}' into {element_desc}")
-                return {
-                    "success": result.success,  # Use attribute access
-                    "action": action,
-                    "data": {"text": text, "result": result.model_dump()},
-                }
+                return StepExecutionResult(
+                    success=result.success,
+                    action=action,
+                    data={"text": text, "result": result.model_dump()},
+                )
 
             elif action == "PRESS_KEY":
                 key = params["key"]
                 result = self.technical_agent.act(f"Press {key} key")
-                return {
-                    "success": result.success,  # Use attribute access
-                    "action": action,
-                    "data": {"key": key, "result": result.model_dump()},
-                }
+                return StepExecutionResult(
+                    success=result.success,
+                    action=action,
+                    data={"key": key, "result": result.model_dump()},
+                )
 
             elif action == "WAIT":
                 duration = params.get("duration", 2.0)
                 time.sleep(duration)
-                return {
-                    "success": True,
-                    "action": action,
-                    "data": {"duration": duration},
-                }
+                return StepExecutionResult(success=True, action=action, data={"duration": duration})
 
             elif action == "EXTRACT_INFO":
                 info_type = params["info_type"]
@@ -279,21 +275,28 @@ Create a step-by-step execution plan."""
                 # Use LLM to extract specific information
                 extracted = self._extract_information(snap, info_type)
 
-                return {
-                    "success": True,
-                    "action": action,
-                    "data": {"extracted": extracted, "info_type": info_type},
-                }
+                return StepExecutionResult(
+                    success=True,
+                    action=action,
+                    data={
+                        "extracted": (
+                            extracted.model_dump()
+                            if isinstance(extracted, ExtractionResult)
+                            else extracted
+                        ),
+                        "info_type": info_type,
+                    },
+                )
 
             elif action == "VERIFY":
                 condition = params["condition"]
                 # Verify condition using current page state
                 is_verified = self._verify_condition(condition)
-                return {
-                    "success": is_verified,
-                    "action": action,
-                    "data": {"condition": condition, "verified": is_verified},
-                }
+                return StepExecutionResult(
+                    success=is_verified,
+                    action=action,
+                    data={"condition": condition, "verified": is_verified},
+                )
 
             else:
                 raise ValueError(f"Unknown action: {action}")
@@ -301,9 +304,9 @@ Create a step-by-step execution plan."""
         except Exception as e:
             if self.verbose:
                 print(f"❌ Step failed: {e}")
-            return {"success": False, "action": action, "error": str(e)}
+            return StepExecutionResult(success=False, action=action, error=str(e))
 
-    def _extract_information(self, snap: Snapshot, info_type: str) -> dict[str, Any]:
+    def _extract_information(self, snap: Snapshot, info_type: str) -> ExtractionResult:
         """
         Extract specific information from snapshot using LLM
 
@@ -403,14 +406,38 @@ Return JSON:
             Human-readable response string
         """
         # Build summary of what happened
-        successful_steps = [r for r in execution_results if r.get("success")]
-        failed_steps = [r for r in execution_results if not r.get("success")]
+        successful_steps = [
+            r
+            for r in execution_results
+            if (isinstance(r, StepExecutionResult) and r.success)
+            or (isinstance(r, dict) and r.get("success", False))
+        ]
+        failed_steps = [
+            r
+            for r in execution_results
+            if (isinstance(r, StepExecutionResult) and not r.success)
+            or (isinstance(r, dict) and not r.get("success", False))
+        ]
 
         # Extract key data
         extracted_data = []
         for result in execution_results:
-            if result.get("action") == "EXTRACT_INFO":
-                extracted_data.append(result.get("data", {}).get("extracted", {}))
+            if isinstance(result, StepExecutionResult):
+                action = result.action
+                data = result.data
+            else:
+                action = result.get("action")
+                data = result.get("data", {})
+
+            if action == "EXTRACT_INFO":
+                extracted = data.get("extracted", {})
+                if isinstance(extracted, dict):
+                    extracted_data.append(extracted)
+                else:
+                    # If it's an ExtractionResult model, convert to dict
+                    extracted_data.append(
+                        extracted.model_dump() if hasattr(extracted, "model_dump") else extracted
+                    )
 
         # Use LLM to create natural response
         system_prompt = """You are a helpful assistant that summarizes web automation results

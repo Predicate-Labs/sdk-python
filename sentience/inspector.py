@@ -1,3 +1,5 @@
+from typing import Optional
+
 """
 Inspector tool - helps developers see what the agent "sees"
 """

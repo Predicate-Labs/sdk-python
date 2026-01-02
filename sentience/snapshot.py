@@ -11,13 +11,16 @@ from typing import Any, Optional
 import requests
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
+from .browser_evaluator import BrowserEvaluator
 from .models import Snapshot, SnapshotOptions
 
 # Maximum payload size for API requests (10MB server limit)
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
-def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | None = None) -> None:
+def _save_trace_to_file(
+    raw_elements: list[dict[str, Any]], trace_path: str | None = None
+) -> None:
     """
     Save raw_elements to a JSON file for benchmarking/training
 
@@ -94,28 +97,7 @@ def _snapshot_via_extension(
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # The new architecture loads injected_api.js asynchronously, so window.sentience
     # may not be immediately available after page load
-    try:
-        browser.page.wait_for_function(
-            "typeof window.sentience !== 'undefined'",
-            timeout=5000,  # 5 second timeout
-        )
-    except Exception as e:
-        # Gather diagnostics if wait fails
-        try:
-            diag = browser.page.evaluate(
-                """() => ({
-                    sentience_defined: typeof window.sentience !== 'undefined',
-                    extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
-                    url: window.location.href
-                })"""
-            )
-        except Exception:
-            diag = {"error": "Could not gather diagnostics"}
-
-        raise RuntimeError(
-            f"Sentience extension failed to inject window.sentience API. "
-            f"Is the extension loaded? Diagnostics: {diag}"
-        ) from e
+    BrowserEvaluator.wait_for_extension(browser.page, timeout_ms=5000)
 
     # Build options dict for extension API (exclude save_trace/trace_path)
     ext_options: dict[str, Any] = {}
@@ -182,26 +164,14 @@ def _snapshot_via_api(
 
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # Even for API mode, we need the extension to collect raw data locally
-    try:
-        browser.page.wait_for_function("typeof window.sentience !== 'undefined'", timeout=5000)
-    except Exception as e:
-        raise RuntimeError(
-            "Sentience extension failed to inject. Cannot collect raw data for API processing."
-        ) from e
+    BrowserEvaluator.wait_for_extension(browser.page, timeout_ms=5000)
 
     # Step 1: Get raw data from local extension (always happens locally)
     raw_options: dict[str, Any] = {}
     if options.screenshot is not False:
         raw_options["screenshot"] = options.screenshot
 
-    raw_result = browser.page.evaluate(
-        """
-        (options) => {
-            return window.sentience.snapshot(options);
-        }
-        """,
-        raw_options,
-    )
+    raw_result = BrowserEvaluator.call_sentience_method(browser.page, "snapshot", **raw_options)
 
     # Save trace if requested (save raw data before API processing)
     if options.save_trace:

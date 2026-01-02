@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 from playwright.async_api import BrowserContext as AsyncBrowserContext

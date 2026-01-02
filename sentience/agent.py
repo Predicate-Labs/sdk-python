@@ -100,7 +100,9 @@ class SentienceAgent(BaseAgent):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
+    def _get_element_bbox(
+        self, element_id: int | None, snap: Snapshot
+    ) -> dict[str, float] | None:
         """Get bounding box for an element from snapshot."""
         if element_id is None:
             return None
@@ -872,7 +874,9 @@ class SentienceAgentAsync(BaseAgentAsync):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
+    def _get_element_bbox(
+        self, element_id: int | None, snap: Snapshot
+    ) -> dict[str, float] | None:
         """Get bounding box for an element from snapshot."""
         if element_id is None:
             return None

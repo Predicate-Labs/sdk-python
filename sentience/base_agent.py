@@ -1,3 +1,5 @@
+from typing import Optional
+
 """
 BaseAgent: Abstract base class for all Sentience agents
 Defines the interface that all agent implementations must follow

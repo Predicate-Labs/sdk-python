@@ -1,3 +1,5 @@
+from typing import Optional
+
 """
 LLM Provider abstraction layer for Sentience SDK
 Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider

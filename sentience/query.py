@@ -3,7 +3,7 @@ Query engine v1 - semantic selector matching
 """
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 from .models import Element, Snapshot
 

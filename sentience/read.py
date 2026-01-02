@@ -5,13 +5,14 @@ Read page content - supports raw HTML, text, and markdown formats
 from typing import Literal
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
+from .models import ReadResult
 
 
 def read(
     browser: SentienceBrowser,
     output_format: Literal["raw", "text", "markdown"] = "raw",
     enhance_markdown: bool = True,
-) -> dict:
+) -> ReadResult:
     """
     Read page content as raw HTML, text, or markdown
 
@@ -93,14 +94,15 @@ def read(
         {"format": output_format},
     )
 
-    return result
+    # Convert dict result to ReadResult model
+    return ReadResult(**result)
 
 
 async def read_async(
     browser: AsyncSentienceBrowser,
     output_format: Literal["raw", "text", "markdown"] = "raw",
     enhance_markdown: bool = True,
-) -> dict:
+) -> ReadResult:
     """
     Read page content as raw HTML, text, or markdown (async)
 
@@ -182,4 +184,5 @@ async def read_async(
         {"format": output_format},
     )
 
-    return result
+    # Convert dict result to ReadResult model
+    return ReadResult(**result)

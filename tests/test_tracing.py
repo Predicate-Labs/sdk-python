@@ -223,13 +223,13 @@ def test_tracer_stats_tracking():
 
             # Get stats
             stats = tracer.get_stats()
-            assert stats["total_steps"] == 2
-            assert stats["total_events"] == 4
-            assert stats["final_status"] == "unknown"
-            assert stats["started_at"] is not None
-            assert stats["ended_at"] is not None
-            assert stats["duration_ms"] is not None
-            assert stats["duration_ms"] >= 0
+            assert stats.total_steps == 2
+            assert stats.total_events == 4
+            assert stats.final_status == "unknown"
+            assert stats.started_at is not None
+            assert stats.ended_at is not None
+            assert stats.duration_ms is not None
+            assert stats.duration_ms >= 0
 
 
 def test_tracer_set_final_status():
@@ -285,12 +285,12 @@ def test_jsonl_trace_sink_get_stats():
 
         # Get stats from sink
         stats = sink.get_stats()
-        assert stats["total_steps"] == 2
-        assert stats["total_events"] == 4
-        assert stats["final_status"] == "success"
-        assert stats["started_at"] is not None
-        assert stats["ended_at"] is not None
-        assert stats["duration_ms"] is not None
+        assert stats.total_steps == 2
+        assert stats.total_events == 4
+        assert stats.final_status == "success"
+        assert stats.started_at is not None
+        assert stats.ended_at is not None
+        assert stats.duration_ms is not None
 
 
 def test_tracer_auto_infers_final_status():
@@ -319,8 +319,8 @@ def test_tracer_auto_infers_final_status():
 
         # Verify stats reflect the inferred status
         stats = tracer.get_stats()
-        assert stats["final_status"] == "success"
-        assert stats["total_steps"] == 2
+        assert stats.final_status == "success"
+        assert stats.total_steps == 2
 
 
 def test_tracer_auto_infers_final_status_with_errors():
@@ -347,7 +347,7 @@ def test_tracer_auto_infers_final_status_with_errors():
 
         # Verify stats reflect the inferred status
         stats = tracer.get_stats()
-        assert stats["final_status"] == "partial"
+        assert stats.final_status == "partial"
 
 
 def test_tracer_auto_infers_final_status_failure():
@@ -370,7 +370,7 @@ def test_tracer_auto_infers_final_status_failure():
 
         # Verify stats reflect the inferred status
         stats = tracer.get_stats()
-        assert stats["final_status"] == "failure"
+        assert stats.final_status == "failure"
 
 
 def test_tracer_auto_infer_does_not_override_explicit_status():
@@ -397,7 +397,7 @@ def test_tracer_auto_infer_does_not_override_explicit_status():
 
         # Verify stats reflect the explicit status
         stats = tracer.get_stats()
-        assert stats["final_status"] == "partial"
+        assert stats.final_status == "partial"
 
 
 def test_tracer_close_sets_final_status_automatically():
@@ -427,8 +427,8 @@ def test_tracer_close_sets_final_status_automatically():
 
         # Verify stats reflect the inferred status
         stats = tracer.get_stats()
-        assert stats["final_status"] == "success"
-        assert stats["total_steps"] == 2
+        assert stats.final_status == "success"
+        assert stats.total_steps == 2
 
 
 def test_tracer_close_sets_final_status_in_run_end_event():
