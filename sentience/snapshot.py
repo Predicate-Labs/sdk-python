@@ -411,7 +411,6 @@ async def _snapshot_via_extension_async(
             if format_match in ["jpeg", "jpg", "png"]:
                 result["screenshot_format"] = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
 
-
     # Validate and parse with Pydantic
     snapshot_obj = Snapshot(**result)
     return snapshot_obj
