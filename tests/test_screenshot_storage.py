@@ -351,12 +351,17 @@ class TestScreenshotUpload:
             assert mock_post.called
 
             # Verify uploads were called (2 screenshots)
-            assert mock_put.call_count == 2
+            # Filter PUT calls to only screenshot uploads (exclude trace file uploads)
+            put_calls = mock_put.call_args_list
+            screenshot_uploads = [
+                call for call in put_calls if "screenshots" in str(call[0][0] if call[0] else "")
+            ]
+            assert len(screenshot_uploads) == 2
 
             # Verify upload URLs and content
-            put_calls = mock_put.call_args_list
-            assert mock_upload_urls["1"] in [call[0][0] for call in put_calls]
-            assert mock_upload_urls["2"] in [call[0][0] for call in put_calls]
+            upload_urls = [call[0][0] for call in screenshot_uploads]
+            assert mock_upload_urls["1"] in upload_urls
+            assert mock_upload_urls["2"] in upload_urls
 
         sink.close(blocking=False)
 
