@@ -135,6 +135,7 @@ def test_extract_stats_uses_run_end_status():
 
 def test_extract_stats_with_custom_inference():
     """Test extract_stats uses custom status inference function."""
+
     def custom_inference(events, run_end):
         # Return a valid status value
         return "partial"
@@ -162,4 +163,3 @@ def test_extract_stats_no_timestamps():
     assert stats.duration_ms is None
     assert stats.started_at is None
     assert stats.ended_at is None
-
