@@ -172,7 +172,7 @@ def _snapshot_via_api(
     if options.screenshot is not False:
         raw_options["screenshot"] = options.screenshot
 
-    raw_result = BrowserEvaluator.invoke(browser.page, SentienceAction.SNAPSHOT, **raw_options)
+    raw_result = BrowserEvaluator.invoke(browser.page, SentienceMethod.SNAPSHOT, **raw_options)
 
     # Save trace if requested (save raw data before API processing)
     if options.save_trace:
