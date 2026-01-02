@@ -77,7 +77,7 @@ def create_tracer(
             print(f"🔗 [Sentience] Attempting to initialize cloud tracing...")
             print(f"   API URL: {api_url}/v1/traces/init")
             print(f"   Run ID: {run_id}")
-            
+
             response = requests.post(
                 f"{api_url}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -134,7 +134,9 @@ def create_tracer(
                 print(f"⚠️  [Sentience] Cloud init failed: HTTP {response.status_code}")
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error") or error_data.get("message", "Unknown error")
+                    error_msg = error_data.get("error") or error_data.get(
+                        "message", "Unknown error"
+                    )
                     print(f"   Error: {error_msg}")
                     if "tier" in error_msg.lower() or "subscription" in error_msg.lower():
                         print(f"   💡 This may be a tier/subscription issue")

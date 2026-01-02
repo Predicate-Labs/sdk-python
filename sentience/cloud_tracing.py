@@ -594,7 +594,9 @@ class CloudTraceSink(TraceSink):
 
                 if response.status_code == 200:
                     if self.logger:
-                        self.logger.info(f"Screenshot {seq} uploaded successfully ({image_size / 1024:.1f} KB)")
+                        self.logger.info(
+                            f"Screenshot {seq} uploaded successfully ({image_size / 1024:.1f} KB)"
+                        )
                     return True
                 else:
                     error_msg = f"Screenshot {seq} upload failed: HTTP {response.status_code}"

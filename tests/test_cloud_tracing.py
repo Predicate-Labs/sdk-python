@@ -332,15 +332,21 @@ class TestCloudTraceSink:
             compressed_data = trace_upload_call[1]["data"]
             decompressed_data = gzip.decompress(compressed_data)
             trace_content = decompressed_data.decode("utf-8")
-            events = [json.loads(line) for line in trace_content.strip().split("\n") if line.strip()]
+            events = [
+                json.loads(line) for line in trace_content.strip().split("\n") if line.strip()
+            ]
 
             snapshot_events = [e for e in events if e.get("type") == "snapshot"]
             assert len(snapshot_events) > 0, "Should have snapshot event"
 
             for event in snapshot_events:
                 data = event.get("data", {})
-                assert "screenshot_base64" not in data, "screenshot_base64 should be removed from uploaded trace"
-                assert "screenshot_format" not in data, "screenshot_format should be removed from uploaded trace"
+                assert (
+                    "screenshot_base64" not in data
+                ), "screenshot_base64 should be removed from uploaded trace"
+                assert (
+                    "screenshot_format" not in data
+                ), "screenshot_format should be removed from uploaded trace"
 
         # Cleanup
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"

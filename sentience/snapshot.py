@@ -410,7 +410,7 @@ async def _snapshot_via_extension_async(
             format_match = screenshot_data_url.split(";")[0].split("/")[-1]
             if format_match in ["jpeg", "jpg", "png"]:
                 result["screenshot_format"] = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
-    
+
 
     # Validate and parse with Pydantic
     snapshot_obj = Snapshot(**result)
@@ -460,7 +460,7 @@ async def _snapshot_via_api_async(
         """,
         raw_options,
     )
-    
+
     # Extract screenshot from raw result (extension captures it, but API doesn't return it)
     screenshot_data_url = raw_result.get("screenshot")
     screenshot_format = None
@@ -521,7 +521,7 @@ async def _snapshot_via_api_async(
                 format_match = screenshot_data_url.split(";")[0].split("/")[-1]
                 if format_match in ["jpeg", "jpg", "png"]:
                     screenshot_format = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
-        
+
         # Merge API result with local data
         snapshot_data = {
             "status": api_result.get("status", "success"),
