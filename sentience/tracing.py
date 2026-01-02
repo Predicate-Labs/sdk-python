@@ -8,6 +8,7 @@ import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,120 @@ class JsonlTraceSink(TraceSink):
         # Generate index after closing file
         self._generate_index()
 
+    def get_stats(self) -> dict[str, Any]:
+        """
+        Extract execution statistics from trace file (for local traces).
+
+        Returns:
+            Dictionary with stats fields (same format as Tracer.get_stats())
+        """
+        try:
+            # Read trace file to extract stats
+            with open(self.path, encoding="utf-8") as f:
+                events = []
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError:
+                        continue
+
+            if not events:
+                return {
+                    "total_steps": 0,
+                    "total_events": 0,
+                    "duration_ms": None,
+                    "final_status": "unknown",
+                    "started_at": None,
+                    "ended_at": None,
+                }
+
+            # Find run_start and run_end events
+            run_start = next((e for e in events if e.get("type") == "run_start"), None)
+            run_end = next((e for e in events if e.get("type") == "run_end"), None)
+
+            # Extract timestamps
+            started_at: str | None = None
+            ended_at: str | None = None
+            if run_start:
+                started_at = run_start.get("ts")
+            if run_end:
+                ended_at = run_end.get("ts")
+
+            # Calculate duration
+            duration_ms: int | None = None
+            if started_at and ended_at:
+                try:
+                    from datetime import datetime
+
+                    start_dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+                    delta = end_dt - start_dt
+                    duration_ms = int(delta.total_seconds() * 1000)
+                except Exception:
+                    pass
+
+            # Count steps (from step_start events, only first attempt)
+            step_indices = set()
+            for event in events:
+                if event.get("type") == "step_start":
+                    step_index = event.get("data", {}).get("step_index")
+                    if step_index is not None:
+                        step_indices.add(step_index)
+            total_steps = len(step_indices) if step_indices else 0
+
+            # If run_end has steps count, use that (more accurate)
+            if run_end:
+                steps_from_end = run_end.get("data", {}).get("steps")
+                if steps_from_end is not None:
+                    total_steps = max(total_steps, steps_from_end)
+
+            # Count total events
+            total_events = len(events)
+
+            # Infer final status
+            final_status = "unknown"
+            # Check for run_end event with status
+            if run_end:
+                status = run_end.get("data", {}).get("status")
+                if status in ("success", "failure", "partial", "unknown"):
+                    final_status = status
+            else:
+                # Infer from error events
+                has_errors = any(e.get("type") == "error" for e in events)
+                if has_errors:
+                    step_ends = [e for e in events if e.get("type") == "step_end"]
+                    if step_ends:
+                        final_status = "partial"
+                    else:
+                        final_status = "failure"
+                else:
+                    step_ends = [e for e in events if e.get("type") == "step_end"]
+                    if step_ends:
+                        final_status = "success"
+
+            return {
+                "total_steps": total_steps,
+                "total_events": total_events,
+                "duration_ms": duration_ms,
+                "final_status": final_status,
+                "started_at": started_at,
+                "ended_at": ended_at,
+            }
+
+        except Exception:
+            return {
+                "total_steps": 0,
+                "total_events": 0,
+                "duration_ms": None,
+                "final_status": "unknown",
+                "started_at": None,
+                "ended_at": None,
+            }
+
     def _generate_index(self) -> None:
         """Generate trace index file (automatic on close)."""
         try:
@@ -136,11 +251,22 @@ class Tracer:
     Trace event builder and emitter.
 
     Manages sequence numbers and provides convenient methods for emitting events.
+    Tracks execution statistics and final status for trace completion.
     """
 
     run_id: str
     sink: TraceSink
     seq: int = field(default=0, init=False)
+    # Stats tracking
+    total_steps: int = field(default=0, init=False)
+    total_events: int = field(default=0, init=False)
+    started_at: datetime | None = field(default=None, init=False)
+    ended_at: datetime | None = field(default=None, init=False)
+    final_status: str = field(default="unknown", init=False)
+    # Track step outcomes for automatic status inference
+    _step_successes: int = field(default=0, init=False)
+    _step_failures: int = field(default=0, init=False)
+    _has_errors: bool = field(default=False, init=False)
 
     def emit(
         self,
@@ -157,6 +283,7 @@ class Tracer:
             step_id: Step UUID (if step-scoped event)
         """
         self.seq += 1
+        self.total_events += 1
 
         # Generate timestamps
         ts_ms = int(time.time() * 1000)
@@ -175,6 +302,16 @@ class Tracer:
 
         self.sink.emit(event.to_dict())
 
+        # Track step outcomes for automatic status inference
+        if event_type == "step_end":
+            success = data.get("success", False)
+            if success:
+                self._step_successes += 1
+            else:
+                self._step_failures += 1
+        elif event_type == "error":
+            self._has_errors = True
+
     def emit_run_start(
         self,
         agent: str,
@@ -189,6 +326,9 @@ class Tracer:
             llm_model: LLM model name
             config: Agent configuration
         """
+        # Track start time
+        self.started_at = datetime.utcnow()
+
         data: dict[str, Any] = {"agent": agent}
         if llm_model is not None:
             data["llm_model"] = llm_model
@@ -215,6 +355,10 @@ class Tracer:
             attempt: Attempt number (0-indexed)
             pre_url: URL before step
         """
+        # Track step count (only count first attempt of each step)
+        if attempt == 0:
+            self.total_steps = max(self.total_steps, step_index)
+
         data = {
             "step_id": step_id,
             "step_index": step_index,
@@ -226,14 +370,29 @@ class Tracer:
 
         self.emit("step_start", data, step_id=step_id)
 
-    def emit_run_end(self, steps: int) -> None:
+    def emit_run_end(self, steps: int, status: str | None = None) -> None:
         """
         Emit run_end event.
 
         Args:
             steps: Total number of steps executed
+            status: Optional final status ("success", "failure", "partial", "unknown")
+                    If not provided, infers from tracked outcomes or uses self.final_status
         """
-        self.emit("run_end", {"steps": steps})
+        # Track end time
+        self.ended_at = datetime.utcnow()
+
+        # Auto-infer status if not provided and not explicitly set
+        if status is None and self.final_status == "unknown":
+            self._infer_final_status()
+
+        # Use provided status or fallback to self.final_status
+        final_status = status if status is not None else self.final_status
+
+        # Ensure total_steps is at least the provided steps value
+        self.total_steps = max(self.total_steps, steps)
+
+        self.emit("run_end", {"steps": steps, "status": final_status})
 
     def emit_error(
         self,
@@ -256,6 +415,62 @@ class Tracer:
         }
         self.emit("error", data, step_id=step_id)
 
+    def set_final_status(self, status: str) -> None:
+        """
+        Set the final status of the trace run.
+
+        Args:
+            status: Final status ("success", "failure", "partial", "unknown")
+        """
+        if status not in ("success", "failure", "partial", "unknown"):
+            raise ValueError(
+                f"Invalid status: {status}. Must be one of: success, failure, partial, unknown"
+            )
+        self.final_status = status
+
+    def get_stats(self) -> dict[str, Any]:
+        """
+        Get execution statistics for trace completion.
+
+        Returns:
+            Dictionary with stats fields for /v1/traces/complete
+        """
+        duration_ms: int | None = None
+        if self.started_at and self.ended_at:
+            delta = self.ended_at - self.started_at
+            duration_ms = int(delta.total_seconds() * 1000)
+
+        return {
+            "total_steps": self.total_steps,
+            "total_events": self.total_events,
+            "duration_ms": duration_ms,
+            "final_status": self.final_status,
+            "started_at": self.started_at.isoformat() + "Z" if self.started_at else None,
+            "ended_at": self.ended_at.isoformat() + "Z" if self.ended_at else None,
+        }
+
+    def _infer_final_status(self) -> None:
+        """
+        Automatically infer final_status from tracked step outcomes if not explicitly set.
+
+        This is called automatically in close() if final_status is still "unknown".
+        """
+        if self.final_status != "unknown":
+            # Status already set explicitly, don't override
+            return
+
+        # Infer from tracked outcomes
+        if self._has_errors:
+            # Has errors - check if there were successful steps too
+            if self._step_successes > 0:
+                self.final_status = "partial"
+            else:
+                self.final_status = "failure"
+        elif self._step_successes > 0:
+            # Has successful steps and no errors
+            self.final_status = "success"
+        # Otherwise stays "unknown" (no steps executed or no clear outcome)
+
     def close(self, **kwargs) -> None:
         """
         Close the underlying sink.
@@ -263,6 +478,12 @@ class Tracer:
         Args:
             **kwargs: Passed through to sink.close() (e.g., blocking=True for CloudTraceSink)
         """
+        # Auto-infer final_status if not explicitly set and we have step outcomes
+        if self.final_status == "unknown" and (
+            self._step_successes > 0 or self._step_failures > 0 or self._has_errors
+        ):
+            self._infer_final_status()
+
         # Check if sink.close() accepts kwargs (CloudTraceSink does, JsonlTraceSink doesn't)
         import inspect
 

@@ -198,7 +198,12 @@
           "description": "run_end data",
           "required": ["steps"],
           "properties": {
-            "steps": {"type": "integer"}
+            "steps": {"type": "integer"},
+            "status": {
+              "type": "string",
+              "enum": ["success", "failure", "partial", "unknown"],
+              "description": "Final execution status"
+            }
           }
         },
         {
