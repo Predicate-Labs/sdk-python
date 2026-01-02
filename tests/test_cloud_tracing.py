@@ -328,6 +328,26 @@ class TestCloudTraceSink:
 
             assert trace_upload_call is not None, "Trace upload should have been called"
 
+            # Verify completion request includes all required stats fields
+            complete_calls = [call for call in mock_post.call_args_list if "complete" in call[0][0]]
+            assert len(complete_calls) > 0, "Completion request should have been called"
+
+            complete_call = complete_calls[0]
+            complete_data = complete_call[1].get("json", {})
+            stats = complete_data.get("stats", {})
+
+            # Verify all required fields are present
+            assert "trace_file_size_bytes" in stats
+            assert "screenshot_total_size_bytes" in stats
+            assert "screenshot_count" in stats
+            assert "index_file_size_bytes" in stats
+            assert "total_steps" in stats
+            assert "total_events" in stats
+            assert "duration_ms" in stats
+            assert "final_status" in stats
+            assert "started_at" in stats
+            assert "ended_at" in stats
+
             # Decompress and verify screenshot_base64 is removed
             compressed_data = trace_upload_call[1]["data"]
             decompressed_data = gzip.decompress(compressed_data)
@@ -857,3 +877,108 @@ class TestRegressionTests:
             trace_path = cache_dir / f"{run_id}.jsonl"
             if trace_path.exists():
                 os.remove(trace_path)
+
+    def test_cloud_trace_sink_completion_includes_all_stats(self):
+        """Test that _complete_trace() includes all required stats fields."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-complete-stats"
+        api_key = "sk_test_123"
+
+        sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
+
+        # Emit events with timestamps
+        from datetime import datetime
+
+        start_time = datetime.utcnow()
+        sink.emit(
+            {
+                "v": 1,
+                "type": "run_start",
+                "ts": start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "run_id": run_id,
+                "seq": 1,
+                "data": {"agent": "TestAgent"},
+            }
+        )
+
+        sink.emit(
+            {
+                "v": 1,
+                "type": "step_start",
+                "ts": start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "run_id": run_id,
+                "seq": 2,
+                "step_id": "step-1",
+                "data": {"step_id": "step-1", "step_index": 1, "goal": "Test", "attempt": 0},
+            }
+        )
+
+        end_time = datetime.utcnow()
+        sink.emit(
+            {
+                "v": 1,
+                "type": "run_end",
+                "ts": end_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "run_id": run_id,
+                "seq": 3,
+                "data": {"steps": 1, "status": "success"},
+            }
+        )
+
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
+            # Mock successful trace upload
+            mock_put.return_value = Mock(status_code=200)
+
+            # Mock index upload (optional)
+            mock_index_response = Mock()
+            mock_index_response.status_code = 200
+            mock_index_response.json.return_value = {"upload_url": "https://example.com/index"}
+
+            # Mock completion response
+            mock_complete_response = Mock()
+            mock_complete_response.status_code = 200
+
+            def post_side_effect(*args, **kwargs):
+                url = args[0] if args else kwargs.get("url", "")
+                if "index_upload" in url:
+                    return mock_index_response
+                return mock_complete_response
+
+            mock_post.side_effect = post_side_effect
+
+            sink.close()
+
+            # Verify completion was called
+            complete_calls = [call for call in mock_post.call_args_list if "complete" in call[0][0]]
+            assert len(complete_calls) > 0, "Completion request should have been called"
+
+            complete_call = complete_calls[0]
+            complete_data = complete_call[1].get("json", {})
+            stats = complete_data.get("stats", {})
+
+            # Verify all required fields are present
+            assert "trace_file_size_bytes" in stats
+            assert "screenshot_total_size_bytes" in stats
+            assert "screenshot_count" in stats
+            assert "index_file_size_bytes" in stats
+            assert "total_steps" in stats
+            assert stats["total_steps"] == 1
+            assert "total_events" in stats
+            assert stats["total_events"] == 3
+            assert "duration_ms" in stats
+            assert stats["duration_ms"] is not None
+            assert "final_status" in stats
+            assert stats["final_status"] == "success"
+            assert "started_at" in stats
+            assert stats["started_at"] is not None
+            assert "ended_at" in stats
+            assert stats["ended_at"] is not None
+
+        # Cleanup
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        if trace_path.exists():
+            os.remove(trace_path)
