@@ -9,7 +9,7 @@ def test_smart_selector_inference():
     """Test that recorder infers selectors automatically"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=30000)
 
         # Take snapshot to get element
         snap = snapshot(browser)
@@ -31,7 +31,7 @@ def test_smart_selector_with_text():
     """Test selector inference for elements with text"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=30000)
 
         snap = snapshot(browser)
         # Find element with text
@@ -55,7 +55,7 @@ def test_smart_selector_validation():
     """Test that inferred selectors are validated"""
     with SentienceBrowser() as browser:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_load_state("networkidle", timeout=30000)
 
         snap = snapshot(browser)
         if len(snap.elements) > 0:
