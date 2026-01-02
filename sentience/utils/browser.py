@@ -44,4 +44,3 @@ def save_storage_state(context: BrowserContext, file_path: str | Path) -> None:
     with open(file_path_obj, "w") as f:
         json.dump(storage_state, f, indent=2)
     print(f"✅ [Sentience] Saved storage state to {file_path_obj}")
-

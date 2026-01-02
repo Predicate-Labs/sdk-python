@@ -57,4 +57,3 @@ def format_snapshot_for_llm(snap: Snapshot, limit: int = 50) -> str:
         )
 
     return "\n".join(lines)
-
