@@ -7,7 +7,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from .index_schema import (
     ActionInfo,
@@ -149,15 +149,21 @@ def build_trace_index(trace_path: str) -> TraceIndex:
     event_count = 0
     error_count = 0
     final_url = None
+    run_end_status = None  # Track status from run_end event
+    agent_name = None  # Extract from run_start event
+    line_count = 0  # Track total line count
 
     steps_by_id: dict[str, StepIndex] = {}
     step_order: list[str] = []  # Track order of first appearance
 
-    # Stream through file, tracking byte offsets
+    # Stream through file, tracking byte offsets and line numbers
     with open(trace_path, "rb") as f:
         byte_offset = 0
+        line_number = 0  # Track line number for each event
 
         for line_bytes in f:
+            line_number += 1
+            line_count += 1
             line_len = len(line_bytes)
 
             try:
@@ -182,6 +188,10 @@ def build_trace_index(trace_path: str) -> TraceIndex:
             if event_type == "error":
                 error_count += 1
 
+            # Extract agent_name from run_start event
+            if event_type == "run_start":
+                agent_name = data.get("agent")
+
             # Initialize step if first time seeing this step_id
             if step_id not in steps_by_id:
                 step_order.append(step_id)
@@ -189,11 +199,12 @@ def build_trace_index(trace_path: str) -> TraceIndex:
                     step_index=len(step_order),
                     step_id=step_id,
                     goal=None,
-                    status="partial",
+                    status="failure",  # Default to failure (will be updated by step_end event)
                     ts_start=ts,
                     ts_end=ts,
                     offset_start=byte_offset,
                     offset_end=byte_offset + line_len,
+                    line_number=line_number,  # Track line number
                     url_before=None,
                     url_after=None,
                     snapshot_before=SnapshotInfo(),
@@ -207,6 +218,7 @@ def build_trace_index(trace_path: str) -> TraceIndex:
             # Update step metadata
             step.ts_end = ts
             step.offset_end = byte_offset + line_len
+            step.line_number = line_number  # Update line number on each event
             step.counters.events += 1
 
             # Handle specific event types
@@ -214,7 +226,8 @@ def build_trace_index(trace_path: str) -> TraceIndex:
                 step.goal = data.get("goal")
                 step.url_before = data.get("pre_url")
 
-            elif event_type == "snapshot":
+            elif event_type == "snapshot" or event_type == "snapshot_taken":
+                # Handle both "snapshot" (current) and "snapshot_taken" (schema) for backward compatibility
                 snapshot_id = data.get("snapshot_id")
                 url = data.get("url")
                 digest = _compute_snapshot_digest(data)
@@ -231,7 +244,8 @@ def build_trace_index(trace_path: str) -> TraceIndex:
                 step.counters.snapshots += 1
                 final_url = url
 
-            elif event_type == "action":
+            elif event_type == "action" or event_type == "action_executed":
+                # Handle both "action" (current) and "action_executed" (schema) for backward compatibility
                 step.action = ActionInfo(
                     type=data.get("type"),
                     target_element_id=data.get("target_element_id"),
@@ -240,17 +254,82 @@ def build_trace_index(trace_path: str) -> TraceIndex:
                 )
                 step.counters.actions += 1
 
-            elif event_type == "llm_response":
+            elif event_type == "llm_response" or event_type == "llm_called":
+                # Handle both "llm_response" (current) and "llm_called" (schema) for backward compatibility
                 step.counters.llm_calls += 1
 
             elif event_type == "error":
-                step.status = "error"
+                step.status = "failure"
 
             elif event_type == "step_end":
-                if step.status != "error":
-                    step.status = "ok"
+                # Determine status from step_end event data
+                # Frontend expects: success, failure, or partial
+                # Logic: success = exec.success && verify.passed
+                #        partial = exec.success && !verify.passed
+                #        failure = !exec.success
+                exec_data = data.get("exec", {})
+                verify_data = data.get("verify", {})
+
+                exec_success = exec_data.get("success", False)
+                verify_passed = verify_data.get("passed", False)
+
+                if exec_success and verify_passed:
+                    step.status = "success"
+                elif exec_success and not verify_passed:
+                    step.status = "partial"
+                elif not exec_success:
+                    step.status = "failure"
+                else:
+                    # Fallback: if step_end exists but no exec/verify data, default to failure
+                    step.status = "failure"
+
+            elif event_type == "run_end":
+                # Extract status from run_end event
+                run_end_status = data.get("status")
+                # Validate status value
+                if run_end_status not in ["success", "failure", "partial", "unknown"]:
+                    run_end_status = None
 
             byte_offset += line_len
+
+    # Use run_end status if available, otherwise infer from step statuses
+    if run_end_status is None:
+        step_statuses = [step.status for step in steps_by_id.values()]
+        if step_statuses:
+            # Infer overall status from step statuses
+            if all(s == "success" for s in step_statuses):
+                run_end_status = "success"
+            elif any(s == "failure" for s in step_statuses):
+                # If any failure and no successes, it's failure; otherwise partial
+                if any(s == "success" for s in step_statuses):
+                    run_end_status = "partial"
+                else:
+                    run_end_status = "failure"
+            elif any(s == "partial" for s in step_statuses):
+                run_end_status = "partial"
+            else:
+                run_end_status = "failure"  # Default to failure instead of unknown
+        else:
+            run_end_status = "failure"  # Default to failure instead of unknown
+
+    # Calculate duration
+    duration_ms = None
+    if first_ts and last_ts:
+        try:
+            start = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+            end = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+            duration_ms = int((end - start).total_seconds() * 1000)
+        except (ValueError, AttributeError):
+            duration_ms = None
+
+    # Aggregate counters
+    snapshot_count = sum(step.counters.snapshots for step in steps_by_id.values())
+    action_count = sum(step.counters.actions for step in steps_by_id.values())
+    counters = {
+        "snapshot_count": snapshot_count,
+        "action_count": action_count,
+        "error_count": error_count,
+    }
 
     # Build summary
     summary = TraceSummary(
@@ -260,6 +339,10 @@ def build_trace_index(trace_path: str) -> TraceIndex:
         step_count=len(steps_by_id),
         error_count=error_count,
         final_url=final_url,
+        status=run_end_status,
+        agent_name=agent_name,
+        duration_ms=duration_ms,
+        counters=counters,
     )
 
     # Build steps list in order
@@ -270,6 +353,7 @@ def build_trace_index(trace_path: str) -> TraceIndex:
         path=str(trace_path),
         size_bytes=os.path.getsize(trace_path),
         sha256=_compute_file_sha256(str(trace_path)),
+        line_count=line_count,
     )
 
     # Build final index
@@ -285,13 +369,16 @@ def build_trace_index(trace_path: str) -> TraceIndex:
     return index
 
 
-def write_trace_index(trace_path: str, index_path: str | None = None) -> str:
+def write_trace_index(
+    trace_path: str, index_path: str | None = None, frontend_format: bool = False
+) -> str:
     """
     Build index and write to file.
 
     Args:
         trace_path: Path to trace JSONL file
         index_path: Optional custom path for index file (default: trace_path with .index.json)
+        frontend_format: If True, write in frontend-compatible format (default: False)
 
     Returns:
         Path to written index file
@@ -301,8 +388,11 @@ def write_trace_index(trace_path: str, index_path: str | None = None) -> str:
 
     index = build_trace_index(trace_path)
 
-    with open(index_path, "w") as f:
-        json.dump(index.to_dict(), f, indent=2)
+    with open(index_path, "w", encoding="utf-8") as f:
+        if frontend_format:
+            json.dump(index.to_sentience_studio_dict(), f, indent=2)
+        else:
+            json.dump(index.to_dict(), f, indent=2)
 
     return index_path
 

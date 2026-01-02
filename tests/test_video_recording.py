@@ -117,7 +117,7 @@ def test_no_video_recording_when_disabled():
 
     try:
         browser.page.goto("https://example.com")
-        browser.page.wait_for_load_state("networkidle", timeout=10000)
+        browser.page.wait_for_load_state("networkidle", timeout=30000)
 
         video_path = browser.close()
 
@@ -188,7 +188,7 @@ def test_video_recording_multiple_sessions():
 
             try:
                 browser.page.goto("https://example.com")
-                browser.page.wait_for_load_state("networkidle", timeout=10000)
+                browser.page.wait_for_load_state("networkidle", timeout=30000)
 
                 output_path = video_dir / f"video_{i}.webm"
                 video_path = browser.close(output_path=str(output_path))
