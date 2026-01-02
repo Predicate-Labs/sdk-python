@@ -95,7 +95,7 @@ def find_text_rect(
     BrowserEvaluator.wait_for_extension(browser.page, timeout_ms=5000)
 
     # Verify findTextRect method exists (for older extension versions that don't have it)
-    if not BrowserEvaluator.verify_method_exists(browser.page, SentienceAction.FIND_TEXT_RECT):
+    if not BrowserEvaluator.verify_method_exists(browser.page, SentienceMethod.FIND_TEXT_RECT):
         raise RuntimeError(
             "window.sentience.findTextRect is not available. "
             "Please update the Sentience extension to the latest version."
