@@ -42,7 +42,7 @@ class PageProtocol(Protocol):
         """
         ...
 
-    def goto(self, url: str, **kwargs: Any) -> Optional[Any]:
+    def goto(self, url: str, **kwargs: Any) -> Any | None:
         """
         Navigate to a URL.
 
@@ -64,7 +64,7 @@ class PageProtocol(Protocol):
         """
         ...
 
-    def wait_for_load_state(self, state: str = "load", timeout: Optional[int] = None) -> None:
+    def wait_for_load_state(self, state: str = "load", timeout: int | None = None) -> None:
         """
         Wait for page load state.
 
@@ -89,7 +89,7 @@ class BrowserProtocol(Protocol):
     """
 
     @property
-    def page(self) -> Optional[PageProtocol]:
+    def page(self) -> PageProtocol | None:
         """
         Current Playwright Page object.
 
@@ -102,7 +102,7 @@ class BrowserProtocol(Protocol):
         """Start the browser session."""
         ...
 
-    def close(self, output_path: Optional[str] = None) -> Optional[str]:
+    def close(self, output_path: str | None = None) -> str | None:
         """
         Close the browser session.
 
@@ -151,7 +151,7 @@ class AsyncPageProtocol(Protocol):
         """
         ...
 
-    async def goto(self, url: str, **kwargs: Any) -> Optional[Any]:
+    async def goto(self, url: str, **kwargs: Any) -> Any | None:
         """
         Navigate to a URL (async).
 
@@ -173,9 +173,7 @@ class AsyncPageProtocol(Protocol):
         """
         ...
 
-    async def wait_for_load_state(
-        self, state: str = "load", timeout: Optional[int] = None
-    ) -> None:
+    async def wait_for_load_state(self, state: str = "load", timeout: int | None = None) -> None:
         """
         Wait for page load state (async).
 
@@ -195,7 +193,7 @@ class AsyncBrowserProtocol(Protocol):
     """
 
     @property
-    def page(self) -> Optional[AsyncPageProtocol]:
+    def page(self) -> AsyncPageProtocol | None:
         """
         Current Playwright AsyncPage object.
 
@@ -208,7 +206,7 @@ class AsyncBrowserProtocol(Protocol):
         """Start the browser session (async)."""
         ...
 
-    async def close(self, output_path: Optional[str] = None) -> Optional[str]:
+    async def close(self, output_path: str | None = None) -> str | None:
         """
         Close the browser session (async).
 
@@ -228,4 +226,3 @@ class AsyncBrowserProtocol(Protocol):
             url: URL to navigate to
         """
         ...
-
