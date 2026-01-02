@@ -194,7 +194,8 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         # Mock snapshot to raise network error
-        with patch("sentience.snapshot.snapshot") as mock_snapshot:
+        # Patch at the agent module level since that's where it's imported
+        with patch("sentience.agent.snapshot") as mock_snapshot:
             mock_snapshot.side_effect = ConnectionError("Network failure")
 
             with pytest.raises(RuntimeError, match="Failed after"):
@@ -217,15 +218,13 @@ class TestAgentErrorHandling:
         )
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
+            patch("sentience.snapshot.snapshot") as mock_snapshot,
             patch("sentience.action_executor.click") as mock_click,
         ):
             from sentience.models import ActionResult
 
             mock_snapshot.return_value = empty_snap
-            mock_click.return_value = ActionResult(
-                success=False, duration_ms=100, outcome="Element not found"
-            )
+            mock_click.return_value = ActionResult(success=False, duration_ms=100, outcome="error")
 
             # Agent should still attempt action even with empty snapshot
             result = agent.act("Click the button", max_retries=0)

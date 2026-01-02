@@ -26,9 +26,7 @@ class ActionExecutor:
 
     def __init__(
         self,
-        browser: (
-            SentienceBrowser | AsyncSentienceBrowser | BrowserProtocol | AsyncBrowserProtocol
-        ),
+        browser: SentienceBrowser | AsyncSentienceBrowser | BrowserProtocol | AsyncBrowserProtocol,
     ):
         """
         Initialize action executor.
@@ -39,7 +37,25 @@ class ActionExecutor:
         """
         self.browser = browser
         # Check if browser is async - support both concrete types and protocols
-        self._is_async = isinstance(browser, (AsyncSentienceBrowser, AsyncBrowserProtocol))
+        # Check concrete types first (most reliable)
+        if isinstance(browser, AsyncSentienceBrowser):
+            self._is_async = True
+        elif isinstance(browser, SentienceBrowser):
+            self._is_async = False
+        else:
+            # For protocol-based browsers, check if methods are actually async
+            # This is more reliable than isinstance checks which can match both protocols
+            import inspect
+
+            start_method = getattr(browser, "start", None)
+            if start_method and inspect.iscoroutinefunction(start_method):
+                self._is_async = True
+            elif isinstance(browser, BrowserProtocol):
+                # If it implements BrowserProtocol and start is not async, it's sync
+                self._is_async = False
+            else:
+                # Default to sync for unknown types
+                self._is_async = False
 
     def execute(self, action_str: str, snap: Snapshot) -> dict[str, Any]:
         """

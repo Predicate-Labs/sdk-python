@@ -33,6 +33,37 @@ if TYPE_CHECKING:
     from .tracing import Tracer
 
 
+def _safe_tracer_call(
+    tracer: Optional["Tracer"], method_name: str, verbose: bool, *args, **kwargs
+) -> None:
+    """
+    Safely call tracer method, catching and logging errors without breaking execution.
+
+    Args:
+        tracer: Tracer instance or None
+        method_name: Name of tracer method to call (e.g., "emit", "emit_error")
+        verbose: Whether to print error messages
+        *args: Positional arguments for the tracer method
+        **kwargs: Keyword arguments for the tracer method
+    """
+    if not tracer:
+        return
+    try:
+        method = getattr(tracer, method_name)
+        if args and kwargs:
+            method(*args, **kwargs)
+        elif args:
+            method(*args)
+        elif kwargs:
+            method(**kwargs)
+        else:
+            method()
+    except Exception as tracer_error:
+        # Tracer errors should not break agent execution
+        if verbose:
+            print(f"⚠️  Tracer error (non-fatal): {tracer_error}")
+
+
 class SentienceAgent(BaseAgent):
     """
     High-level agent that combines Sentience SDK with any LLM provider.
@@ -159,7 +190,10 @@ class SentienceAgent(BaseAgent):
         # Emit step_start trace event if tracer is enabled
         if self.tracer:
             pre_url = self.browser.page.url if self.browser.page else None
-            self.tracer.emit_step_start(
+            _safe_tracer_call(
+                self.tracer,
+                "emit_step_start",
+                self.verbose,
                 step_id=step_id,
                 step_index=self._step_count,
                 goal=goal,
@@ -228,7 +262,10 @@ class SentienceAgent(BaseAgent):
                         if snap.screenshot_format:
                             snapshot_data["screenshot_format"] = snap.screenshot_format
 
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "snapshot",
                         snapshot_data,
                         step_id=step_id,
@@ -254,7 +291,10 @@ class SentienceAgent(BaseAgent):
 
                 # Emit LLM query trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "llm_query",
                         {
                             "prompt_tokens": llm_response.prompt_tokens,
@@ -315,7 +355,10 @@ class SentienceAgent(BaseAgent):
                         for el in filtered_snap.elements[:50]
                     ]
 
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "action",
                         {
                             "action": result.action,
@@ -435,14 +478,28 @@ class SentienceAgent(BaseAgent):
                         verify_data=verify_data,
                     )
 
-                    self.tracer.emit("step_end", step_end_data, step_id=step_id)
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
+                        "step_end",
+                        step_end_data,
+                        step_id=step_id,
+                    )
 
                 return result
 
             except Exception as e:
                 # Emit error trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit_error(step_id=step_id, error=str(e), attempt=attempt)
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit_error",
+                        self.verbose,
+                        step_id=step_id,
+                        error=str(e),
+                        attempt=attempt,
+                    )
 
                 if attempt < max_retries:
                     if self.verbose:
@@ -668,7 +725,10 @@ class SentienceAgentAsync(BaseAgentAsync):
         # Emit step_start trace event if tracer is enabled
         if self.tracer:
             pre_url = self.browser.page.url if self.browser.page else None
-            self.tracer.emit_step_start(
+            _safe_tracer_call(
+                self.tracer,
+                "emit_step_start",
+                self.verbose,
                 step_id=step_id,
                 step_index=self._step_count,
                 goal=goal,
@@ -740,7 +800,10 @@ class SentienceAgentAsync(BaseAgentAsync):
                         if snap.screenshot_format:
                             snapshot_data["screenshot_format"] = snap.screenshot_format
 
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "snapshot",
                         snapshot_data,
                         step_id=step_id,
@@ -766,7 +829,10 @@ class SentienceAgentAsync(BaseAgentAsync):
 
                 # Emit LLM query trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "llm_query",
                         {
                             "prompt_tokens": llm_response.prompt_tokens,
@@ -827,7 +893,10 @@ class SentienceAgentAsync(BaseAgentAsync):
                         for el in filtered_snap.elements[:50]
                     ]
 
-                    self.tracer.emit(
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
                         "action",
                         {
                             "action": result.action,
@@ -947,14 +1016,28 @@ class SentienceAgentAsync(BaseAgentAsync):
                         verify_data=verify_data,
                     )
 
-                    self.tracer.emit("step_end", step_end_data, step_id=step_id)
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit",
+                        self.verbose,
+                        "step_end",
+                        step_end_data,
+                        step_id=step_id,
+                    )
 
                 return result
 
             except Exception as e:
                 # Emit error trace event if tracer is enabled
                 if self.tracer:
-                    self.tracer.emit_error(step_id=step_id, error=str(e), attempt=attempt)
+                    _safe_tracer_call(
+                        self.tracer,
+                        "emit_error",
+                        self.verbose,
+                        step_id=step_id,
+                        error=str(e),
+                        attempt=attempt,
+                    )
 
                 if attempt < max_retries:
                     if self.verbose:
