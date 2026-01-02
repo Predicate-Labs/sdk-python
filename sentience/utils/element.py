@@ -76,7 +76,7 @@ class ElementFingerprint:
         return data
 
 
-def normalize_text_strict(text: Optional[str], max_length: int = 80) -> str:
+def normalize_text_strict(text: str | None, max_length: int = 80) -> str:
     """
     Normalize text for strict digest (structure + content).
 
@@ -255,4 +255,3 @@ def compute_snapshot_digests(elements: list[dict[str, Any]]) -> dict[str, str]:
         "strict": sha256_digest(canonical_strict),
         "loose": sha256_digest(canonical_loose),
     }
-

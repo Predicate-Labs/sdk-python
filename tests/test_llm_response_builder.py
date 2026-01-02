@@ -93,4 +93,3 @@ class TestLLMResponseBuilder:
         assert response.total_tokens == 30
         assert response.model_name == "Qwen/Qwen2.5-3B-Instruct"
         assert response.finish_reason is None
-

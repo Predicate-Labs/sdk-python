@@ -14,9 +14,6 @@ from .browser import SentienceBrowser
 from .cloud_tracing import CloudTraceSink, SentienceLogger
 from .conversational_agent import ConversationalAgent
 from .expect import expect
-
-# Formatting (v0.12.0+)
-from .utils.formatting import format_snapshot_for_llm
 from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
 from .llm_provider import (
@@ -70,6 +67,9 @@ from .utils import (
     save_storage_state,
     sha256_digest,
 )
+
+# Formatting (v0.12.0+)
+from .utils.formatting import format_snapshot_for_llm
 from .wait import wait_for
 
 __version__ = "0.91.1"

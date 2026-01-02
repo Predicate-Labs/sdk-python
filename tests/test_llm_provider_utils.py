@@ -94,4 +94,3 @@ def test_handle_provider_error_generic():
     error = Exception("Network timeout")
     with pytest.raises(RuntimeError, match="Gemini generate response failed: Network timeout"):
         handle_provider_error(error, "Gemini", "generate response")
-
