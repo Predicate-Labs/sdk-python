@@ -230,7 +230,10 @@ class JsonlTraceSink(TraceSink):
         try:
             from .trace_indexing import write_trace_index
 
-            write_trace_index(str(self.path))
+            # Use frontend format to ensure 'step' field is present (1-based)
+            # Frontend derives sequence from step.step - 1, so step must be valid
+            index_path = Path(self.path).with_suffix(".index.json")
+            write_trace_index(str(self.path), str(index_path), frontend_format=True)
         except Exception as e:
             # Non-fatal: log but don't crash
             print(f"⚠️  Failed to generate trace index: {e}")
