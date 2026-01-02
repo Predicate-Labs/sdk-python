@@ -5,15 +5,13 @@ Enables end users to control web automation using plain English
 
 import json
 import time
-from typing import Any
-
-from typing import Union
+from typing import Any, Union
 
 from .agent import SentienceAgent
 from .browser import SentienceBrowser
 from .llm_provider import LLMProvider
-from .protocols import BrowserProtocol
 from .models import ExtractionResult, Snapshot, SnapshotOptions, StepExecutionResult
+from .protocols import BrowserProtocol
 from .snapshot import snapshot
 
 
@@ -33,7 +31,10 @@ class ConversationalAgent:
     """
 
     def __init__(
-        self, browser: Union[SentienceBrowser, BrowserProtocol], llm: LLMProvider, verbose: bool = True
+        self,
+        browser: SentienceBrowser | BrowserProtocol,
+        llm: LLMProvider,
+        verbose: bool = True,
     ):
         """
         Initialize conversational agent

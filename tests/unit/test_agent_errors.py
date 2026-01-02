@@ -59,11 +59,13 @@ class MockPage(PageProtocol):
     def evaluate(self, script: str, *args: Any, **kwargs: Any) -> Any:
         # Return proper snapshot structure when snapshot is called
         # The script is a function that calls window.sentience.snapshot(options)
-        if "window.sentience.snapshot" in script or ("snapshot" in script.lower() and "options" in script):
+        if "window.sentience.snapshot" in script or (
+            "snapshot" in script.lower() and "options" in script
+        ):
             # Check if args contain options (for empty snapshot tests)
             options = kwargs.get("options") or (args[0] if args else {})
             limit = options.get("limit", 50) if isinstance(options, dict) else 50
-            
+
             # Return elements based on limit (0 for empty snapshot tests)
             elements = []
             if limit > 0:
@@ -84,7 +86,7 @@ class MockPage(PageProtocol):
                         "z_index": 10,
                     }
                 ]
-            
+
             # Snapshot model expects 'elements' not 'raw_elements'
             return {
                 "status": "success",
@@ -236,9 +238,7 @@ class TestAgentErrorHandling:
         llm = MockLLMProvider(responses=["INVALID_RESPONSE_FORMAT"])
         agent = SentienceAgent(browser, llm, verbose=False)
 
-        with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-        ):
+        with (patch("sentience.snapshot.snapshot") as mock_snapshot,):
             mock_snapshot.return_value = create_mock_snapshot()
 
             # Action executor should raise ValueError for invalid format
@@ -365,7 +365,9 @@ class TestAgentEdgeCases:
             from sentience.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
-            mock_type.return_value = ActionResult(success=True, duration_ms=200, outcome="dom_updated")
+            mock_type.return_value = ActionResult(
+                success=True, duration_ms=200, outcome="dom_updated"
+            )
 
             result = agent.act("Type 你好世界", max_retries=0)
             assert result.success is True
@@ -385,7 +387,9 @@ class TestAgentEdgeCases:
             from sentience.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
-            mock_click.return_value = ActionResult(success=True, duration_ms=150, outcome="dom_updated")
+            mock_click.return_value = ActionResult(
+                success=True, duration_ms=150, outcome="dom_updated"
+            )
 
             # Test with special characters
             result = agent.act('Click the "Submit" button (with quotes)', max_retries=0)
@@ -435,9 +439,10 @@ class TestAgentEdgeCases:
             from sentience.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
-            mock_click.return_value = ActionResult(success=True, duration_ms=150, outcome="dom_updated")
+            mock_click.return_value = ActionResult(
+                success=True, duration_ms=150, outcome="dom_updated"
+            )
 
             # Agent should still complete action despite tracer error
             result = agent.act("Click the button", max_retries=0)
             assert result.success is True
-

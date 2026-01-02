@@ -24,7 +24,12 @@ class ActionExecutor:
     - Handle action parsing errors consistently
     """
 
-    def __init__(self, browser: Union[SentienceBrowser, AsyncSentienceBrowser, BrowserProtocol, AsyncBrowserProtocol]):
+    def __init__(
+        self,
+        browser: (
+            SentienceBrowser | AsyncSentienceBrowser | BrowserProtocol | AsyncBrowserProtocol
+        ),
+    ):
         """
         Initialize action executor.
 

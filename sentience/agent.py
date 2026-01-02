@@ -15,7 +15,6 @@ from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .element_filter import ElementFilter
 from .llm_interaction_handler import LLMInteractionHandler
 from .llm_provider import LLMProvider, LLMResponse
-from .protocols import AsyncBrowserProtocol, BrowserProtocol
 from .models import (
     ActionHistory,
     ActionTokenUsage,
@@ -26,6 +25,7 @@ from .models import (
     SnapshotOptions,
     TokenStats,
 )
+from .protocols import AsyncBrowserProtocol, BrowserProtocol
 from .snapshot import snapshot, snapshot_async
 from .trace_event_builder import TraceEventBuilder
 
@@ -59,7 +59,7 @@ class SentienceAgent(BaseAgent):
 
     def __init__(
         self,
-        browser: Union[SentienceBrowser, BrowserProtocol],
+        browser: SentienceBrowser | BrowserProtocol,
         llm: LLMProvider,
         default_snapshot_limit: int = 50,
         verbose: bool = True,
