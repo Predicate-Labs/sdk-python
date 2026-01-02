@@ -380,8 +380,8 @@ async def _snapshot_via_extension_async(
         """,
         ext_options,
     )
-        if result.get("error"):
-            print(f"      Snapshot error: {result.get('error')}")
+    if result.get("error"):
+        print(f"      Snapshot error: {result.get('error')}")
 
     # Save trace if requested
     if options.save_trace:
