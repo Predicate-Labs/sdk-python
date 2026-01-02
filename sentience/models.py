@@ -2,6 +2,7 @@
 Pydantic models for Sentience SDK - matches spec/snapshot.schema.json
 """
 
+from dataclasses import dataclass
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -410,3 +411,19 @@ class TextRectSearchResult(BaseModel):
     )
     viewport: Viewport | None = Field(None, description="Current viewport dimensions")
     error: str | None = Field(None, description="Error message if status is 'error'")
+
+
+@dataclass
+class ScreenshotMetadata:
+    """
+    Metadata for a stored screenshot.
+
+    Used by CloudTraceSink to track screenshots before upload.
+    All fields are required for type safety.
+    """
+
+    sequence: int
+    format: Literal["png", "jpeg"]
+    size_bytes: int
+    step_id: str | None
+    filepath: str

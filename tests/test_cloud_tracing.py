@@ -1,5 +1,6 @@
 """Tests for sentience.cloud_tracing module"""
 
+import base64
 import gzip
 import json
 import os
@@ -230,6 +231,131 @@ class TestCloudTraceSink:
             assert len(progress_calls) > 0, "Progress callback should be called"
             # Last call should have uploaded == total
             assert progress_calls[-1][0] == progress_calls[-1][1], "Final progress should be 100%"
+
+    def test_cloud_trace_sink_uploads_screenshots_after_trace(self):
+        """Test that CloudTraceSink uploads screenshots after trace upload succeeds."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = "test-screenshot-integration-1"
+        api_key = "sk_test_123"
+
+        # Create test screenshot
+        test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
+
+        # Emit trace event with screenshot embedded
+        sink.emit(
+            {
+                "v": 1,
+                "type": "snapshot",
+                "ts": "2026-01-01T00:00:00.000Z",
+                "run_id": run_id,
+                "seq": 1,
+                "step_id": "step-1",
+                "data": {
+                    "url": "https://example.com",
+                    "element_count": 10,
+                    "screenshot_base64": test_image_base64,
+                    "screenshot_format": "png",
+                },
+            }
+        )
+
+        # Mock all HTTP calls
+        mock_upload_urls = {
+            "1": "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/screenshots/step_0001.png?signature=...",
+        }
+
+        with (
+            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("sentience.cloud_tracing.requests.post") as mock_post,
+        ):
+            # Mock trace upload (first PUT)
+            mock_trace_response = Mock()
+            mock_trace_response.status_code = 200
+            mock_put.return_value = mock_trace_response
+
+            # Mock screenshot init (first POST)
+            mock_init_response = Mock()
+            mock_init_response.status_code = 200
+            mock_init_response.json.return_value = {"upload_urls": mock_upload_urls}
+
+            # Mock screenshot upload (second PUT)
+            mock_screenshot_response = Mock()
+            mock_screenshot_response.status_code = 200
+
+            # Mock complete (second POST)
+            mock_complete_response = Mock()
+            mock_complete_response.status_code = 200
+
+            # Setup mock to return different responses for different calls
+            def put_side_effect(*args, **kwargs):
+                url = args[0] if args else kwargs.get("url", "")
+                if "screenshots" in url:
+                    return mock_screenshot_response
+                return mock_trace_response
+
+            def post_side_effect(*args, **kwargs):
+                url = args[0] if args else kwargs.get("url", "")
+                if "screenshots/init" in url:
+                    return mock_init_response
+                return mock_complete_response
+
+            mock_put.side_effect = put_side_effect
+            mock_post.side_effect = post_side_effect
+
+            # Close triggers upload (which extracts screenshots and uploads them)
+            sink.close()
+
+            # Verify trace was uploaded
+            assert mock_put.call_count >= 1
+
+            # Verify screenshot init was called
+            post_calls = [call[0][0] for call in mock_post.call_args_list]
+            assert any("screenshots/init" in url for url in post_calls)
+
+            # Verify screenshot was uploaded (second PUT call)
+            put_urls = [call[0][0] for call in mock_put.call_args_list]
+            assert any("screenshots" in url for url in put_urls)
+
+            # Verify uploaded trace data does NOT contain screenshot_base64
+            trace_upload_call = None
+            for call in mock_put.call_args_list:
+                headers = call[1].get("headers", {})
+                if headers.get("Content-Type") == "application/x-gzip":
+                    trace_upload_call = call
+                    break
+
+            assert trace_upload_call is not None, "Trace upload should have been called"
+
+            # Decompress and verify screenshot_base64 is removed
+            compressed_data = trace_upload_call[1]["data"]
+            decompressed_data = gzip.decompress(compressed_data)
+            trace_content = decompressed_data.decode("utf-8")
+            events = [
+                json.loads(line) for line in trace_content.strip().split("\n") if line.strip()
+            ]
+
+            snapshot_events = [e for e in events if e.get("type") == "snapshot"]
+            assert len(snapshot_events) > 0, "Should have snapshot event"
+
+            for event in snapshot_events:
+                data = event.get("data", {})
+                assert (
+                    "screenshot_base64" not in data
+                ), "screenshot_base64 should be removed from uploaded trace"
+                assert (
+                    "screenshot_format" not in data
+                ), "screenshot_format should be removed from uploaded trace"
+
+        # Cleanup
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        cleaned_trace_path = cache_dir / f"{run_id}.cleaned.jsonl"
+        if trace_path.exists():
+            os.remove(trace_path)
+        if cleaned_trace_path.exists():
+            os.remove(cleaned_trace_path)
 
 
 class TestTracerFactory:

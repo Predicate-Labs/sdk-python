@@ -120,7 +120,11 @@ def _snapshot_via_extension(
     # Build options dict for extension API (exclude save_trace/trace_path)
     ext_options: dict[str, Any] = {}
     if options.screenshot is not False:
-        ext_options["screenshot"] = options.screenshot
+        # Serialize ScreenshotConfig to dict if it's a Pydantic model
+        if hasattr(options.screenshot, "model_dump"):
+            ext_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            ext_options["screenshot"] = options.screenshot
     if options.limit != 50:
         ext_options["limit"] = options.limit
     if options.filter is not None:
@@ -355,7 +359,11 @@ async def _snapshot_via_extension_async(
     # Build options dict for extension API
     ext_options: dict[str, Any] = {}
     if options.screenshot is not False:
-        ext_options["screenshot"] = options.screenshot
+        # Serialize ScreenshotConfig to dict if it's a Pydantic model
+        if hasattr(options.screenshot, "model_dump"):
+            ext_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            ext_options["screenshot"] = options.screenshot
     if options.limit != 50:
         ext_options["limit"] = options.limit
     if options.filter is not None:
@@ -372,6 +380,8 @@ async def _snapshot_via_extension_async(
         """,
         ext_options,
     )
+    if result.get("error"):
+        print(f"      Snapshot error: {result.get('error')}")
 
     # Save trace if requested
     if options.save_trace:
@@ -391,6 +401,15 @@ async def _snapshot_via_extension_async(
                 """,
                 raw_elements,
             )
+
+    # Extract screenshot_format from data URL if not provided by extension
+    if result.get("screenshot") and not result.get("screenshot_format"):
+        screenshot_data_url = result.get("screenshot", "")
+        if screenshot_data_url.startswith("data:image/"):
+            # Extract format from "data:image/jpeg;base64,..." or "data:image/png;base64,..."
+            format_match = screenshot_data_url.split(";")[0].split("/")[-1]
+            if format_match in ["jpeg", "jpg", "png"]:
+                result["screenshot_format"] = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
 
     # Validate and parse with Pydantic
     snapshot_obj = Snapshot(**result)
@@ -421,10 +440,16 @@ async def _snapshot_via_api_async(
             "Sentience extension failed to inject. Cannot collect raw data for API processing."
         ) from e
 
-    # Step 1: Get raw data from local extension
+    # Step 1: Get raw data from local extension (including screenshot)
     raw_options: dict[str, Any] = {}
+    screenshot_requested = False
     if options.screenshot is not False:
-        raw_options["screenshot"] = options.screenshot
+        screenshot_requested = True
+        # Serialize ScreenshotConfig to dict if it's a Pydantic model
+        if hasattr(options.screenshot, "model_dump"):
+            raw_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            raw_options["screenshot"] = options.screenshot
 
     raw_result = await browser.page.evaluate(
         """
@@ -434,6 +459,16 @@ async def _snapshot_via_api_async(
         """,
         raw_options,
     )
+
+    # Extract screenshot from raw result (extension captures it, but API doesn't return it)
+    screenshot_data_url = raw_result.get("screenshot")
+    screenshot_format = None
+    if screenshot_data_url:
+        # Extract format from data URL
+        if screenshot_data_url.startswith("data:image/"):
+            format_match = screenshot_data_url.split(";")[0].split("/")[-1]
+            if format_match in ["jpeg", "jpg", "png"]:
+                screenshot_format = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
 
     # Save trace if requested
     if options.save_trace:
@@ -479,6 +514,13 @@ async def _snapshot_via_api_async(
             response.raise_for_status()
             api_result = response.json()
 
+        # Extract screenshot format from data URL if not provided
+        if screenshot_data_url and not screenshot_format:
+            if screenshot_data_url.startswith("data:image/"):
+                format_match = screenshot_data_url.split(";")[0].split("/")[-1]
+                if format_match in ["jpeg", "jpg", "png"]:
+                    screenshot_format = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
+
         # Merge API result with local data
         snapshot_data = {
             "status": api_result.get("status", "success"),
@@ -486,8 +528,8 @@ async def _snapshot_via_api_async(
             "url": api_result.get("url", raw_result.get("url", "")),
             "viewport": api_result.get("viewport", raw_result.get("viewport")),
             "elements": api_result.get("elements", []),
-            "screenshot": raw_result.get("screenshot"),
-            "screenshot_format": raw_result.get("screenshot_format"),
+            "screenshot": screenshot_data_url,  # Use the extracted screenshot
+            "screenshot_format": screenshot_format,  # Use the extracted format
             "error": api_result.get("error"),
         }
 
