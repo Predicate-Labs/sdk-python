@@ -112,4 +112,3 @@ class TestTraceFileManager:
         """Test that FileNotFoundError is raised for non-existent file"""
         with pytest.raises(FileNotFoundError):
             TraceFileManager.read_events(Path("/nonexistent/file.jsonl"))
-
