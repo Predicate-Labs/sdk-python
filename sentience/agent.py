@@ -830,7 +830,9 @@ class SentienceAgentAsync(BaseAgentAsync):
                     snap_opts.goal = goal
 
                 # Apply AgentConfig screenshot settings if not overridden by snapshot_options
-                if snapshot_options is None and self.config:
+                # Only apply if snapshot_options wasn't provided OR if screenshot wasn't explicitly set
+                # (snapshot_options.screenshot defaults to False, so we check if it's still False)
+                if self.config and (snapshot_options is None or snap_opts.screenshot is False):
                     if self.config.capture_screenshots:
                         # Create ScreenshotConfig from AgentConfig
                         snap_opts.screenshot = ScreenshotConfig(

@@ -181,7 +181,6 @@ class CloudTraceSink(TraceSink):
 
             # Step 2: Upload screenshots separately
             if screenshots:
-                print(f"📸 [Sentience] Uploading {len(screenshots)} screenshots...")
                 self._upload_screenshots(screenshots, on_progress)
 
             # Step 3: Create cleaned trace file (without screenshot_base64)
@@ -505,16 +504,31 @@ class CloudTraceSink(TraceSink):
                 data = response.json()
                 # Gateway returns sequences as strings in JSON, convert to int keys
                 upload_urls = data.get("upload_urls", {})
-                return {int(k): v for k, v in upload_urls.items()}
-            else:
+                result = {int(k): v for k, v in upload_urls.items()}
                 if self.logger:
-                    self.logger.warning(
-                        f"Failed to get screenshot URLs: HTTP {response.status_code}"
-                    )
+                    self.logger.info(f"Received {len(result)} screenshot upload URLs")
+                return result
+            else:
+                error_msg = f"Failed to get screenshot URLs: HTTP {response.status_code}"
+                if self.logger:
+                    self.logger.warning(error_msg)
+                else:
+                    print(f"   ⚠️  {error_msg}")
+                # Try to get error details
+                try:
+                    error_data = response.json()
+                    error_detail = error_data.get("error") or error_data.get("message", "")
+                    if error_detail:
+                        print(f"      Error: {error_detail}")
+                except Exception:
+                    print(f"      Response: {response.text[:200]}")
                 return {}
         except Exception as e:
+            error_msg = f"Error requesting screenshot URLs: {e}"
             if self.logger:
-                self.logger.warning(f"Error requesting screenshot URLs: {e}")
+                self.logger.warning(error_msg)
+            else:
+                print(f"   ⚠️  {error_msg}")
             return {}
 
     def _upload_screenshots(
@@ -540,11 +554,18 @@ class CloudTraceSink(TraceSink):
 
         # 1. Request pre-signed URLs from gateway
         sequences = sorted(screenshots.keys())
+        print(f"   Requesting upload URLs for {len(sequences)} screenshot(s)...")
         upload_urls = self._request_screenshot_urls(sequences)
 
         if not upload_urls:
             print("⚠️  [Sentience] No screenshot upload URLs received, skipping upload")
+            print("   This may indicate:")
+            print("   - API key doesn't have permission for screenshot uploads")
+            print("   - Gateway endpoint /v1/screenshots/init returned an error")
+            print("   - Network issue connecting to gateway")
             return
+        
+        print(f"   ✅ Received {len(upload_urls)} upload URL(s) from gateway")
 
         # 2. Upload screenshots in parallel
         uploaded_count = 0
@@ -566,6 +587,11 @@ class CloudTraceSink(TraceSink):
                 self.screenshot_total_size_bytes += image_size
 
                 # Upload to pre-signed URL
+                # Extract the base URL for logging (without query params)
+                upload_base_url = url.split('?')[0] if '?' in url else url
+                if self.verbose if hasattr(self, 'verbose') else False:
+                    print(f"   📤 Uploading screenshot {seq} ({image_size / 1024:.1f} KB) to: {upload_base_url[:80]}...")
+                
                 response = requests.put(
                     url,
                     data=image_bytes,  # Binary image data
@@ -576,16 +602,34 @@ class CloudTraceSink(TraceSink):
                 )
 
                 if response.status_code == 200:
+                    if self.logger:
+                        self.logger.info(f"Screenshot {seq} uploaded successfully ({image_size / 1024:.1f} KB)")
+                    else:
+                        # Extract base URL for logging (without query params for security)
+                        upload_base = url.split('?')[0] if '?' in url else url
+                        upload_base_short = upload_base[:80] + "..." if len(upload_base) > 80 else upload_base
+                        print(f"   ✅ Screenshot {seq} uploaded: {image_size / 1024:.1f} KB, format={format_str}, URL={upload_base_short}")
                     return True
                 else:
+                    error_msg = f"Screenshot {seq} upload failed: HTTP {response.status_code}"
                     if self.logger:
-                        self.logger.warning(
-                            f"Screenshot {seq} upload failed: HTTP {response.status_code}"
-                        )
+                        self.logger.warning(error_msg)
+                    else:
+                        print(f"   ⚠️  {error_msg}")
+                    # Try to get error details from response
+                    try:
+                        error_detail = response.text[:200]
+                        if error_detail:
+                            print(f"      Response: {error_detail}")
+                    except Exception:
+                        pass
                     return False
             except Exception as e:
+                error_msg = f"Screenshot {seq} upload error: {e}"
                 if self.logger:
-                    self.logger.warning(f"Screenshot {seq} upload error: {e}")
+                    self.logger.warning(error_msg)
+                else:
+                    print(f"   ⚠️  {error_msg}")
                 return False
 
         # Upload in parallel (max 10 concurrent)
@@ -605,7 +649,10 @@ class CloudTraceSink(TraceSink):
 
         # 3. Report results
         if uploaded_count == total_count:
-            print(f"✅ [Sentience] All {total_count} screenshots uploaded successfully")
+            total_size_mb = self.screenshot_total_size_bytes / 1024 / 1024
+            print(f"✅ [Sentience] All {total_count} screenshots uploaded successfully!")
+            print(f"   📊 Total screenshot size: {total_size_mb:.2f} MB")
+            print(f"   📸 Screenshots are now available in cloud storage")
         else:
             print(f"⚠️  [Sentience] Uploaded {uploaded_count}/{total_count} screenshots")
             if failed_sequences:

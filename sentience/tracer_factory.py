@@ -74,6 +74,10 @@ def create_tracer(
     if api_key and upload_trace:
         try:
             # Request pre-signed upload URL from backend
+            print(f"🔗 [Sentience] Attempting to initialize cloud tracing...")
+            print(f"   API URL: {api_url}/v1/traces/init")
+            print(f"   Run ID: {run_id}")
+            
             response = requests.post(
                 f"{api_url}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -81,12 +85,14 @@ def create_tracer(
                 timeout=10,
             )
 
+            print(f"   Response Status: HTTP {response.status_code}")
+
             if response.status_code == 200:
                 data = response.json()
                 upload_url = data.get("upload_url")
 
                 if upload_url:
-                    print("☁️  [Sentience] Cloud tracing enabled (Pro tier)")
+                    print("☁️  [Sentience] Cloud tracing enabled")
                     return Tracer(
                         run_id=run_id,
                         sink=CloudTraceSink(
@@ -99,13 +105,41 @@ def create_tracer(
                     )
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
+                    print(f"   Response data: {data}")
                     print("   Falling back to local-only tracing")
 
             elif response.status_code == 403:
-                print("⚠️  [Sentience] Cloud tracing requires Pro tier")
+                print("⚠️  [Sentience] Cloud tracing requires Pro/Enterprise tier")
+                print("   Your account tier may not support cloud tracing")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get("message", "")
+                    if error_msg:
+                        print(f"   API Error: {error_msg}")
+                except Exception:
+                    pass
+                print("   Falling back to local-only tracing")
+            elif response.status_code == 401:
+                print("⚠️  [Sentience] Cloud init failed: HTTP 401 Unauthorized")
+                print("   API key is invalid or expired")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get("message", "")
+                    if error_msg:
+                        print(f"   API Error: {error_msg}")
+                except Exception:
+                    pass
                 print("   Falling back to local-only tracing")
             else:
                 print(f"⚠️  [Sentience] Cloud init failed: HTTP {response.status_code}")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error") or error_data.get("message", "Unknown error")
+                    print(f"   Error: {error_msg}")
+                    if "tier" in error_msg.lower() or "subscription" in error_msg.lower():
+                        print(f"   💡 This may be a tier/subscription issue")
+                except Exception:
+                    print(f"   Response: {response.text[:200]}")
                 print("   Falling back to local-only tracing")
 
         except requests.exceptions.Timeout:
