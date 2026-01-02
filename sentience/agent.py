@@ -198,29 +198,16 @@ class SentienceAgent(BaseAgent):
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Include element data for live overlay visualization
-                    # Use filtered_elements for overlay (only relevant elements)
-                    elements_data = [
-                        {
-                            "id": el.id,
-                            "bbox": {
-                                "x": el.bbox.x,
-                                "y": el.bbox.y,
-                                "width": el.bbox.width,
-                                "height": el.bbox.height,
-                            },
-                            "role": el.role,
-                            "text": el.text[:50] if el.text else "",  # Truncate for brevity
-                        }
-                        for el in filtered_elements[:50]  # Limit to first 50 for performance
-                    ]
+                    # Include ALL elements with full data for DOM tree display
+                    # Use snap.elements (all elements) not filtered_elements
+                    elements_data = [el.model_dump() for el in snap.elements]
 
                     # Build snapshot event data
                     snapshot_data = {
                         "url": snap.url,
                         "element_count": len(snap.elements),
                         "timestamp": snap.timestamp,
-                        "elements": elements_data,  # Add element data for overlay
+                        "elements": elements_data,  # Full element data for DOM tree
                     }
 
                     # Always include screenshot in trace event for studio viewer compatibility
@@ -983,29 +970,16 @@ class SentienceAgentAsync(BaseAgentAsync):
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Include element data for live overlay visualization
-                    # Use filtered_elements for overlay (only relevant elements)
-                    elements_data = [
-                        {
-                            "id": el.id,
-                            "bbox": {
-                                "x": el.bbox.x,
-                                "y": el.bbox.y,
-                                "width": el.bbox.width,
-                                "height": el.bbox.height,
-                            },
-                            "role": el.role,
-                            "text": el.text[:50] if el.text else "",  # Truncate for brevity
-                        }
-                        for el in filtered_elements[:50]  # Limit to first 50 for performance
-                    ]
+                    # Include ALL elements with full data for DOM tree display
+                    # Use snap.elements (all elements) not filtered_elements
+                    elements_data = [el.model_dump() for el in snap.elements]
 
                     # Build snapshot event data
                     snapshot_data = {
                         "url": snap.url,
                         "element_count": len(snap.elements),
                         "timestamp": snap.timestamp,
-                        "elements": elements_data,  # Add element data for overlay
+                        "elements": elements_data,  # Full element data for DOM tree
                     }
 
                     # Always include screenshot in trace event for studio viewer compatibility

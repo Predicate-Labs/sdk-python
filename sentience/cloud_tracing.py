@@ -270,7 +270,10 @@ class CloudTraceSink(TraceSink):
         try:
             from .trace_indexing import write_trace_index
 
-            write_trace_index(str(self._path))
+            # Use frontend format to ensure 'step' field is present (1-based)
+            # Frontend derives sequence from step.step - 1, so step must be valid
+            index_path = Path(str(self._path).replace(".jsonl", ".index.json"))
+            write_trace_index(str(self._path), str(index_path), frontend_format=True)
         except Exception as e:
             # Non-fatal: log but don't crash
             print(f"⚠️  Failed to generate trace index: {e}")
@@ -322,10 +325,28 @@ class CloudTraceSink(TraceSink):
                     self.logger.warning("No upload URL in index upload response")
                 return
 
-            # Read and compress index file
-            with open(index_path, "rb") as f:
-                index_data = f.read()
+            # Read index file and update trace_file.path to cloud storage path
+            with open(index_path, encoding="utf-8") as f:
+                index_json = json.load(f)
 
+            # Extract cloud storage path from trace upload URL
+            # upload_url format: https://...digitaloceanspaces.com/traces/{run_id}.jsonl.gz
+            # Extract path: traces/{run_id}.jsonl.gz
+            try:
+                from urllib.parse import urlparse
+
+                parsed_url = urlparse(self.upload_url)
+                # Extract path after domain (e.g., /traces/run-123.jsonl.gz -> traces/run-123.jsonl.gz)
+                cloud_trace_path = parsed_url.path.lstrip("/")
+                # Update trace_file.path in index
+                if "trace_file" in index_json and isinstance(index_json["trace_file"], dict):
+                    index_json["trace_file"]["path"] = cloud_trace_path
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Failed to extract cloud path from upload URL: {e}")
+
+            # Serialize updated index to JSON
+            index_data = json.dumps(index_json, indent=2).encode("utf-8")
             compressed_index = gzip.compress(index_data)
             index_size = len(compressed_index)
             self.index_file_size_bytes = index_size  # Track index file size
