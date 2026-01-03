@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -22,7 +23,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_upload_success(self):
         """Test CloudTraceSink successfully uploads trace to cloud."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
-        run_id = "test-run-123"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Mock successful response
@@ -69,7 +70,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_upload_failure_preserves_trace(self, capsys):
         """Test CloudTraceSink preserves trace locally on upload failure."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
-        run_id = "test-run-456"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Mock failed response
@@ -103,7 +104,8 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_emit_after_close_raises(self):
         """Test CloudTraceSink raises error when emitting after close."""
         upload_url = "https://test.com/upload"
-        sink = CloudTraceSink(upload_url, run_id="test-run-789")
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+        sink = CloudTraceSink(upload_url, run_id=run_id)
         # Emit at least one event so file exists
         sink.emit({"v": 1, "type": "test", "seq": 1})
         sink.close()
@@ -117,7 +119,8 @@ class TestCloudTraceSink:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
-            with CloudTraceSink(upload_url, run_id="test-run-context") as sink:
+            run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+            with CloudTraceSink(upload_url, run_id=run_id) as sink:
                 sink.emit({"v": 1, "type": "test", "seq": 1})
 
             # Verify upload was called
@@ -126,7 +129,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_network_error_graceful_degradation(self, capsys):
         """Test CloudTraceSink handles network errors gracefully."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
-        run_id = "test-run-network-error"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             # Simulate network error
@@ -159,7 +162,8 @@ class TestCloudTraceSink:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
-            sink = CloudTraceSink(upload_url, run_id="test-run-multiple-close")
+            run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+            sink = CloudTraceSink(upload_url, run_id=run_id)
             sink.emit({"v": 1, "type": "test", "seq": 1})
 
             # Close multiple times
@@ -173,7 +177,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_persistent_cache_directory(self):
         """Test CloudTraceSink uses persistent cache directory instead of temp file."""
         upload_url = "https://test.com/upload"
-        run_id = "test-run-persistent"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
         sink = CloudTraceSink(upload_url, run_id=run_id)
         sink.emit({"v": 1, "type": "test", "seq": 1})
@@ -192,7 +196,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_non_blocking_close(self):
         """Test CloudTraceSink.close(blocking=False) returns immediately."""
         upload_url = "https://test.com/upload"
-        run_id = "test-run-nonblocking"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
         with patch("sentience.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
@@ -217,7 +221,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_progress_callback(self):
         """Test CloudTraceSink.close() with progress callback."""
         upload_url = "https://test.com/upload"
-        run_id = "test-run-progress"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
         progress_calls = []
 
         def progress_callback(uploaded: int, total: int):
@@ -239,7 +243,7 @@ class TestCloudTraceSink:
     def test_cloud_trace_sink_uploads_screenshots_after_trace(self):
         """Test that CloudTraceSink uploads screenshots after trace upload succeeds."""
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
-        run_id = "test-screenshot-integration-1"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
         api_key = "sk_test_123"
 
         # Create test screenshot
@@ -400,23 +404,20 @@ class TestTracerFactory:
                 # Mock upload response
                 mock_put.return_value = Mock(status_code=200)
 
-                tracer = create_tracer(
-                    api_key="sk_pro_test123", run_id="test-run", upload_trace=True
-                )
+                run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+                tracer = create_tracer(api_key="sk_pro_test123", run_id=run_id, upload_trace=True)
 
                 # Verify Pro tier message
                 captured = capsys.readouterr()
                 assert "☁️  [Sentience] Cloud tracing enabled (Pro tier)" in captured.out
 
                 # Verify tracer works
-                assert tracer.run_id == "test-run"
+                assert tracer.run_id == run_id
                 # Check if sink is CloudTraceSink (it should be)
-                from sentience.cloud_tracing import CloudTraceSink
-
                 assert isinstance(
                     tracer.sink, CloudTraceSink
                 ), f"Expected CloudTraceSink, got {type(tracer.sink)}"
-                assert tracer.sink.run_id == "test-run"  # Verify run_id is passed
+                assert tracer.sink.run_id == run_id  # Verify run_id is passed
 
                 # Verify the init API was called
                 assert mock_post.called
