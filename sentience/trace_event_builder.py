@@ -35,9 +35,34 @@ class TraceEventBuilder:
         Returns:
             Dictionary with snapshot event data
         """
+        # Normalize importance values to importance_score (0-1 range) per snapshot
+        # Min-max normalization: (value - min) / (max - min)
+        importance_values = [el.importance for el in snapshot.elements]
+
+        if importance_values:
+            min_importance = min(importance_values)
+            max_importance = max(importance_values)
+            importance_range = max_importance - min_importance
+        else:
+            min_importance = 0
+            max_importance = 0
+            importance_range = 0
+
         # Include ALL elements with full data for DOM tree display
-        # Use snap.elements (all elements) not filtered_elements
-        elements_data = [el.model_dump() for el in snapshot.elements]
+        # Add importance_score field normalized to [0, 1]
+        elements_data = []
+        for el in snapshot.elements:
+            el_dict = el.model_dump()
+
+            # Compute normalized importance_score
+            if importance_range > 0:
+                importance_score = (el.importance - min_importance) / importance_range
+            else:
+                # If all elements have same importance, set to 0.5
+                importance_score = 0.5
+
+            el_dict["importance_score"] = importance_score
+            elements_data.append(el_dict)
 
         return {
             "url": snapshot.url,

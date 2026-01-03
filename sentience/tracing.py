@@ -4,7 +4,6 @@ Trace event writer for Sentience agents.
 Provides abstract interface and JSONL implementation for emitting trace events.
 """
 
-import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
