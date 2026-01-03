@@ -146,7 +146,16 @@ class CloudTraceSink(TraceSink):
 
         self._closed = True
 
-        # Close file first
+        # Flush and sync file to disk before closing to ensure all data is written
+        # This is critical on CI systems where file system operations may be slower
+        self._trace_file.flush()
+        try:
+            # Force OS to write buffered data to disk
+            os.fsync(self._trace_file.fileno())
+        except (OSError, AttributeError):
+            # Some file handles don't support fsync (e.g., StringIO in tests)
+            # This is fine - flush() is usually sufficient
+            pass
         self._trace_file.close()
 
         # Ensure file exists and has content before proceeding

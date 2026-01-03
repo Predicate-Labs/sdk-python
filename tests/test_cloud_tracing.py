@@ -391,41 +391,43 @@ class TestTracerFactory:
 
     def test_create_tracer_pro_tier_success(self, capsys):
         """Test create_tracer returns CloudTraceSink for Pro tier."""
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
-            with patch("sentience.cloud_tracing.requests.put") as mock_put:
-                # Mock API response
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "upload_url": "https://sentience.nyc3.digitaloceanspaces.com/upload"
-                }
-                mock_post.return_value = mock_response
+        # Patch orphaned trace recovery to avoid extra API calls
+        with patch("sentience.tracer_factory._recover_orphaned_traces"):
+            with patch("sentience.tracer_factory.requests.post") as mock_post:
+                with patch("sentience.cloud_tracing.requests.put") as mock_put:
+                    # Mock API response
+                    mock_response = Mock()
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = {
+                        "upload_url": "https://sentience.nyc3.digitaloceanspaces.com/upload"
+                    }
+                    mock_post.return_value = mock_response
 
-                # Mock upload response
-                mock_put.return_value = Mock(status_code=200)
+                    # Mock upload response
+                    mock_put.return_value = Mock(status_code=200)
 
-                run_id = f"test-run-{uuid.uuid4().hex[:8]}"
-                tracer = create_tracer(api_key="sk_pro_test123", run_id=run_id, upload_trace=True)
+                    run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+                    tracer = create_tracer(api_key="sk_pro_test123", run_id=run_id, upload_trace=True)
 
-                # Verify Pro tier message
-                captured = capsys.readouterr()
-                assert "☁️  [Sentience] Cloud tracing enabled (Pro tier)" in captured.out
+                    # Verify Pro tier message
+                    captured = capsys.readouterr()
+                    assert "☁️  [Sentience] Cloud tracing enabled (Pro tier)" in captured.out
 
-                # Verify tracer works
-                assert tracer.run_id == run_id
-                # Check if sink is CloudTraceSink (it should be)
-                assert isinstance(
-                    tracer.sink, CloudTraceSink
-                ), f"Expected CloudTraceSink, got {type(tracer.sink)}"
-                assert tracer.sink.run_id == run_id  # Verify run_id is passed
+                    # Verify tracer works
+                    assert tracer.run_id == run_id
+                    # Check if sink is CloudTraceSink (it should be)
+                    assert isinstance(
+                        tracer.sink, CloudTraceSink
+                    ), f"Expected CloudTraceSink, got {type(tracer.sink)}"
+                    assert tracer.sink.run_id == run_id  # Verify run_id is passed
 
-                # Verify the init API was called
-                assert mock_post.called
-                assert mock_post.call_count == 1
+                    # Verify the init API was called (only once, since orphaned recovery is patched)
+                    assert mock_post.called
+                    assert mock_post.call_count == 1
 
-                # Cleanup - emit at least one event so file exists before close
-                tracer.emit("test", {"v": 1, "seq": 1})
-                tracer.close()
+                    # Cleanup - emit at least one event so file exists before close
+                    tracer.emit("test", {"v": 1, "seq": 1})
+                    tracer.close()
 
     def test_create_tracer_free_tier_fallback(self, capsys):
         """Test create_tracer falls back to local for free tier."""
