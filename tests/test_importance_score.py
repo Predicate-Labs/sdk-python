@@ -33,9 +33,9 @@ def create_snapshot(elements: list[Element]) -> Snapshot:
 def test_importance_score_normalization_basic():
     """Test basic importance score normalization to [0, 1] range."""
     elements = [
-        create_element(1, importance=0),    # Min -> 0.0
+        create_element(1, importance=0),  # Min -> 0.0
         create_element(2, importance=500),  # Mid -> 0.5
-        create_element(3, importance=1000), # Max -> 1.0
+        create_element(3, importance=1000),  # Max -> 1.0
     ]
     snapshot = create_snapshot(elements)
 
@@ -52,16 +52,16 @@ def test_importance_score_normalization_basic():
     assert "importance_score" in el2
     assert "importance_score" in el3
 
-    assert el1["importance_score"] == 0.0   # (0 - 0) / (1000 - 0) = 0.0
-    assert el2["importance_score"] == 0.5   # (500 - 0) / (1000 - 0) = 0.5
-    assert el3["importance_score"] == 1.0   # (1000 - 0) / (1000 - 0) = 1.0
+    assert el1["importance_score"] == 0.0  # (0 - 0) / (1000 - 0) = 0.0
+    assert el2["importance_score"] == 0.5  # (500 - 0) / (1000 - 0) = 0.5
+    assert el3["importance_score"] == 1.0  # (1000 - 0) / (1000 - 0) = 1.0
 
 
 def test_importance_score_with_negative_values():
     """Test normalization with negative importance values."""
     elements = [
         create_element(1, importance=-300),  # Min -> 0.0
-        create_element(2, importance=500),   # Mid -> ~0.44
+        create_element(2, importance=500),  # Mid -> ~0.44
         create_element(3, importance=1800),  # Max -> 1.0
     ]
     snapshot = create_snapshot(elements)
@@ -137,10 +137,7 @@ def test_importance_score_preserves_original_importance():
 def test_importance_score_in_range_0_to_1():
     """Test that all normalized scores are in [0, 1] range."""
     # Create elements with various importance values
-    elements = [
-        create_element(i, importance=i * 100 - 300)
-        for i in range(20)
-    ]
+    elements = [create_element(i, importance=i * 100 - 300) for i in range(20)]
     snapshot = create_snapshot(elements)
 
     event_data = TraceEventBuilder.build_snapshot_event(snapshot)
