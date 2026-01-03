@@ -405,7 +405,15 @@ class TestTracerFactory:
                 mock_put.return_value = Mock(status_code=200)
 
                 run_id = f"test-run-{uuid.uuid4().hex[:8]}"
-                tracer = create_tracer(api_key="sk_pro_test123", run_id=run_id, upload_trace=True)
+                tracer = create_tracer(
+                    api_key="sk_pro_test123",
+                    run_id=run_id,
+                    upload_trace=True,
+                    goal="Test goal for trace name",
+                    agent_type="SentienceAgent",
+                    llm_model="gpt-4-turbo",
+                    start_url="https://example.com",
+                )
 
                 # Verify Pro tier message
                 captured = capsys.readouterr()
@@ -422,6 +430,18 @@ class TestTracerFactory:
                 # Verify the init API was called
                 assert mock_post.called
                 assert mock_post.call_count == 1
+
+                # Verify metadata was sent correctly
+                call_args = mock_post.call_args
+                request_payload = call_args[1]["json"]
+                assert "run_id" in request_payload
+                assert request_payload["run_id"] == run_id
+                assert "metadata" in request_payload
+                metadata = request_payload["metadata"]
+                assert metadata["goal"] == "Test goal for trace name"
+                assert metadata["agent_type"] == "SentienceAgent"
+                assert metadata["llm_model"] == "gpt-4-turbo"
+                assert metadata["start_url"] == "https://example.com"
 
                 # Cleanup - emit at least one event so file exists before close
                 tracer.emit("test", {"v": 1, "seq": 1})

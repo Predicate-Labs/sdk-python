@@ -26,6 +26,10 @@ def create_tracer(
     api_url: str | None = None,
     logger: SentienceLogger | None = None,
     upload_trace: bool = False,
+    goal: str | None = None,
+    agent_type: str | None = None,
+    llm_model: str | None = None,
+    start_url: str | None = None,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -44,13 +48,26 @@ def create_tracer(
         upload_trace: Enable cloud trace upload (default: False). When True and api_key
                       is provided, traces will be uploaded to cloud. When False, traces
                       are saved locally only.
+        goal: User's goal/objective for this trace run. This will be displayed as the
+              trace name in the frontend. Should be descriptive and action-oriented.
+              Example: "Add wireless headphones to cart on Amazon"
+        agent_type: Type of agent running (e.g., "SentienceAgent", "CustomAgent")
+        llm_model: LLM model used (e.g., "gpt-4-turbo", "claude-3-5-sonnet")
+        start_url: Starting URL of the agent run (e.g., "https://amazon.com")
 
     Returns:
         Tracer configured with appropriate sink
 
     Example:
-        >>> # Pro tier user
-        >>> tracer = create_tracer(api_key="sk_pro_xyz", run_id="demo")
+        >>> # Pro tier user with goal
+        >>> tracer = create_tracer(
+        ...     api_key="sk_pro_xyz",
+        ...     run_id="demo",
+        ...     goal="Add headphones to cart",
+        ...     agent_type="SentienceAgent",
+        ...     llm_model="gpt-4-turbo",
+        ...     start_url="https://amazon.com"
+        ... )
         >>> # Returns: Tracer with CloudTraceSink
         >>>
         >>> # Free tier user
@@ -75,11 +92,28 @@ def create_tracer(
     # 1. Try to initialize Cloud Sink (Pro/Enterprise tier) if upload enabled
     if api_key and upload_trace:
         try:
+            # Build metadata object for trace initialization
+            # Only include non-empty fields to avoid sending empty strings
+            metadata: dict[str, str] = {}
+            if goal and goal.strip():
+                metadata["goal"] = goal.strip()
+            if agent_type and agent_type.strip():
+                metadata["agent_type"] = agent_type.strip()
+            if llm_model and llm_model.strip():
+                metadata["llm_model"] = llm_model.strip()
+            if start_url and start_url.strip():
+                metadata["start_url"] = start_url.strip()
+
+            # Build request payload
+            payload: dict[str, Any] = {"run_id": run_id}
+            if metadata:
+                payload["metadata"] = metadata
+
             # Request pre-signed upload URL from backend
             response = requests.post(
                 f"{api_url}/v1/traces/init",
                 headers={"Authorization": f"Bearer {api_key}"},
-                json={"run_id": run_id},
+                json=payload,
                 timeout=10,
             )
 
