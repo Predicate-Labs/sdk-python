@@ -4,7 +4,6 @@ Trace event writer for Sentience agents.
 Provides abstract interface and JSONL implementation for emitting trace events.
 """
 
-import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -30,8 +29,8 @@ class TraceEvent:
     run_id: str  # UUID for the run
     seq: int  # Sequence number
     data: dict[str, Any]  # Event payload
-    step_id: str | None = None  # UUID for the step (if step-scoped)
-    ts_ms: int | None = None  # Unix timestamp in milliseconds
+    step_id: Optional[str] = None  # UUID for the step (if step-scoped)
+    ts_ms: Optional[int] = None  # Unix timestamp in milliseconds
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""

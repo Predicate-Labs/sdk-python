@@ -51,6 +51,9 @@ class Element(BaseModel):
     ml_probability: float | None = None  # Confidence score from ONNX model (0.0 - 1.0)
     ml_score: float | None = None  # Raw logit score (optional, for debugging)
 
+    # Diff status for frontend Diff Overlay feature
+    diff_status: Literal["ADDED", "REMOVED", "MODIFIED", "MOVED"] | None = None
+
 
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
