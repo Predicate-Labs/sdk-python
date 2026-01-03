@@ -185,7 +185,7 @@ def test_agent_build_context():
     assert "PRIMARY" in context
     assert "CLICKABLE" in context
     assert "color:blue" in context
-    assert "(Imp:900)" in context
+    assert "importance:900" in context
 
 
 def test_agent_execute_click_action():

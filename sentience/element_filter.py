@@ -57,7 +57,8 @@ class ElementFilter:
         Returns:
             Top N elements sorted by importance score
         """
-        elements = snapshot.elements
+        # Filter out REMOVED elements - they're not actionable and shouldn't be in LLM context
+        elements = [el for el in snapshot.elements if el.diff_status != "REMOVED"]
         # Elements are already sorted by importance in snapshot
         return elements[:max_elements]
 
@@ -81,7 +82,8 @@ class ElementFilter:
         Returns:
             Filtered list of elements sorted by boosted importance score
         """
-        elements = snapshot.elements
+        # Filter out REMOVED elements - they're not actionable and shouldn't be in LLM context
+        elements = [el for el in snapshot.elements if el.diff_status != "REMOVED"]
 
         # If no goal provided, return all elements (up to limit)
         if not goal:
