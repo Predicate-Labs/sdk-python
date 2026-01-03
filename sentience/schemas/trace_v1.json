@@ -13,7 +13,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["run_start", "step_start", "snapshot_taken", "llm_called", "action_executed", "verification", "recovery", "step_end", "run_end", "error"],
+      "enum": ["run_start", "step_start", "snapshot", "snapshot_taken", "llm_called", "llm_response", "action", "action_executed", "verification", "recovery", "step_end", "run_end", "error"],
       "description": "Event type"
     },
     "ts": {
@@ -64,15 +64,61 @@
           }
         },
         {
-          "description": "snapshot_taken data",
-          "required": ["step_id", "snapshot_digest"],
+          "description": "snapshot or snapshot_taken data",
           "properties": {
-            "step_id": {"type": "string"},
+            "step_id": {"type": ["string", "null"]},
             "snapshot_id": {"type": ["string", "null"]},
             "snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
             "snapshot_digest_loose": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
             "url": {"type": ["string", "null"]},
-            "element_count": {"type": "integer"}
+            "element_count": {"type": "integer"},
+            "timestamp": {"type": ["string", "null"]},
+            "elements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "integer"},
+                  "role": {"type": "string"},
+                  "text": {"type": ["string", "null"]},
+                  "importance": {"type": "number"},
+                  "importance_score": {"type": "number"},
+                  "bbox": {
+                    "type": "object",
+                    "properties": {
+                      "x": {"type": "number"},
+                      "y": {"type": "number"},
+                      "width": {"type": "number"},
+                      "height": {"type": "number"}
+                    },
+                    "required": ["x", "y", "width", "height"]
+                  },
+                  "visual_cues": {
+                    "type": "object",
+                    "properties": {
+                      "is_primary": {"type": "boolean"},
+                      "is_clickable": {"type": "boolean"},
+                      "background_color_name": {"type": ["string", "null"]}
+                    }
+                  },
+                  "in_viewport": {"type": "boolean"},
+                  "is_occluded": {"type": "boolean"},
+                  "z_index": {"type": "integer"},
+                  "rerank_index": {"type": ["integer", "null"]},
+                  "heuristic_index": {"type": ["integer", "null"]},
+                  "ml_probability": {"type": ["number", "null"]},
+                  "ml_score": {"type": ["number", "null"]},
+                  "diff_status": {
+                    "type": ["string", "null"],
+                    "enum": ["ADDED", "REMOVED", "MODIFIED", "MOVED", null],
+                    "description": "Diff status for Diff Overlay feature. ADDED: new element, REMOVED: element was removed, MODIFIED: element changed, MOVED: element position changed, null: no change"
+                  }
+                },
+                "required": ["id", "role", "importance", "bbox", "visual_cues"]
+              }
+            },
+            "screenshot_base64": {"type": ["string", "null"]},
+            "screenshot_format": {"type": ["string", "null"], "enum": ["png", "jpeg", null]}
           }
         },
         {
