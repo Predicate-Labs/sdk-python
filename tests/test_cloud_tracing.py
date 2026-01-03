@@ -418,7 +418,12 @@ class TestTracerFactory:
                 ), f"Expected CloudTraceSink, got {type(tracer.sink)}"
                 assert tracer.sink.run_id == "test-run"  # Verify run_id is passed
 
-                # Cleanup
+                # Verify the init API was called
+                assert mock_post.called
+                assert mock_post.call_count == 1
+
+                # Cleanup - emit at least one event so file exists before close
+                tracer.emit("test", {"v": 1, "seq": 1})
                 tracer.close()
 
     def test_create_tracer_free_tier_fallback(self, capsys):

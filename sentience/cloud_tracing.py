@@ -452,6 +452,19 @@ class CloudTraceSink(TraceSink):
             TraceStats with stats fields for /v1/traces/complete
         """
         try:
+            # Check if file exists before reading
+            if not self._path.exists():
+                if self.logger:
+                    self.logger.warning(f"Trace file not found: {self._path}")
+                return TraceStats(
+                    total_steps=0,
+                    total_events=0,
+                    duration_ms=None,
+                    final_status="unknown",
+                    started_at=None,
+                    ended_at=None,
+                )
+
             # Read trace file to extract stats
             events = TraceFileManager.read_events(self._path)
             # Use TraceFileManager to extract stats (with custom status inference)
@@ -529,6 +542,12 @@ class CloudTraceSink(TraceSink):
         sequence = 0
 
         try:
+            # Check if file exists before reading
+            if not self._path.exists():
+                if self.logger:
+                    self.logger.warning(f"Trace file not found: {self._path}")
+                return screenshots
+
             events = TraceFileManager.read_events(self._path)
             for event in events:
                 # Check if this is a snapshot event with screenshot
@@ -557,6 +576,15 @@ class CloudTraceSink(TraceSink):
             output_path: Path to write cleaned trace file
         """
         try:
+            # Check if file exists before reading
+            if not self._path.exists():
+                if self.logger:
+                    self.logger.warning(f"Trace file not found: {self._path}")
+                # Create empty cleaned trace file
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.touch()
+                return
+
             events = TraceFileManager.read_events(self._path)
             with open(output_path, "w", encoding="utf-8") as outfile:
                 for event in events:
