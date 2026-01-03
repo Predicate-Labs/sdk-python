@@ -104,10 +104,12 @@ class TestCloudTraceSink:
         """Test CloudTraceSink raises error when emitting after close."""
         upload_url = "https://test.com/upload"
         sink = CloudTraceSink(upload_url, run_id="test-run-789")
+        # Emit at least one event so file exists
+        sink.emit({"v": 1, "type": "test", "seq": 1})
         sink.close()
 
         with pytest.raises(RuntimeError, match="CloudTraceSink is closed"):
-            sink.emit({"v": 1, "type": "test", "seq": 1})
+            sink.emit({"v": 1, "type": "test", "seq": 2})
 
     def test_cloud_trace_sink_context_manager(self):
         """Test CloudTraceSink works as context manager."""
@@ -408,7 +410,9 @@ class TestTracerFactory:
 
                 # Verify tracer works
                 assert tracer.run_id == "test-run"
-                assert isinstance(tracer.sink, CloudTraceSink)
+                # Check if sink is CloudTraceSink (it should be)
+                from sentience.cloud_tracing import CloudTraceSink
+                assert isinstance(tracer.sink, CloudTraceSink), f"Expected CloudTraceSink, got {type(tracer.sink)}"
                 assert tracer.sink.run_id == "test-run"  # Verify run_id is passed
 
                 # Cleanup

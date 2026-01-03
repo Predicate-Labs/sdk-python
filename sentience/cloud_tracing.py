@@ -149,6 +149,13 @@ class CloudTraceSink(TraceSink):
         # Close file first
         self._trace_file.close()
 
+        # Ensure file exists and has content before proceeding
+        if not self._path.exists() or self._path.stat().st_size == 0:
+            # No events were emitted, nothing to upload
+            if self.logger:
+                self.logger.warning("No trace events to upload (file is empty or missing)")
+            return
+
         # Generate index after closing file
         self._generate_index()
 

@@ -21,10 +21,11 @@ def test_extract_stats_empty_events():
 
 def test_extract_stats_with_run_start_and_end():
     """Test extract_stats calculates duration from run_start and run_end."""
+    from datetime import timedelta
+
     start_time = datetime.now(timezone.utc)
-    end_time = datetime.now(timezone.utc)
-    # Make end_time 5 seconds later
-    end_time = end_time.replace(second=end_time.second + 5)
+    # Make end_time 5 seconds later using timedelta
+    end_time = start_time + timedelta(seconds=5)
 
     events = [
         {
