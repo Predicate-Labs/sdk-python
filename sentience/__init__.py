@@ -72,7 +72,7 @@ from .utils import (
 from .utils.formatting import format_snapshot_for_llm
 from .wait import wait_for
 
-__version__ = "0.91.1"
+__version__ = "0.92.0"
 
 __all__ = [
     # Core SDK
