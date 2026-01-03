@@ -27,6 +27,7 @@ from .models import (
 )
 from .protocols import AsyncBrowserProtocol, BrowserProtocol
 from .snapshot import snapshot, snapshot_async
+from .snapshot_diff import SnapshotDiff
 from .trace_event_builder import TraceEventBuilder
 
 if TYPE_CHECKING:
@@ -135,6 +136,9 @@ class SentienceAgent(BaseAgent):
         # Step counter for tracing
         self._step_count = 0
 
+        # Previous snapshot for diff detection
+        self._previous_snapshot: Snapshot | None = None
+
     def _compute_hash(self, text: str) -> str:
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -235,13 +239,31 @@ class SentienceAgent(BaseAgent):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
+                # Compute diff_status by comparing with previous snapshot
+                elements_with_diff = SnapshotDiff.compute_diff_status(snap, self._previous_snapshot)
+
+                # Create snapshot with diff_status populated
+                snap_with_diff = Snapshot(
+                    status=snap.status,
+                    timestamp=snap.timestamp,
+                    url=snap.url,
+                    viewport=snap.viewport,
+                    elements=elements_with_diff,
+                    screenshot=snap.screenshot,
+                    screenshot_format=snap.screenshot_format,
+                    error=snap.error,
+                )
+
+                # Update previous snapshot for next comparison
+                self._previous_snapshot = snap
+
                 # Apply element filtering based on goal
-                filtered_elements = self.filter_elements(snap, goal)
+                filtered_elements = self.filter_elements(snap_with_diff, goal)
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Build snapshot event data
-                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap)
+                    # Build snapshot event data (use snap_with_diff to include diff_status)
+                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
 
                     # Always include screenshot in trace event for studio viewer compatibility
                     # CloudTraceSink will extract and upload screenshots separately, then remove
@@ -271,16 +293,16 @@ class SentienceAgent(BaseAgent):
                         step_id=step_id,
                     )
 
-                # Create filtered snapshot
+                # Create filtered snapshot (use snap_with_diff to preserve metadata)
                 filtered_snap = Snapshot(
-                    status=snap.status,
-                    timestamp=snap.timestamp,
-                    url=snap.url,
-                    viewport=snap.viewport,
+                    status=snap_with_diff.status,
+                    timestamp=snap_with_diff.timestamp,
+                    url=snap_with_diff.url,
+                    viewport=snap_with_diff.viewport,
                     elements=filtered_elements,
-                    screenshot=snap.screenshot,
-                    screenshot_format=snap.screenshot_format,
-                    error=snap.error,
+                    screenshot=snap_with_diff.screenshot,
+                    screenshot_format=snap_with_diff.screenshot_format,
+                    error=snap_with_diff.error,
                 )
 
                 # 2. GROUND: Format elements for LLM context
@@ -673,6 +695,9 @@ class SentienceAgentAsync(BaseAgentAsync):
         # Step counter for tracing
         self._step_count = 0
 
+        # Previous snapshot for diff detection
+        self._previous_snapshot: Snapshot | None = None
+
     def _compute_hash(self, text: str) -> str:
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -773,13 +798,31 @@ class SentienceAgentAsync(BaseAgentAsync):
                 if snap.status != "success":
                     raise RuntimeError(f"Snapshot failed: {snap.error}")
 
+                # Compute diff_status by comparing with previous snapshot
+                elements_with_diff = SnapshotDiff.compute_diff_status(snap, self._previous_snapshot)
+
+                # Create snapshot with diff_status populated
+                snap_with_diff = Snapshot(
+                    status=snap.status,
+                    timestamp=snap.timestamp,
+                    url=snap.url,
+                    viewport=snap.viewport,
+                    elements=elements_with_diff,
+                    screenshot=snap.screenshot,
+                    screenshot_format=snap.screenshot_format,
+                    error=snap.error,
+                )
+
+                # Update previous snapshot for next comparison
+                self._previous_snapshot = snap
+
                 # Apply element filtering based on goal
-                filtered_elements = self.filter_elements(snap, goal)
+                filtered_elements = self.filter_elements(snap_with_diff, goal)
 
                 # Emit snapshot trace event if tracer is enabled
                 if self.tracer:
-                    # Build snapshot event data
-                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap)
+                    # Build snapshot event data (use snap_with_diff to include diff_status)
+                    snapshot_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
 
                     # Always include screenshot in trace event for studio viewer compatibility
                     # CloudTraceSink will extract and upload screenshots separately, then remove
@@ -809,16 +852,16 @@ class SentienceAgentAsync(BaseAgentAsync):
                         step_id=step_id,
                     )
 
-                # Create filtered snapshot
+                # Create filtered snapshot (use snap_with_diff to preserve metadata)
                 filtered_snap = Snapshot(
-                    status=snap.status,
-                    timestamp=snap.timestamp,
-                    url=snap.url,
-                    viewport=snap.viewport,
+                    status=snap_with_diff.status,
+                    timestamp=snap_with_diff.timestamp,
+                    url=snap_with_diff.url,
+                    viewport=snap_with_diff.viewport,
                     elements=filtered_elements,
-                    screenshot=snap.screenshot,
-                    screenshot_format=snap.screenshot_format,
-                    error=snap.error,
+                    screenshot=snap_with_diff.screenshot,
+                    screenshot_format=snap_with_diff.screenshot_format,
+                    error=snap_with_diff.error,
                 )
 
                 # 2. GROUND: Format elements for LLM context
