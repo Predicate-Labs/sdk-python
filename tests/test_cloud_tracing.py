@@ -412,7 +412,10 @@ class TestTracerFactory:
                 assert tracer.run_id == "test-run"
                 # Check if sink is CloudTraceSink (it should be)
                 from sentience.cloud_tracing import CloudTraceSink
-                assert isinstance(tracer.sink, CloudTraceSink), f"Expected CloudTraceSink, got {type(tracer.sink)}"
+
+                assert isinstance(
+                    tracer.sink, CloudTraceSink
+                ), f"Expected CloudTraceSink, got {type(tracer.sink)}"
                 assert tracer.sink.run_id == "test-run"  # Verify run_id is passed
 
                 # Cleanup
