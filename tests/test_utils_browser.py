@@ -149,4 +149,3 @@ class TestSaveStorageState:
             assert "✅" in captured.out
             assert "Saved storage state" in captured.out
             assert str(file_path) in captured.out
-

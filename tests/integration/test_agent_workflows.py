@@ -189,9 +189,9 @@ class TestAgentMultiStepWorkflows:
             from sentience.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
-            # First call fails, second succeeds
+            # First call raises exception (triggers retry), second succeeds
             mock_click.side_effect = [
-                ActionResult(success=False, duration_ms=100, outcome="error"),
+                RuntimeError("Element not found"),
                 ActionResult(success=True, duration_ms=150, outcome="dom_updated"),
             ]
 
@@ -232,7 +232,7 @@ class TestAgentMultiStepWorkflows:
         llm = MockLLMProvider(responses=["FINISH()"])
         agent = SentienceAgent(browser, llm, verbose=False)
 
-        with patch("sentience.snapshot.snapshot") as mock_snapshot:
+        with patch("sentience.agent.snapshot") as mock_snapshot:
             mock_snapshot.return_value = create_mock_snapshot()
 
             result = agent.act("Task is complete", max_retries=0)
@@ -421,4 +421,3 @@ class TestAgentStateManagement:
 
             agent.act("Second action", max_retries=0)
             assert agent._step_count == initial_count + 2
-
