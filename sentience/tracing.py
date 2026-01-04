@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from collections.abc import Callable
 
 from .models import TraceStats
 from .trace_file_manager import TraceFileManager
@@ -163,10 +164,36 @@ class Tracer:
 
     Manages sequence numbers and provides convenient methods for emitting events.
     Tracks execution statistics and final status for trace completion.
+
+    Args:
+        run_id: Unique identifier for this trace run
+        sink: TraceSink implementation for writing events
+        screenshot_processor: Optional function to process screenshots before emission.
+                            Takes base64 string, returns processed base64 string.
+                            Useful for PII redaction or custom image processing.
+
+    Example:
+        >>> from sentience import Tracer, JsonlTraceSink
+        >>>
+        >>> # Basic usage
+        >>> sink = JsonlTraceSink("trace.jsonl")
+        >>> tracer = Tracer(run_id="abc123", sink=sink)
+        >>>
+        >>> # With screenshot processor for PII redaction
+        >>> def redact_pii(screenshot_base64: str) -> str:
+        ...     # Your custom redaction logic
+        ...     return redacted_screenshot
+        >>>
+        >>> tracer = Tracer(
+        ...     run_id="abc123",
+        ...     sink=sink,
+        ...     screenshot_processor=redact_pii
+        ... )
     """
 
     run_id: str
     sink: TraceSink
+    screenshot_processor: Callable[[str], str] | None = None
     seq: int = field(default=0, init=False)
     # Stats tracking
     total_steps: int = field(default=0, init=False)
@@ -195,6 +222,11 @@ class Tracer:
         """
         self.seq += 1
         self.total_events += 1
+
+        # Apply screenshot processor if configured and screenshot is present
+        if self.screenshot_processor and "screenshot_base64" in data:
+            data = data.copy()  # Don't modify the original dict
+            data["screenshot_base64"] = self.screenshot_processor(data["screenshot_base64"])
 
         # Generate timestamps
         ts_ms = int(time.time() * 1000)
