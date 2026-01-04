@@ -3,7 +3,8 @@ Sentience Python SDK - AI Agent Browser Automation
 """
 
 from .actions import click, click_rect, press, type_text
-from .agent import SentienceAgent
+from .agent import SentienceAgent, SentienceAgentAsync
+from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .agent_config import AgentConfig
 
 # Agent Layer (Phase 1 & 2)
@@ -119,6 +120,9 @@ __all__ = [
     "AnthropicProvider",
     "LocalLLMProvider",
     "SentienceAgent",
+    "SentienceAgentAsync",
+    "SentienceVisualAgent",
+    "SentienceVisualAgentAsync",
     "ConversationalAgent",
     # Agent Layer Models
     "AgentActionResult",
