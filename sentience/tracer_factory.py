@@ -7,9 +7,9 @@ Provides convenient factory function for creating tracers with cloud upload supp
 import gzip
 import os
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Optional
-from collections.abc import Callable
 
 import requests
 

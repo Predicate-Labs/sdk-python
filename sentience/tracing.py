@@ -6,11 +6,11 @@ Provides abstract interface and JSONL implementation for emitting trace events.
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
-from collections.abc import Callable
 
 from .models import TraceStats
 from .trace_file_manager import TraceFileManager
