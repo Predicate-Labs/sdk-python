@@ -60,7 +60,7 @@ class LLMInteractionHandler:
             # Format element line with improved readability
             # Ensure cues is defined before using it in f-string
             cues_str = f" {{{','.join(cues)}}}" if cues else ""
-            
+
             # Better text handling - show truncation indicator
             text_preview = ""
             if el.text:
@@ -68,13 +68,13 @@ class LLMInteractionHandler:
                     text_preview = f'"{el.text[:50]}..."'
                 else:
                     text_preview = f'"{el.text}"'
-            
+
             # Build position and size info
             x, y = int(el.bbox.x), int(el.bbox.y)
             width, height = int(el.bbox.width), int(el.bbox.height)
             position_str = f"@ ({x},{y})"
             size_str = f"size:{width}x{height}"
-            
+
             # Build status indicators (only include if relevant)
             status_parts = []
             if not el.in_viewport:
@@ -84,10 +84,10 @@ class LLMInteractionHandler:
             if el.diff_status:
                 status_parts.append(f"diff:{el.diff_status}")
             status_str = f" [{','.join(status_parts)}]" if status_parts else ""
-            
+
             # Format: [ID] <role> "text" {cues} @ (x,y) size:WxH importance:score [status]
             lines.append(
-                f'[{el.id}] <{el.role}> {text_preview}{cues_str} '
+                f"[{el.id}] <{el.role}> {text_preview}{cues_str} "
                 f"{position_str} {size_str} importance:{el.importance}{status_str}"
             )
 

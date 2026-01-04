@@ -486,6 +486,11 @@ class SentienceAgent(BaseAgent):
                         "signals": verify_signals,
                     }
 
+                    # Build elements data for pre field (include diff_status from snap_with_diff)
+                    # Use the same format as build_snapshot_event for consistency
+                    snapshot_event_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
+                    pre_elements = snapshot_event_data.get("elements", [])
+
                     # Build complete step_end event
                     step_end_data = TraceEventBuilder.build_step_end_event(
                         step_id=step_id,
@@ -498,6 +503,7 @@ class SentienceAgent(BaseAgent):
                         llm_data=llm_data,
                         exec_data=exec_data,
                         verify_data=verify_data,
+                        pre_elements=pre_elements,
                     )
 
                     _safe_tracer_call(
@@ -1045,6 +1051,11 @@ class SentienceAgentAsync(BaseAgentAsync):
                         "signals": verify_signals,
                     }
 
+                    # Build elements data for pre field (include diff_status from snap_with_diff)
+                    # Use the same format as build_snapshot_event for consistency
+                    snapshot_event_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
+                    pre_elements = snapshot_event_data.get("elements", [])
+
                     # Build complete step_end event
                     step_end_data = TraceEventBuilder.build_step_end_event(
                         step_id=step_id,
@@ -1057,6 +1068,7 @@ class SentienceAgentAsync(BaseAgentAsync):
                         llm_data=llm_data,
                         exec_data=exec_data,
                         verify_data=verify_data,
+                        pre_elements=pre_elements,
                     )
 
                     _safe_tracer_call(

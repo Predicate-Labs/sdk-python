@@ -83,6 +83,7 @@ class TraceEventBuilder:
         llm_data: dict[str, Any],
         exec_data: dict[str, Any],
         verify_data: dict[str, Any],
+        pre_elements: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Build step_end trace event data.
@@ -98,20 +99,27 @@ class TraceEventBuilder:
             llm_data: LLM interaction data
             exec_data: Action execution data
             verify_data: Verification data
+            pre_elements: Optional list of elements from pre-snapshot (with diff_status)
 
         Returns:
             Dictionary with step_end event data
         """
+        pre_data: dict[str, Any] = {
+            "url": pre_url,
+            "snapshot_digest": snapshot_digest,
+        }
+
+        # Add elements to pre field if provided (for diff overlay support)
+        if pre_elements is not None:
+            pre_data["elements"] = pre_elements
+
         return {
             "v": 1,
             "step_id": step_id,
             "step_index": step_index,
             "goal": goal,
             "attempt": attempt,
-            "pre": {
-                "url": pre_url,
-                "snapshot_digest": snapshot_digest,
-            },
+            "pre": pre_data,
             "llm": llm_data,
             "exec": exec_data,
             "post": {
