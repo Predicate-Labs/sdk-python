@@ -1,5 +1,3 @@
-from typing import Optional
-
 """
 Tracer factory with automatic tier detection.
 
@@ -10,7 +8,8 @@ import gzip
 import os
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+from collections.abc import Callable
 
 import requests
 
@@ -31,6 +30,7 @@ def create_tracer(
     agent_type: str | None = None,
     llm_model: str | None = None,
     start_url: str | None = None,
+    screenshot_processor: Callable[[str], str] | None = None,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -55,6 +55,9 @@ def create_tracer(
         agent_type: Type of agent running (e.g., "SentienceAgent", "CustomAgent")
         llm_model: LLM model used (e.g., "gpt-4-turbo", "claude-3-5-sonnet")
         start_url: Starting URL of the agent run (e.g., "https://amazon.com")
+        screenshot_processor: Optional function to process screenshots before upload.
+                            Takes base64 string, returns processed base64 string.
+                            Useful for PII redaction or custom image processing.
 
     Returns:
         Tracer configured with appropriate sink
@@ -70,6 +73,17 @@ def create_tracer(
         ...     start_url="https://amazon.com"
         ... )
         >>> # Returns: Tracer with CloudTraceSink
+        >>>
+        >>> # With screenshot processor for PII redaction
+        >>> def redact_pii(screenshot_base64: str) -> str:
+        ...     # Your custom redaction logic
+        ...     return redacted_screenshot
+        >>>
+        >>> tracer = create_tracer(
+        ...     api_key="sk_pro_xyz",
+        ...     screenshot_processor=redact_pii
+        ... )
+        >>> # Screenshots will be processed before upload
         >>>
         >>> # Free tier user
         >>> tracer = create_tracer(run_id="demo")
@@ -133,6 +147,7 @@ def create_tracer(
                             api_url=api_url,
                             logger=logger,
                         ),
+                        screenshot_processor=screenshot_processor,
                     )
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
@@ -191,7 +206,11 @@ def create_tracer(
     local_path = traces_dir / f"{run_id}.jsonl"
     print(f"💾 [Sentience] Local tracing: {local_path}")
 
-    return Tracer(run_id=run_id, sink=JsonlTraceSink(str(local_path)))
+    return Tracer(
+        run_id=run_id,
+        sink=JsonlTraceSink(str(local_path)),
+        screenshot_processor=screenshot_processor,
+    )
 
 
 def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> None:
