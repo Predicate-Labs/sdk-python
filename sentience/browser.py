@@ -43,6 +43,7 @@ class SentienceBrowser:
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
         viewport: Viewport | dict[str, int] | None = None,
+        device_scale_factor: float | None = None,
     ):
         """
         Initialize Sentience browser
@@ -114,6 +115,9 @@ class SentienceBrowser:
             self.viewport = Viewport(width=viewport["width"], height=viewport["height"])
         else:
             self.viewport = viewport
+
+        # Device scale factor for high-DPI emulation
+        self.device_scale_factor = device_scale_factor
 
         self.playwright: Playwright | None = None
         self.context: BrowserContext | None = None
@@ -216,6 +220,10 @@ class SentienceBrowser:
             # Remove "HeadlessChrome" from User Agent automatically
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
+
+        # Add device scale factor if configured
+        if self.device_scale_factor is not None:
+            launch_params["device_scale_factor"] = self.device_scale_factor
 
         # Add proxy if configured
         if proxy_config:
@@ -596,6 +604,7 @@ class AsyncSentienceBrowser:
         record_video_dir: str | Path | None = None,
         record_video_size: dict[str, int] | None = None,
         viewport: Viewport | dict[str, int] | None = None,
+        device_scale_factor: float | None = None,
     ):
         """
         Initialize Async Sentience browser
@@ -615,6 +624,11 @@ class AsyncSentienceBrowser:
                               Viewport(width=1920, height=1080) (Full HD)
                               {"width": 1280, "height": 800} (dict also supported)
                      If None, defaults to Viewport(width=1280, height=800).
+            device_scale_factor: Optional device scale factor to emulate high-DPI (Retina) screens.
+                               Examples: 1.0 (default, standard DPI)
+                                        2.0 (Retina/high-DPI, like MacBook Pro)
+                                        3.0 (very high DPI)
+                               If None, defaults to 1.0 (standard DPI).
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -648,6 +662,9 @@ class AsyncSentienceBrowser:
             self.viewport = Viewport(width=viewport["width"], height=viewport["height"])
         else:
             self.viewport = viewport
+
+        # Device scale factor for high-DPI emulation
+        self.device_scale_factor = device_scale_factor
 
         self.playwright: AsyncPlaywright | None = None
         self.context: AsyncBrowserContext | None = None
@@ -740,6 +757,10 @@ class AsyncSentienceBrowser:
             "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
+
+        # Add device scale factor if configured
+        if self.device_scale_factor is not None:
+            launch_params["device_scale_factor"] = self.device_scale_factor
 
         # Add proxy if configured
         if proxy_config:
