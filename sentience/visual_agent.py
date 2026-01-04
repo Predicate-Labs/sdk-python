@@ -23,18 +23,19 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
+from .actions import click, click_async
 from .agent import SentienceAgent, SentienceAgentAsync, _safe_tracer_call
 from .async_api import AsyncSentienceBrowser
 from .browser import SentienceBrowser
 from .llm_provider import LLMProvider, LLMResponse
 from .models import AgentActionResult, Element, Snapshot, SnapshotOptions
-from .actions import click, click_async
 from .snapshot import snapshot
 from .snapshot_diff import SnapshotDiff
 from .trace_event_builder import TraceEventBuilder
 
 try:
     from PIL import Image, ImageDraw, ImageFont
+
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -44,9 +45,9 @@ except ImportError:
 class SentienceVisualAgentAsync(SentienceAgentAsync):
     """
     Async visual agent that uses labeled screenshots with vision-capable LLMs.
-    
+
     Extends SentienceAgentAsync to override act() method with visual prompting.
-    
+
     Requirements:
         - Pillow (PIL): Required for image processing and drawing bounding boxes
           Install with: pip install Pillow
@@ -59,12 +60,12 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         llm: LLMProvider,
         default_snapshot_limit: int = 50,
         verbose: bool = True,
-        tracer: Optional[Any] = None,
-        config: Optional[Any] = None,
+        tracer: Any | None = None,
+        config: Any | None = None,
     ):
         """
         Initialize Visual Agent
-        
+
         Args:
             browser: AsyncSentienceBrowser instance
             llm: LLM provider (must support vision, e.g., GPT-4o, Claude 3)
@@ -74,20 +75,22 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             config: Optional AgentConfig
         """
         super().__init__(browser, llm, default_snapshot_limit, verbose, tracer, config)
-        
+
         if not PIL_AVAILABLE:
-            raise ImportError("PIL/Pillow is required for SentienceVisualAgentAsync. Install with: pip install Pillow")
-        
+            raise ImportError(
+                "PIL/Pillow is required for SentienceVisualAgentAsync. Install with: pip install Pillow"
+            )
+
         # Track previous snapshot for diff computation
         self._previous_snapshot: Snapshot | None = None
 
     def _decode_screenshot(self, screenshot_data_url: str) -> Image.Image:
         """
         Decode base64 screenshot data URL to PIL Image
-        
+
         Args:
             screenshot_data_url: Base64-encoded data URL (e.g., "data:image/png;base64,...")
-            
+
         Returns:
             PIL Image object
         """
@@ -98,10 +101,10 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         else:
             # Assume it's already base64
             base64_data = screenshot_data_url
-            
+
         # Decode base64 to bytes
         image_bytes = base64.b64decode(base64_data)
-        
+
         # Create PIL Image from bytes
         return Image.open(io.BytesIO(image_bytes))
 
@@ -116,9 +119,9 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
     ) -> tuple[float, float]:
         """
         Find best position for label using anti-collision algorithm.
-        
+
         Tries 8 positions: 4 sides (top, bottom, left, right) + 4 corners (top-left, top-right, bottom-left, bottom-right)
-        
+
         Args:
             bbox: Element bounding box {x, y, width, height}
             existing_labels: List of existing label positions {x, y, width, height}
@@ -126,7 +129,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             image_height: Screenshot height
             label_width: Label text width
             label_height: Label text height
-            
+
         Returns:
             (x, y) position for label
         """
@@ -142,15 +145,35 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             # 4 sides
             (center_x - label_width / 2, y - label_height - label_offset, "top"),  # Above element
             (center_x - label_width / 2, y + height + label_offset, "bottom"),  # Below element
-            (x - label_width - label_offset, center_y - label_height / 2, "left"),  # Left of element
+            (
+                x - label_width - label_offset,
+                center_y - label_height / 2,
+                "left",
+            ),  # Left of element
             (x + width + label_offset, center_y - label_height / 2, "right"),  # Right of element
             # 4 corners
-            (x - label_width - label_offset, y - label_height - label_offset, "top-left"),  # Top-left corner
-            (x + width + label_offset, y - label_height - label_offset, "top-right"),  # Top-right corner
-            (x - label_width - label_offset, y + height + label_offset, "bottom-left"),  # Bottom-left corner
-            (x + width + label_offset, y + height + label_offset, "bottom-right"),  # Bottom-right corner
+            (
+                x - label_width - label_offset,
+                y - label_height - label_offset,
+                "top-left",
+            ),  # Top-left corner
+            (
+                x + width + label_offset,
+                y - label_height - label_offset,
+                "top-right",
+            ),  # Top-right corner
+            (
+                x - label_width - label_offset,
+                y + height + label_offset,
+                "bottom-left",
+            ),  # Bottom-left corner
+            (
+                x + width + label_offset,
+                y + height + label_offset,
+                "bottom-right",
+            ),  # Bottom-right corner
         ]
-        
+
         # Check each candidate position for collisions
         for candidate_x, candidate_y, _ in candidates:
             # Check bounds
@@ -158,7 +181,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                 continue
             if candidate_x + label_width > image_width or candidate_y + label_height > image_height:
                 continue
-                
+
             # Check collision with existing labels
             collision = False
             for existing in existing_labels:
@@ -172,10 +195,10 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                 ):
                     collision = True
                     break
-                    
+
             if not collision:
                 return (candidate_x, candidate_y)
-        
+
         # If all positions collide, use top position (may overlap but better than nothing)
         return (center_x - label_width / 2, y - label_height - 15)
 
@@ -186,21 +209,21 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
     ) -> Image.Image:
         """
         Draw bounding boxes and labels on screenshot.
-        
+
         Args:
             snapshot: Snapshot with screenshot data
             elements: List of elements to draw
-            
+
         Returns:
             PIL Image with bounding boxes and labels
         """
         if not snapshot.screenshot:
             raise ValueError("Screenshot not available in snapshot")
-            
+
         # Decode screenshot
         img = self._decode_screenshot(snapshot.screenshot)
         draw = ImageDraw.Draw(img)
-        
+
         # Try to load a font, fallback to default if not available
         try:
             # Try to use a system font
@@ -211,33 +234,33 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             except:
                 # Use default font if system fonts not available
                 font = ImageFont.load_default()
-        
+
         image_width, image_height = img.size
         existing_labels: list[dict[str, Any]] = []
-        
+
         # Neon green color: #39FF14 (bright, vibrant green)
         neon_green = "#39FF14"
-        
+
         # Draw bounding boxes and labels for each element
         for element in elements:
             bbox = element.bbox
             x, y, width, height = bbox.x, bbox.y, bbox.width, bbox.height
-            
+
             # Draw bounding box rectangle (neon green with 2px width)
             draw.rectangle(
                 [(x, y), (x + width, y + height)],
                 outline=neon_green,
                 width=2,
             )
-            
+
             # Prepare label text (just the number - keep it simple and compact)
             label_text = str(element.id)
-            
+
             # Measure label text size
             bbox_text = draw.textbbox((0, 0), label_text, font=font)
             label_width = bbox_text[2] - bbox_text[0]
             label_height = bbox_text[3] - bbox_text[1]
-            
+
             # Find best position for label (anti-collision)
             label_x, label_y = self._find_label_position(
                 {"x": x, "y": y, "width": width, "height": height},
@@ -247,23 +270,23 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                 label_width + 8,  # Add padding
                 label_height + 4,  # Add padding
             )
-            
+
             # Calculate connection points for a clearer visual link
             # Connect from the nearest corner/edge of element to the label
             element_center_x = x + width / 2
             element_center_y = y + height / 2
             label_center_x = label_x + label_width / 2
             label_center_y = label_y + label_height / 2
-            
+
             # Determine which edge of the element is closest to the label
             # and draw line from that edge point to the label
             dist_top = abs(label_center_y - y)
             dist_bottom = abs(label_center_y - (y + height))
             dist_left = abs(label_center_x - x)
             dist_right = abs(label_center_x - (x + width))
-            
+
             min_dist = min(dist_top, dist_bottom, dist_left, dist_right)
-            
+
             if min_dist == dist_top:
                 # Label is above - connect from top edge
                 line_start = (element_center_x, y)
@@ -276,20 +299,20 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             else:
                 # Label is right - connect from right edge
                 line_start = (x + width, element_center_y)
-            
+
             # Draw connecting line from element edge to label (makes it clear the label belongs to the element)
             draw.line(
                 [line_start, (label_center_x, label_center_y)],
                 fill=neon_green,
                 width=2,  # Slightly thicker for better visibility
             )
-            
+
             # Draw label background (white with neon green border)
             label_bg_x1 = label_x - 4
             label_bg_y1 = label_y - 2
             label_bg_x2 = label_x + label_width + 4
             label_bg_y2 = label_y + label_height + 2
-            
+
             # Draw white background with neon green border (makes label stand out as separate)
             draw.rectangle(
                 [(label_bg_x1, label_bg_y1), (label_bg_x2, label_bg_y2)],
@@ -297,7 +320,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                 outline=neon_green,
                 width=2,  # Thicker border to make it more distinct
             )
-            
+
             # Draw label text (black for high contrast)
             draw.text(
                 (label_x, label_y),
@@ -305,35 +328,39 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                 fill="black",
                 font=font,
             )
-            
+
             # Record label position for collision detection
-            existing_labels.append({
-                "x": label_bg_x1,
-                "y": label_bg_y1,
-                "width": label_bg_x2 - label_bg_x1,
-                "height": label_bg_y2 - label_bg_y1,
-            })
-        
+            existing_labels.append(
+                {
+                    "x": label_bg_x1,
+                    "y": label_bg_y1,
+                    "width": label_bg_x2 - label_bg_x1,
+                    "height": label_bg_y2 - label_bg_y1,
+                }
+            )
+
         return img
 
-    def _encode_image_to_base64(self, image: Image.Image, format: str = "PNG", max_size_mb: float = 20.0) -> str:
+    def _encode_image_to_base64(
+        self, image: Image.Image, format: str = "PNG", max_size_mb: float = 20.0
+    ) -> str:
         """
         Encode PIL Image to base64 data URL with size optimization.
-        
+
         Vision LLM APIs typically have size limits (e.g., 20MB for OpenAI).
         This function automatically compresses images if they're too large.
-        
+
         Args:
             image: PIL Image object
             format: Image format (PNG or JPEG)
             max_size_mb: Maximum size in MB before compression (default: 20MB)
-            
+
         Returns:
             Base64-encoded data URL
         """
         # Convert format for PIL
         pil_format = format.upper()
-        
+
         # Try JPEG first for better compression (unless PNG is specifically requested)
         if format.upper() != "PNG":
             pil_format = "JPEG"
@@ -345,37 +372,37 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
                     image = image.convert("RGBA")
                 rgb_image.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
                 image = rgb_image
-        
+
         buffer = io.BytesIO()
         quality = 95  # Start with high quality
-        
+
         # Try to fit within size limit
         for attempt in range(3):
             buffer.seek(0)
             buffer.truncate(0)
-            
+
             if pil_format == "JPEG":
                 image.save(buffer, format=pil_format, quality=quality, optimize=True)
             else:
                 image.save(buffer, format=pil_format, optimize=True)
-            
+
             size_mb = len(buffer.getvalue()) / (1024 * 1024)
-            
+
             if size_mb <= max_size_mb:
                 break
-            
+
             # Reduce quality for next attempt
             quality = max(70, quality - 15)
             if self.verbose and attempt == 0:
                 print(f"   ⚠️  Image size {size_mb:.2f}MB exceeds limit, compressing...")
-        
+
         image_bytes = buffer.getvalue()
         base64_data = base64.b64encode(image_bytes).decode("utf-8")
-        
+
         final_size_mb = len(image_bytes) / (1024 * 1024)
         if self.verbose:
             print(f"   📸 Image encoded: {final_size_mb:.2f}MB ({len(base64_data)} chars base64)")
-        
+
         mime_type = "image/png" if pil_format == "PNG" else "image/jpeg"
         return f"data:{mime_type};base64,{base64_data}"
 
@@ -386,11 +413,11 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
     ) -> LLMResponse:
         """
         Query LLM with vision (labeled screenshot).
-        
+
         Args:
             image_data_url: Base64-encoded image data URL
             goal: User's goal/task
-            
+
         Returns:
             LLMResponse with element ID
         """
@@ -428,7 +455,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             # Vision-capable provider - use vision API
             try:
                 from openai import OpenAI
-                
+
                 # Check if it's OpenAI
                 if isinstance(self.llm.client, OpenAI):
                     messages = [
@@ -447,18 +474,19 @@ Return ONLY the integer ID number from the label, nothing else."""
                             ],
                         },
                     ]
-                    
+
                     response = self.llm.client.chat.completions.create(
                         model=self.llm._model_name,
                         messages=messages,
                         temperature=0.0,
                         # Removed max_tokens to use API default (usually higher limit)
                     )
-                    
+
                     content = response.choices[0].message.content or ""
                     usage = response.usage
-                    
+
                     from .llm_response_builder import LLMResponseBuilder
+
                     return LLMResponseBuilder.from_openai_format(
                         content=content,
                         prompt_tokens=usage.prompt_tokens if usage else None,
@@ -467,14 +495,14 @@ Return ONLY the integer ID number from the label, nothing else."""
                         model_name=response.model,
                         finish_reason=response.choices[0].finish_reason,
                     )
-                
+
                 # Check if provider supports vision API (uses OpenAI-compatible format)
                 elif hasattr(self.llm, "client") and hasattr(self.llm.client, "chat"):
                     # Vision API uses similar format to OpenAI
                     if self.verbose:
                         print(f"   🔍 Using vision API with model: {self.llm._model_name}")
                         print(f"   📐 Image data URL length: {len(image_data_url)} chars")
-                    
+
                     messages = [
                         {
                             "role": "system",
@@ -491,13 +519,13 @@ Return ONLY the integer ID number from the label, nothing else."""
                             ],
                         },
                     ]
-                    
+
                     try:
                         if self.verbose:
                             print(f"   📤 Sending request to vision API...")
                             print(f"   📋 Messages structure: {len(messages)} messages")
                             print(f"   🖼️  Image URL prefix: {image_data_url[:50]}...")
-                        
+
                         # Removed max_tokens to use API default (usually higher limit)
                         # This allows the model to generate complete responses without truncation
                         response = self.llm.client.chat.completions.create(
@@ -506,70 +534,95 @@ Return ONLY the integer ID number from the label, nothing else."""
                             temperature=0.0,
                             # No max_tokens - use API default
                         )
-                        
+
                         # Debug: Check response structure
                         if self.verbose:
                             print(f"   📥 Response received")
                             print(f"   📦 Response type: {type(response)}")
-                            print(f"   📦 Choices count: {len(response.choices) if hasattr(response, 'choices') else 0}")
-                        
-                        if not hasattr(response, 'choices') or len(response.choices) == 0:
+                            print(
+                                f"   📦 Choices count: {len(response.choices) if hasattr(response, 'choices') else 0}"
+                            )
+
+                        if not hasattr(response, "choices") or len(response.choices) == 0:
                             raise ValueError("Vision API returned no choices in response")
-                        
+
                         choice = response.choices[0]
-                        content = choice.message.content if hasattr(choice.message, 'content') else None
-                        finish_reason = choice.finish_reason if hasattr(choice, 'finish_reason') else None
-                        
+                        content = (
+                            choice.message.content if hasattr(choice.message, "content") else None
+                        )
+                        finish_reason = (
+                            choice.finish_reason if hasattr(choice, "finish_reason") else None
+                        )
+
                         if self.verbose:
                             print(f"   📝 Content: {repr(content)}")
                             print(f"   🏁 Finish reason: {finish_reason}")
                             if finish_reason:
                                 print(f"   ⚠️  Finish reason indicates: {finish_reason}")
                                 if finish_reason == "length":
-                                    print(f"      - Response was truncated (hit API default max_tokens limit)")
-                                    print(f"      - This might indicate the model needs more tokens or doesn't support vision properly")
+                                    print(
+                                        f"      - Response was truncated (hit API default max_tokens limit)"
+                                    )
+                                    print(
+                                        f"      - This might indicate the model needs more tokens or doesn't support vision properly"
+                                    )
                                     # Even if truncated, there might be partial content
                                     if content:
-                                        print(f"      - ⚠️  Partial content received: {repr(content)}")
+                                        print(
+                                            f"      - ⚠️  Partial content received: {repr(content)}"
+                                        )
                                 elif finish_reason == "content_filter":
                                     print(f"      - Content was filtered by safety filters")
                                 elif finish_reason == "stop":
                                     print(f"      - Normal completion")
-                        
+
                         # If finish_reason is "length", we might still have partial content
                         # Try to use it if available (even if truncated, it might contain the element ID)
                         if finish_reason == "length" and content and content.strip():
                             if self.verbose:
                                 print(f"   ⚠️  Using truncated response: {repr(content)}")
                             # Continue processing with partial content
-                        
+
                         if content is None or content == "":
                             error_msg = f"Vision API returned empty content (finish_reason: {finish_reason})"
                             if self.verbose:
                                 print(f"   ❌ {error_msg}")
                                 print(f"   💡 Possible causes:")
-                                print(f"      - Model {self.llm._model_name} may not support vision")
+                                print(
+                                    f"      - Model {self.llm._model_name} may not support vision"
+                                )
                                 print(f"      - Image format might not be supported")
                                 print(f"      - API default max_tokens might be too restrictive")
                                 print(f"      - API response structure might be different")
                                 if finish_reason == "length":
-                                    print(f"      - ⚠️  Response was truncated - content might have been cut off")
-                                    print(f"      - Try increasing max_tokens or check response.choices[0].message for partial content")
+                                    print(
+                                        f"      - ⚠️  Response was truncated - content might have been cut off"
+                                    )
+                                    print(
+                                        f"      - Try increasing max_tokens or check response.choices[0].message for partial content"
+                                    )
                             raise ValueError(error_msg)
-                        
-                        usage = response.usage if hasattr(response, 'usage') else None
-                        
+
+                        usage = response.usage if hasattr(response, "usage") else None
+
                         if self.verbose:
                             print(f"   ✅ Vision API response received")
-                            print(f"   📊 Tokens: {usage.total_tokens if usage else 'N/A'} (prompt: {usage.prompt_tokens if usage else 'N/A'}, completion: {usage.completion_tokens if usage else 'N/A'})")
-                        
+                            print(
+                                f"   📊 Tokens: {usage.total_tokens if usage else 'N/A'} (prompt: {usage.prompt_tokens if usage else 'N/A'}, completion: {usage.completion_tokens if usage else 'N/A'})"
+                            )
+
                         from .llm_response_builder import LLMResponseBuilder
+
                         return LLMResponseBuilder.from_openai_format(
                             content=content,
                             prompt_tokens=usage.prompt_tokens if usage else None,
                             completion_tokens=usage.completion_tokens if usage else None,
                             total_tokens=usage.total_tokens if usage else None,
-                            model_name=response.model if hasattr(response, 'model') else self.llm._model_name,
+                            model_name=(
+                                response.model
+                                if hasattr(response, "model")
+                                else self.llm._model_name
+                            ),
                             finish_reason=finish_reason,
                         )
                     except Exception as vision_error:
@@ -580,7 +633,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                             print(f"      - Image format/size issue")
                             print(f"      - API key or permissions issue")
                             print(f"   🔄 Attempting fallback to regular generate method...")
-                        
+
                         # Fallback: Try using the regular generate method
                         # Some models might need images passed differently
                         try:
@@ -605,7 +658,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             except Exception as e:
                 if self.verbose:
                     print(f"⚠️  Vision API error: {e}, falling back to text-only")
-        
+
         # Fallback: Try to pass image via kwargs or use text-only
         # Some providers might accept image in kwargs
         try:
@@ -624,22 +677,22 @@ Return ONLY the integer ID number from the label, nothing else."""
     def _extract_element_id(self, llm_response: str) -> int | None:
         """
         Extract element ID integer from LLM response.
-        
+
         Args:
             llm_response: LLM response text
-            
+
         Returns:
             Element ID as integer, or None if not found
         """
         if self.verbose:
             print(f"🔍 Raw LLM response: {repr(llm_response)}")
-        
+
         # Clean the response - remove leading/trailing whitespace (handles '\n177', '177\n', etc.)
         cleaned = llm_response.strip()
-        
+
         if self.verbose:
             print(f"   🧹 After strip: {repr(cleaned)}")
-        
+
         # Remove common prefixes that LLMs might add
         prefixes_to_remove = [
             "element",
@@ -654,19 +707,19 @@ Return ONLY the integer ID number from the label, nothing else."""
         ]
         for prefix in prefixes_to_remove:
             if cleaned.lower().startswith(prefix):
-                cleaned = cleaned[len(prefix):].strip()
+                cleaned = cleaned[len(prefix) :].strip()
                 # Remove any remaining punctuation
                 cleaned = cleaned.lstrip(":.,;!?()[]{}")
                 cleaned = cleaned.strip()
                 if self.verbose:
                     print(f"   🧹 After removing prefix '{prefix}': {repr(cleaned)}")
-        
+
         # Try to find all integers in the cleaned response
-        numbers = re.findall(r'\d+', cleaned)
-        
+        numbers = re.findall(r"\d+", cleaned)
+
         if self.verbose:
             print(f"   🔢 Numbers found: {numbers}")
-        
+
         if numbers:
             # If multiple numbers found, prefer the largest one (likely the actual element ID)
             # Element IDs are typically larger numbers, not small ones like "1"
@@ -675,7 +728,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                 int_numbers = [int(n) for n in numbers]
                 if self.verbose:
                     print(f"   🔢 As integers: {int_numbers}")
-                
+
                 # Prefer larger numbers (element IDs are usually > 10)
                 # But if only small numbers exist, use the first one
                 large_numbers = [n for n in int_numbers if n > 10]
@@ -687,7 +740,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                     element_id = int_numbers[0]  # Fallback to first if all are small
                     if self.verbose:
                         print(f"   ⚠️  All numbers ≤ 10, using first: {element_id}")
-                
+
                 if self.verbose:
                     print(f"✅ Extracted element ID: {element_id} (from {numbers})")
                 return element_id
@@ -695,7 +748,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                 if self.verbose:
                     print(f"   ❌ Failed to convert numbers to integers")
                 pass
-        
+
         if self.verbose:
             print(f"⚠️  Could not extract element ID from response: {llm_response}")
         return None
@@ -712,12 +765,12 @@ Return ONLY the integer ID number from the label, nothing else."""
     ) -> AgentActionResult:
         """
         Override act() method to use visual prompting with full tracing support.
-        
+
         Args:
             goal: User's goal/task
             max_retries: Maximum retry attempts
             snapshot_options: Optional snapshot options (screenshot will be enabled)
-            
+
         Returns:
             AgentActionResult
         """
@@ -754,6 +807,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             # Enable screenshot if not already enabled
             if snapshot_options.screenshot is False or snapshot_options.screenshot is None:
                 from .models import ScreenshotConfig
+
                 snapshot_options.screenshot = ScreenshotConfig(format="png")
 
             # Set goal if not already provided
@@ -770,6 +824,7 @@ Return ONLY the integer ID number from the label, nothing else."""
 
             # 1. Take snapshot with screenshot
             from .snapshot import snapshot_async
+
             snap = await snapshot_async(self.browser, snapshot_options)
 
             if snap.status != "success":
@@ -839,15 +894,16 @@ Return ONLY the integer ID number from the label, nothing else."""
                     print(f"   Sample element IDs: {element_ids}")
 
             labeled_image = self._draw_labeled_screenshot(snap, snap.elements)
-            
+
             # Save labeled image to disk for debugging
             # Save to playground/images if running from playground, otherwise use current directory
             try:
                 # Try to detect if we're in a playground context
                 import sys
+
                 cwd = Path.cwd()
                 playground_path = None
-                
+
                 # Check if current working directory contains playground
                 if (cwd / "playground").exists():
                     playground_path = cwd / "playground" / "images"
@@ -855,7 +911,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                     # Check sys.path for playground
                     for path_str in sys.path:
                         path_obj = Path(path_str)
-                        if 'playground' in str(path_obj) and path_obj.exists():
+                        if "playground" in str(path_obj) and path_obj.exists():
                             # Find the playground directory
                             if path_obj.name == "playground":
                                 playground_path = path_obj / "images"
@@ -863,11 +919,11 @@ Return ONLY the integer ID number from the label, nothing else."""
                             elif (path_obj / "playground").exists():
                                 playground_path = path_obj / "playground" / "images"
                                 break
-                
+
                 if playground_path is None:
                     # Fallback: use current working directory
                     playground_path = cwd / "playground" / "images"
-                
+
                 images_dir = playground_path
                 images_dir.mkdir(parents=True, exist_ok=True)
                 image_uuid = str(uuid.uuid4())
@@ -880,9 +936,11 @@ Return ONLY the integer ID number from the label, nothing else."""
                 # Don't fail if image save fails - it's just for debugging
                 if self.verbose:
                     print(f"   ⚠️  Could not save labeled screenshot: {save_error}")
-            
+
             # Use JPEG for better compression (smaller file size for vision APIs)
-            labeled_image_data_url = self._encode_image_to_base64(labeled_image, format="JPEG", max_size_mb=20.0)
+            labeled_image_data_url = self._encode_image_to_base64(
+                labeled_image, format="JPEG", max_size_mb=20.0
+            )
 
             # 3. Query LLM with vision
             if self.verbose:
@@ -1078,9 +1136,9 @@ Return ONLY the integer ID number from the label, nothing else."""
 class SentienceVisualAgent(SentienceAgent):
     """
     Sync visual agent that uses labeled screenshots with vision-capable LLMs.
-    
+
     Extends SentienceAgent to override act() method with visual prompting.
-    
+
     Requirements:
         - Pillow (PIL): Required for image processing and drawing bounding boxes
           Install with: pip install Pillow
@@ -1093,12 +1151,12 @@ class SentienceVisualAgent(SentienceAgent):
         llm: LLMProvider,
         default_snapshot_limit: int = 50,
         verbose: bool = True,
-        tracer: Optional[Any] = None,
-        config: Optional[Any] = None,
+        tracer: Any | None = None,
+        config: Any | None = None,
     ):
         """
         Initialize Visual Agent
-        
+
         Args:
             browser: SentienceBrowser instance
             llm: LLM provider (must support vision, e.g., GPT-4o, Claude 3)
@@ -1108,20 +1166,22 @@ class SentienceVisualAgent(SentienceAgent):
             config: Optional AgentConfig
         """
         super().__init__(browser, llm, default_snapshot_limit, verbose, tracer, config)
-        
+
         if not PIL_AVAILABLE:
-            raise ImportError("PIL/Pillow is required for SentienceVisualAgent. Install with: pip install Pillow")
-        
+            raise ImportError(
+                "PIL/Pillow is required for SentienceVisualAgent. Install with: pip install Pillow"
+            )
+
         # Track previous snapshot for diff computation
         self._previous_snapshot: Snapshot | None = None
 
     def _decode_screenshot(self, screenshot_data_url: str) -> Image.Image:
         """
         Decode base64 screenshot data URL to PIL Image
-        
+
         Args:
             screenshot_data_url: Base64-encoded data URL (e.g., "data:image/png;base64,...")
-            
+
         Returns:
             PIL Image object
         """
@@ -1132,10 +1192,10 @@ class SentienceVisualAgent(SentienceAgent):
         else:
             # Assume it's already base64
             base64_data = screenshot_data_url
-            
+
         # Decode base64 to bytes
         image_bytes = base64.b64decode(base64_data)
-        
+
         # Load image from bytes
         return Image.open(io.BytesIO(image_bytes))
 
@@ -1150,10 +1210,10 @@ class SentienceVisualAgent(SentienceAgent):
     ) -> tuple[int, int]:
         """
         Find best position for label using anti-collision algorithm.
-        
+
         Tries 8 positions: 4 sides (top, bottom, left, right) + 4 corners.
         Returns the first position that doesn't collide with existing labels.
-        
+
         Args:
             element_bbox: Element bounding box {x, y, width, height}
             existing_labels: List of existing label bounding boxes
@@ -1161,16 +1221,16 @@ class SentienceVisualAgent(SentienceAgent):
             image_height: Image height in pixels
             label_width: Label width in pixels
             label_height: Label height in pixels
-            
+
         Returns:
             (x, y) position for label
         """
         x, y = element_bbox["x"], element_bbox["y"]
         width, height = element_bbox["width"], element_bbox["height"]
-        
+
         # Offset from element edge
         label_offset = 15  # Increased from 5px for better separation
-        
+
         # Try 8 positions: top, bottom, left, right, top-left, top-right, bottom-left, bottom-right
         positions = [
             (int(x + width / 2 - label_width / 2), int(y - label_height - label_offset)),  # Top
@@ -1182,13 +1242,18 @@ class SentienceVisualAgent(SentienceAgent):
             (int(x - label_width - label_offset), int(y + height + label_offset)),  # Bottom-left
             (int(x + width + label_offset), int(y + height + label_offset)),  # Bottom-right
         ]
-        
+
         # Check each position for collisions
         for pos_x, pos_y in positions:
             # Check bounds
-            if pos_x < 0 or pos_y < 0 or pos_x + label_width > image_width or pos_y + label_height > image_height:
+            if (
+                pos_x < 0
+                or pos_y < 0
+                or pos_x + label_width > image_width
+                or pos_y + label_height > image_height
+            ):
                 continue
-            
+
             # Check collision with existing labels
             label_bbox = {
                 "x": pos_x,
@@ -1196,7 +1261,7 @@ class SentienceVisualAgent(SentienceAgent):
                 "width": label_width,
                 "height": label_height,
             }
-            
+
             collision = False
             for existing in existing_labels:
                 # Simple AABB collision detection
@@ -1208,10 +1273,10 @@ class SentienceVisualAgent(SentienceAgent):
                 ):
                     collision = True
                     break
-            
+
             if not collision:
                 return (pos_x, pos_y)
-        
+
         # If all positions collide, use top position with increased offset
         return (int(x + width / 2 - label_width / 2), int(y - label_height - label_offset * 2))
 
@@ -1222,52 +1287,54 @@ class SentienceVisualAgent(SentienceAgent):
     ) -> Image.Image:
         """
         Draw labeled screenshot with bounding boxes and element IDs.
-        
+
         Args:
             snapshot: Snapshot with screenshot data
             elements: List of elements to label
-            
+
         Returns:
             PIL Image with labels drawn
         """
         # Decode screenshot
         img = self._decode_screenshot(snapshot.screenshot)
         draw = ImageDraw.Draw(img)
-        
+
         # Load font (fallback to default if not available)
         try:
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
-        except (OSError, IOError):
+        except OSError:
             try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-            except (OSError, IOError):
+                font = ImageFont.truetype(
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16
+                )
+            except OSError:
                 font = ImageFont.load_default()
-        
+
         image_width, image_height = img.size
         existing_labels: list[dict[str, float]] = []
-        
+
         # Neon green color: #39FF14 (bright, vibrant green)
         neon_green = "#39FF14"
-        
+
         for element in elements:
             bbox = element.bbox
             x, y, width, height = bbox.x, bbox.y, bbox.width, bbox.height
-            
+
             # Draw bounding box rectangle (neon green with 2px width)
             draw.rectangle(
                 [(x, y), (x + width, y + height)],
                 outline=neon_green,
                 width=2,
             )
-            
+
             # Prepare label text (just the number - keep it simple and compact)
             label_text = str(element.id)
-            
+
             # Measure label text size
             bbox_text = draw.textbbox((0, 0), label_text, font=font)
             label_width = bbox_text[2] - bbox_text[0]
             label_height = bbox_text[3] - bbox_text[1]
-            
+
             # Find best position for label (anti-collision)
             label_x, label_y = self._find_label_position(
                 {"x": x, "y": y, "width": width, "height": height},
@@ -1277,21 +1344,21 @@ class SentienceVisualAgent(SentienceAgent):
                 label_width + 8,  # Add padding
                 label_height + 4,  # Add padding
             )
-            
+
             # Calculate connection points for a clearer visual link
             element_center_x = x + width / 2
             element_center_y = y + height / 2
             label_center_x = label_x + label_width / 2
             label_center_y = label_y + label_height / 2
-            
+
             # Determine which edge of the element is closest to the label
             dist_top = abs(label_center_y - y)
             dist_bottom = abs(label_center_y - (y + height))
             dist_left = abs(label_center_x - x)
             dist_right = abs(label_center_x - (x + width))
-            
+
             min_dist = min(dist_top, dist_bottom, dist_left, dist_right)
-            
+
             if min_dist == dist_top:
                 line_start = (element_center_x, y)
             elif min_dist == dist_bottom:
@@ -1300,27 +1367,27 @@ class SentienceVisualAgent(SentienceAgent):
                 line_start = (x, element_center_y)
             else:
                 line_start = (x + width, element_center_y)
-            
+
             # Draw connecting line from element edge to label
             draw.line(
                 [line_start, (label_center_x, label_center_y)],
                 fill=neon_green,
                 width=2,
             )
-            
+
             # Draw label background (white with neon green border)
             label_bg_x1 = label_x - 4
             label_bg_y1 = label_y - 2
             label_bg_x2 = label_x + label_width + 4
             label_bg_y2 = label_y + label_height + 2
-            
+
             draw.rectangle(
                 [(label_bg_x1, label_bg_y1), (label_bg_x2, label_bg_y2)],
                 fill="white",
                 outline=neon_green,
                 width=2,
             )
-            
+
             # Draw label text
             draw.text(
                 (label_x, label_y),
@@ -1328,15 +1395,17 @@ class SentienceVisualAgent(SentienceAgent):
                 fill="black",
                 font=font,
             )
-            
+
             # Record label position for collision detection
-            existing_labels.append({
-                "x": label_bg_x1,
-                "y": label_bg_y1,
-                "width": label_bg_x2 - label_bg_x1,
-                "height": label_bg_y2 - label_bg_y1,
-            })
-        
+            existing_labels.append(
+                {
+                    "x": label_bg_x1,
+                    "y": label_bg_y1,
+                    "width": label_bg_x2 - label_bg_x1,
+                    "height": label_bg_y2 - label_bg_y1,
+                }
+            )
+
         return img
 
     def _encode_image_to_base64(
@@ -1347,53 +1416,53 @@ class SentienceVisualAgent(SentienceAgent):
     ) -> str:
         """
         Encode PIL Image to base64 data URL with size optimization.
-        
+
         Args:
             image: PIL Image object
             format: Output format ("PNG" or "JPEG")
             max_size_mb: Maximum size in MB (will compress if exceeded)
-            
+
         Returns:
             Base64-encoded data URL
         """
         buffer = io.BytesIO()
         pil_format = format.upper()
         quality = 95  # Start with high quality
-        
+
         # Convert RGBA to RGB for JPEG
         if pil_format == "JPEG" and image.mode == "RGBA":
             # Create white background
             rgb_image = Image.new("RGB", image.size, (255, 255, 255))
             rgb_image.paste(image, mask=image.split()[3])  # Use alpha channel as mask
             image = rgb_image
-        
+
         # Try to fit within size limit
         for attempt in range(3):
             buffer.seek(0)
             buffer.truncate(0)
-            
+
             if pil_format == "JPEG":
                 image.save(buffer, format=pil_format, quality=quality, optimize=True)
             else:
                 image.save(buffer, format=pil_format, optimize=True)
-            
+
             size_mb = len(buffer.getvalue()) / (1024 * 1024)
-            
+
             if size_mb <= max_size_mb:
                 break
-            
+
             # Reduce quality for next attempt
             quality = max(70, quality - 15)
             if self.verbose and attempt == 0:
                 print(f"   ⚠️  Image size {size_mb:.2f}MB exceeds limit, compressing...")
-        
+
         image_bytes = buffer.getvalue()
         base64_data = base64.b64encode(image_bytes).decode("utf-8")
-        
+
         final_size_mb = len(image_bytes) / (1024 * 1024)
         if self.verbose:
             print(f"   📸 Image encoded: {final_size_mb:.2f}MB ({len(base64_data)} chars base64)")
-        
+
         mime_type = "image/png" if pil_format == "PNG" else "image/jpeg"
         return f"data:{mime_type};base64,{base64_data}"
 
@@ -1404,11 +1473,11 @@ class SentienceVisualAgent(SentienceAgent):
     ) -> LLMResponse:
         """
         Query LLM with vision (labeled screenshot) - sync version.
-        
+
         Args:
             image_data_url: Base64-encoded image data URL
             goal: User's goal/task
-            
+
         Returns:
             LLMResponse with element ID
         """
@@ -1446,7 +1515,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             # Vision-capable provider - use vision API
             try:
                 from openai import OpenAI
-                
+
                 # Check if it's OpenAI
                 if isinstance(self.llm.client, OpenAI):
                     messages = [
@@ -1465,17 +1534,18 @@ Return ONLY the integer ID number from the label, nothing else."""
                             ],
                         },
                     ]
-                    
+
                     response = self.llm.client.chat.completions.create(
                         model=self.llm._model_name,
                         messages=messages,
                         temperature=0.0,
                     )
-                    
+
                     content = response.choices[0].message.content or ""
                     usage = response.usage
-                    
+
                     from .llm_response_builder import LLMResponseBuilder
+
                     return LLMResponseBuilder.from_openai_format(
                         content=content,
                         prompt_tokens=usage.prompt_tokens if usage else None,
@@ -1484,13 +1554,13 @@ Return ONLY the integer ID number from the label, nothing else."""
                         model_name=response.model,
                         finish_reason=response.choices[0].finish_reason,
                     )
-                
+
                 # Check if provider supports vision API (uses OpenAI-compatible format)
                 elif hasattr(self.llm, "client") and hasattr(self.llm.client, "chat"):
                     if self.verbose:
                         print(f"   🔍 Using vision API with model: {self.llm._model_name}")
                         print(f"   📐 Image data URL length: {len(image_data_url)} chars")
-                    
+
                     messages = [
                         {
                             "role": "system",
@@ -1507,46 +1577,55 @@ Return ONLY the integer ID number from the label, nothing else."""
                             ],
                         },
                     ]
-                    
+
                     try:
                         if self.verbose:
                             print(f"   📤 Sending request to vision API...")
-                        
+
                         response = self.llm.client.chat.completions.create(
                             model=self.llm._model_name,
                             messages=messages,
                             temperature=0.0,
                         )
-                        
-                        if not hasattr(response, 'choices') or len(response.choices) == 0:
+
+                        if not hasattr(response, "choices") or len(response.choices) == 0:
                             raise ValueError("Vision API returned no choices in response")
-                        
+
                         choice = response.choices[0]
-                        content = choice.message.content if hasattr(choice.message, 'content') else None
-                        finish_reason = choice.finish_reason if hasattr(choice, 'finish_reason') else None
-                        
+                        content = (
+                            choice.message.content if hasattr(choice.message, "content") else None
+                        )
+                        finish_reason = (
+                            choice.finish_reason if hasattr(choice, "finish_reason") else None
+                        )
+
                         if content is None or content == "":
                             error_msg = f"Vision API returned empty content (finish_reason: {finish_reason})"
                             if self.verbose:
                                 print(f"   ❌ {error_msg}")
                             raise ValueError(error_msg)
-                        
-                        usage = response.usage if hasattr(response, 'usage') else None
-                        
+
+                        usage = response.usage if hasattr(response, "usage") else None
+
                         from .llm_response_builder import LLMResponseBuilder
+
                         return LLMResponseBuilder.from_openai_format(
                             content=content,
                             prompt_tokens=usage.prompt_tokens if usage else None,
                             completion_tokens=usage.completion_tokens if usage else None,
                             total_tokens=usage.total_tokens if usage else None,
-                            model_name=response.model if hasattr(response, 'model') else self.llm._model_name,
+                            model_name=(
+                                response.model
+                                if hasattr(response, "model")
+                                else self.llm._model_name
+                            ),
                             finish_reason=finish_reason,
                         )
                     except Exception as vision_error:
                         if self.verbose:
                             print(f"   ❌ Vision API error: {vision_error}")
                             print(f"   🔄 Attempting fallback to regular generate method...")
-                        
+
                         # Fallback: Try using the regular generate method
                         try:
                             fallback_prompt = f"{user_prompt}\n\n[Image: {image_data_url[:200]}...]"
@@ -1568,7 +1647,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             except Exception as e:
                 if self.verbose:
                     print(f"⚠️  Vision API error: {e}, falling back to text-only")
-        
+
         # Fallback: Try to pass image via kwargs or use text-only
         try:
             return self.llm.generate(
@@ -1598,12 +1677,12 @@ Return ONLY the integer ID number from the label, nothing else."""
     ) -> AgentActionResult:
         """
         Override act() method to use visual prompting with full tracing support.
-        
+
         Args:
             goal: User's goal/task
             max_retries: Maximum retry attempts
             snapshot_options: Optional snapshot options (screenshot will be enabled)
-            
+
         Returns:
             AgentActionResult
         """
@@ -1640,6 +1719,7 @@ Return ONLY the integer ID number from the label, nothing else."""
             # Enable screenshot if not already enabled
             if snapshot_options.screenshot is False or snapshot_options.screenshot is None:
                 from .models import ScreenshotConfig
+
                 snapshot_options.screenshot = ScreenshotConfig(format="png")
 
             # Set goal if not already provided
@@ -1724,15 +1804,16 @@ Return ONLY the integer ID number from the label, nothing else."""
                     print(f"   Sample element IDs: {element_ids}")
 
             labeled_image = self._draw_labeled_screenshot(snap, snap.elements)
-            
+
             # Save labeled image to disk for debugging
             # Save to playground/images if running from playground, otherwise use current directory
             try:
                 # Try to detect if we're in a playground context
                 import sys
+
                 cwd = Path.cwd()
                 playground_path = None
-                
+
                 # Check if current working directory contains playground
                 if (cwd / "playground").exists():
                     playground_path = cwd / "playground" / "images"
@@ -1740,7 +1821,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                     # Check sys.path for playground
                     for path_str in sys.path:
                         path_obj = Path(path_str)
-                        if 'playground' in str(path_obj) and path_obj.exists():
+                        if "playground" in str(path_obj) and path_obj.exists():
                             # Find the playground directory
                             if path_obj.name == "playground":
                                 playground_path = path_obj / "images"
@@ -1748,11 +1829,11 @@ Return ONLY the integer ID number from the label, nothing else."""
                             elif (path_obj / "playground").exists():
                                 playground_path = path_obj / "playground" / "images"
                                 break
-                
+
                 if playground_path is None:
                     # Fallback: use current working directory
                     playground_path = cwd / "playground" / "images"
-                
+
                 images_dir = playground_path
                 images_dir.mkdir(parents=True, exist_ok=True)
                 image_uuid = str(uuid.uuid4())
@@ -1765,9 +1846,11 @@ Return ONLY the integer ID number from the label, nothing else."""
                 # Don't fail if image save fails - it's just for debugging
                 if self.verbose:
                     print(f"   ⚠️  Could not save labeled screenshot: {save_error}")
-            
+
             # Use JPEG for better compression (smaller file size for vision APIs)
-            labeled_image_data_url = self._encode_image_to_base64(labeled_image, format="JPEG", max_size_mb=20.0)
+            labeled_image_data_url = self._encode_image_to_base64(
+                labeled_image, format="JPEG", max_size_mb=20.0
+            )
 
             # 3. Query LLM with vision (sync version)
             if self.verbose:
@@ -1958,4 +2041,3 @@ Return ONLY the integer ID number from the label, nothing else."""
 
             # Re-raise the exception
             raise
-

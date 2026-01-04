@@ -4,7 +4,6 @@ Sentience Python SDK - AI Agent Browser Automation
 
 from .actions import click, click_rect, press, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
-from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .agent_config import AgentConfig
 
 # Agent Layer (Phase 1 & 2)
@@ -71,6 +70,7 @@ from .utils import (
 
 # Formatting (v0.12.0+)
 from .utils.formatting import format_snapshot_for_llm
+from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for
 
 __version__ = "0.92.1"
