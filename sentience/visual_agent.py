@@ -21,7 +21,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from .actions import click, click_async
 from .agent import SentienceAgent, SentienceAgentAsync, _safe_tracer_call
@@ -33,13 +33,26 @@ from .snapshot import snapshot
 from .snapshot_diff import SnapshotDiff
 from .trace_event_builder import TraceEventBuilder
 
-try:
+# Only import PIL types for type checking, not at runtime
+if TYPE_CHECKING:
     from PIL import Image, ImageDraw, ImageFont
+else:
+    # Create a dummy type for runtime when PIL is not available
+    Image = None
+    ImageDraw = None
+    ImageFont = None
+
+try:
+    from PIL import Image as PILImage, ImageDraw as PILImageDraw, ImageFont as PILImageFont
 
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    print("⚠️  Warning: PIL/Pillow not available. Install with: pip install Pillow")
+    # Define dummy values so type hints don't fail
+    PILImage = None  # type: ignore
+    PILImageDraw = None  # type: ignore
+    PILImageFont = None  # type: ignore
+    # Don't print warning here - it will be printed when the class is instantiated
 
 
 class SentienceVisualAgentAsync(SentienceAgentAsync):
@@ -84,7 +97,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         # Track previous snapshot for diff computation
         self._previous_snapshot: Snapshot | None = None
 
-    def _decode_screenshot(self, screenshot_data_url: str) -> Image.Image:
+    def _decode_screenshot(self, screenshot_data_url: str) -> "PILImage.Image":
         """
         Decode base64 screenshot data URL to PIL Image
 
@@ -106,7 +119,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         image_bytes = base64.b64decode(base64_data)
 
         # Create PIL Image from bytes
-        return Image.open(io.BytesIO(image_bytes))
+        return PILImage.open(io.BytesIO(image_bytes))
 
     def _find_label_position(
         self,
@@ -206,7 +219,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         self,
         snapshot: Snapshot,
         elements: list[Element],
-    ) -> Image.Image:
+    ) -> "PILImage.Image":
         """
         Draw bounding boxes and labels on screenshot.
 
@@ -222,18 +235,18 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
 
         # Decode screenshot
         img = self._decode_screenshot(snapshot.screenshot)
-        draw = ImageDraw.Draw(img)
+        draw = PILImageDraw.Draw(img)
 
         # Try to load a font, fallback to default if not available
         try:
             # Try to use a system font
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
+            font = PILImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
         except:
             try:
-                font = ImageFont.truetype("arial.ttf", 16)
+                font = PILImageFont.truetype("arial.ttf", 16)
             except:
                 # Use default font if system fonts not available
-                font = ImageFont.load_default()
+                font = PILImageFont.load_default()
 
         image_width, image_height = img.size
         existing_labels: list[dict[str, Any]] = []
@@ -342,7 +355,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
         return img
 
     def _encode_image_to_base64(
-        self, image: Image.Image, format: str = "PNG", max_size_mb: float = 20.0
+        self, image: "PILImage.Image", format: str = "PNG", max_size_mb: float = 20.0
     ) -> str:
         """
         Encode PIL Image to base64 data URL with size optimization.
@@ -367,7 +380,7 @@ class SentienceVisualAgentAsync(SentienceAgentAsync):
             # Convert RGBA to RGB for JPEG
             if image.mode in ("RGBA", "LA", "P"):
                 # Create white background
-                rgb_image = Image.new("RGB", image.size, (255, 255, 255))
+                rgb_image = PILImage.new("RGB", image.size, (255, 255, 255))
                 if image.mode == "P":
                     image = image.convert("RGBA")
                 rgb_image.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
@@ -1175,7 +1188,7 @@ class SentienceVisualAgent(SentienceAgent):
         # Track previous snapshot for diff computation
         self._previous_snapshot: Snapshot | None = None
 
-    def _decode_screenshot(self, screenshot_data_url: str) -> Image.Image:
+    def _decode_screenshot(self, screenshot_data_url: str) -> "PILImage.Image":
         """
         Decode base64 screenshot data URL to PIL Image
 
@@ -1197,7 +1210,7 @@ class SentienceVisualAgent(SentienceAgent):
         image_bytes = base64.b64decode(base64_data)
 
         # Load image from bytes
-        return Image.open(io.BytesIO(image_bytes))
+        return PILImage.open(io.BytesIO(image_bytes))
 
     def _find_label_position(
         self,
@@ -1284,7 +1297,7 @@ class SentienceVisualAgent(SentienceAgent):
         self,
         snapshot: Snapshot,
         elements: list[Element],
-    ) -> Image.Image:
+    ) -> "PILImage.Image":
         """
         Draw labeled screenshot with bounding boxes and element IDs.
 
@@ -1297,18 +1310,18 @@ class SentienceVisualAgent(SentienceAgent):
         """
         # Decode screenshot
         img = self._decode_screenshot(snapshot.screenshot)
-        draw = ImageDraw.Draw(img)
+        draw = PILImageDraw.Draw(img)
 
         # Load font (fallback to default if not available)
         try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
+            font = PILImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
         except OSError:
             try:
-                font = ImageFont.truetype(
+                font = PILImageFont.truetype(
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16
                 )
             except OSError:
-                font = ImageFont.load_default()
+                font = PILImageFont.load_default()
 
         image_width, image_height = img.size
         existing_labels: list[dict[str, float]] = []
@@ -1410,7 +1423,7 @@ class SentienceVisualAgent(SentienceAgent):
 
     def _encode_image_to_base64(
         self,
-        image: Image.Image,
+        image: "PILImage.Image",
         format: str = "PNG",
         max_size_mb: float = 20.0,
     ) -> str:
