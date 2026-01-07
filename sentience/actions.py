@@ -134,7 +134,11 @@ def click(  # noqa: C901
 
 
 def type_text(
-    browser: SentienceBrowser, element_id: int, text: str, take_snapshot: bool = False
+    browser: SentienceBrowser,
+    element_id: int,
+    text: str,
+    take_snapshot: bool = False,
+    delay_ms: float = 0,
 ) -> ActionResult:
     """
     Type text into an element (focus then input)
@@ -144,9 +148,16 @@ def type_text(
         element_id: Element ID from snapshot
         text: Text to type
         take_snapshot: Whether to take snapshot after action
+        delay_ms: Delay between keystrokes in milliseconds for human-like typing (default: 0)
 
     Returns:
         ActionResult
+
+    Example:
+        >>> # Type instantly (default behavior)
+        >>> type_text(browser, element_id, "Hello World")
+        >>> # Type with human-like delay (~10ms between keystrokes)
+        >>> type_text(browser, element_id, "Hello World", delay_ms=10)
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
@@ -177,8 +188,8 @@ def type_text(
             error={"code": "focus_failed", "reason": "Element not found"},
         )
 
-    # Type using Playwright keyboard
-    browser.page.keyboard.type(text)
+    # Type using Playwright keyboard with optional delay between keystrokes
+    browser.page.keyboard.type(text, delay=delay_ms)
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
@@ -222,6 +233,94 @@ def press(browser: SentienceBrowser, key: str, take_snapshot: bool = False) -> A
 
     # Wait a bit for navigation/DOM updates
     browser.page.wait_for_timeout(500)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def scroll_to(
+    browser: SentienceBrowser,
+    element_id: int,
+    behavior: str = "smooth",
+    block: str = "center",
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Scroll an element into view
+
+    Scrolls the page so that the specified element is visible in the viewport.
+    Uses the element registry to find the element and scrollIntoView() to scroll it.
+
+    Args:
+        browser: SentienceBrowser instance
+        element_id: Element ID from snapshot to scroll into view
+        behavior: Scroll behavior - 'smooth', 'instant', or 'auto' (default: 'smooth')
+        block: Vertical alignment - 'start', 'center', 'end', or 'nearest' (default: 'center')
+        take_snapshot: Whether to take snapshot after action
+
+    Returns:
+        ActionResult
+
+    Example:
+        >>> snap = snapshot(browser)
+        >>> button = find(snap, 'role=button[name="Submit"]')
+        >>> if button:
+        >>>     # Scroll element into view with smooth animation
+        >>>     scroll_to(browser, button.id)
+        >>>     # Scroll instantly to top of viewport
+        >>>     scroll_to(browser, button.id, behavior='instant', block='start')
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    # Scroll element into view using the element registry
+    scrolled = browser.page.evaluate(
+        """
+        (args) => {
+            const el = window.sentience_registry[args.id];
+            if (el && el.scrollIntoView) {
+                el.scrollIntoView({
+                    behavior: args.behavior,
+                    block: args.block,
+                    inline: 'nearest'
+                });
+                return true;
+            }
+            return false;
+        }
+        """,
+        {"id": element_id, "behavior": behavior, "block": block},
+    )
+
+    if not scrolled:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "scroll_failed", "reason": "Element not found or not scrollable"},
+        )
+
+    # Wait a bit for scroll to complete (especially for smooth scrolling)
+    wait_time = 500 if behavior == "smooth" else 100
+    browser.page.wait_for_timeout(wait_time)
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
@@ -553,7 +652,11 @@ async def click_async(
 
 
 async def type_text_async(
-    browser: AsyncSentienceBrowser, element_id: int, text: str, take_snapshot: bool = False
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    text: str,
+    take_snapshot: bool = False,
+    delay_ms: float = 0,
 ) -> ActionResult:
     """
     Type text into an element (async)
@@ -563,9 +666,16 @@ async def type_text_async(
         element_id: Element ID from snapshot
         text: Text to type
         take_snapshot: Whether to take snapshot after action
+        delay_ms: Delay between keystrokes in milliseconds for human-like typing (default: 0)
 
     Returns:
         ActionResult
+
+    Example:
+        >>> # Type instantly (default behavior)
+        >>> await type_text_async(browser, element_id, "Hello World")
+        >>> # Type with human-like delay (~10ms between keystrokes)
+        >>> await type_text_async(browser, element_id, "Hello World", delay_ms=10)
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call await browser.start() first.")
@@ -596,8 +706,8 @@ async def type_text_async(
             error={"code": "focus_failed", "reason": "Element not found"},
         )
 
-    # Type using Playwright keyboard
-    await browser.page.keyboard.type(text)
+    # Type using Playwright keyboard with optional delay between keystrokes
+    await browser.page.keyboard.type(text, delay=delay_ms)
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
@@ -643,6 +753,94 @@ async def press_async(
 
     # Wait a bit for navigation/DOM updates
     await browser.page.wait_for_timeout(500)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def scroll_to_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    behavior: str = "smooth",
+    block: str = "center",
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Scroll an element into view (async)
+
+    Scrolls the page so that the specified element is visible in the viewport.
+    Uses the element registry to find the element and scrollIntoView() to scroll it.
+
+    Args:
+        browser: AsyncSentienceBrowser instance
+        element_id: Element ID from snapshot to scroll into view
+        behavior: Scroll behavior - 'smooth', 'instant', or 'auto' (default: 'smooth')
+        block: Vertical alignment - 'start', 'center', 'end', or 'nearest' (default: 'center')
+        take_snapshot: Whether to take snapshot after action
+
+    Returns:
+        ActionResult
+
+    Example:
+        >>> snap = await snapshot_async(browser)
+        >>> button = find(snap, 'role=button[name="Submit"]')
+        >>> if button:
+        >>>     # Scroll element into view with smooth animation
+        >>>     await scroll_to_async(browser, button.id)
+        >>>     # Scroll instantly to top of viewport
+        >>>     await scroll_to_async(browser, button.id, behavior='instant', block='start')
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    # Scroll element into view using the element registry
+    scrolled = await browser.page.evaluate(
+        """
+        (args) => {
+            const el = window.sentience_registry[args.id];
+            if (el && el.scrollIntoView) {
+                el.scrollIntoView({
+                    behavior: args.behavior,
+                    block: args.block,
+                    inline: 'nearest'
+                });
+                return true;
+            }
+            return false;
+        }
+        """,
+        {"id": element_id, "behavior": behavior, "block": block},
+    )
+
+    if not scrolled:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "scroll_failed", "reason": "Element not found or not scrollable"},
+        )
+
+    # Wait a bit for scroll to complete (especially for smooth scrolling)
+    wait_time = 500 if behavior == "smooth" else 100
+    await browser.page.wait_for_timeout(wait_time)
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url

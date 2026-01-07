@@ -2,7 +2,7 @@
 Sentience Python SDK - AI Agent Browser Automation
 """
 
-from .actions import click, click_rect, press, type_text
+from .actions import click, click_rect, press, scroll_to, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 
@@ -90,6 +90,7 @@ __all__ = [
     "click",
     "type_text",
     "press",
+    "scroll_to",
     "click_rect",
     "wait_for",
     "expect",

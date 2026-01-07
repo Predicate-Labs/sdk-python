@@ -4,7 +4,17 @@ Tests for actions (click, type, press, click_rect)
 
 import pytest
 
-from sentience import BBox, SentienceBrowser, click, click_rect, find, press, snapshot, type_text
+from sentience import (
+    BBox,
+    SentienceBrowser,
+    click,
+    click_rect,
+    find,
+    press,
+    scroll_to,
+    snapshot,
+    type_text,
+)
 
 
 def test_click():
@@ -165,3 +175,85 @@ def test_click_js_approach():
             assert result.duration_ms > 0
             # Navigation may happen, which is expected for links
             assert result.outcome in ["navigated", "dom_updated"]
+
+
+def test_scroll_to():
+    """Test scroll_to action"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        snap = snapshot(browser)
+        # Find an element to scroll to (typically the last link or element)
+        elements = [el for el in snap.elements if el.role == "link"]
+
+        if elements:
+            # Get the last element which might be out of viewport
+            element = elements[-1] if len(elements) > 1 else elements[0]
+            result = scroll_to(browser, element.id)
+            assert result.success is True
+            assert result.duration_ms > 0
+            assert result.outcome in ["navigated", "dom_updated"]
+
+
+def test_scroll_to_instant():
+    """Test scroll_to with instant behavior"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        snap = snapshot(browser)
+        elements = [el for el in snap.elements if el.role == "link"]
+
+        if elements:
+            element = elements[0]
+            result = scroll_to(browser, element.id, behavior="instant", block="start")
+            assert result.success is True
+            assert result.duration_ms > 0
+
+
+def test_scroll_to_with_snapshot():
+    """Test scroll_to with snapshot after action"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        snap = snapshot(browser)
+        elements = [el for el in snap.elements if el.role == "link"]
+
+        if elements:
+            element = elements[0]
+            result = scroll_to(browser, element.id, take_snapshot=True)
+            assert result.success is True
+            assert result.snapshot_after is not None
+            assert result.snapshot_after.status == "success"
+
+
+def test_scroll_to_invalid_element():
+    """Test scroll_to with invalid element ID"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        # Try to scroll to non-existent element
+        result = scroll_to(browser, 99999)
+        assert result.success is False
+        assert result.error is not None
+        assert result.error["code"] == "scroll_failed"
+
+
+def test_type_text_with_delay():
+    """Test type_text with human-like delay"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        snap = snapshot(browser)
+        textbox = find(snap, "role=textbox")
+
+        if textbox:
+            # Test with 10ms delay between keystrokes
+            result = type_text(browser, textbox.id, "hello", delay_ms=10)
+            assert result.success is True
+            # Duration should be longer due to delays
+            assert result.duration_ms >= 50  # At least 5 chars * 10ms

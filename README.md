@@ -102,6 +102,37 @@ with SentienceBrowser(headless=False) as browser:
 
 ---
 
+## 🆕 What's New (2026-01-06)
+
+### Human-like Typing
+Add realistic delays between keystrokes to mimic human typing:
+```python
+from sentience import type_text
+
+# Type instantly (default)
+type_text(browser, element_id, "Hello World")
+
+# Type with human-like delay (~10ms between keystrokes)
+type_text(browser, element_id, "Hello World", delay_ms=10)
+```
+
+### Scroll to Element
+Scroll elements into view with smooth animation:
+```python
+from sentience import snapshot, find, scroll_to
+
+snap = snapshot(browser)
+button = find(snap, 'role=button text~"Submit"')
+
+# Scroll element into view with smooth animation
+scroll_to(browser, button.id)
+
+# Scroll instantly to top of viewport
+scroll_to(browser, button.id, behavior='instant', block='start')
+```
+
+---
+
 <details>
 <summary><h2>💼 Real-World Example: Amazon Shopping Bot</h2></summary>
 

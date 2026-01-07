@@ -43,7 +43,9 @@ else:
     ImageFont = None
 
 try:
-    from PIL import Image as PILImage, ImageDraw as PILImageDraw, ImageFont as PILImageFont
+    from PIL import Image as PILImage
+    from PIL import ImageDraw as PILImageDraw
+    from PIL import ImageFont as PILImageFont
 
     PIL_AVAILABLE = True
 except ImportError:

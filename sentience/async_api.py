@@ -23,7 +23,13 @@ You can also import directly from their respective modules:
 
 # ========== Actions (Phase 1) ==========
 # Re-export async action functions from actions.py
-from sentience.actions import click_async, click_rect_async, press_async, type_text_async
+from sentience.actions import (
+    click_async,
+    click_rect_async,
+    press_async,
+    scroll_to_async,
+    type_text_async,
+)
 
 # ========== Phase 2C: Agent Layer ==========
 # Re-export async agent classes from agent.py and base_agent.py
@@ -76,6 +82,7 @@ __all__ = [
     "click_async",  # Re-exported from actions.py
     "type_text_async",  # Re-exported from actions.py
     "press_async",  # Re-exported from actions.py
+    "scroll_to_async",  # Re-exported from actions.py
     "click_rect_async",  # Re-exported from actions.py
     # Phase 2A: Core Utilities
     "wait_for_async",  # Re-exported from wait.py
