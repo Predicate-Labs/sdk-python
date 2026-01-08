@@ -2,10 +2,12 @@
 Snapshot comparison utilities for diff_status detection.
 
 Implements change detection logic for the Diff Overlay feature.
+
+Uses shared canonicalization helpers from canonicalization.py to ensure
+consistent comparison behavior with trace_indexing/indexer.py.
 """
 
-from typing import Literal
-
+from .canonicalization import bbox_changed, content_changed
 from .models import Element, Snapshot
 
 
@@ -18,55 +20,30 @@ class SnapshotDiff:
     - REMOVED: Element existed in previous but not in current
     - MODIFIED: Element exists in both but has changed
     - MOVED: Element exists in both but position changed
+
+    Uses canonicalized comparisons (normalized text, rounded bbox) to reduce
+    noise from insignificant changes like sub-pixel rendering differences
+    or whitespace variations.
     """
 
     @staticmethod
-    def _has_bbox_changed(el1: Element, el2: Element, threshold: float = 5.0) -> bool:
-        """
-        Check if element's bounding box has changed significantly.
-
-        Args:
-            el1: First element
-            el2: Second element
-            threshold: Position change threshold in pixels (default: 5.0)
-
-        Returns:
-            True if position or size changed beyond threshold
-        """
-        return (
-            abs(el1.bbox.x - el2.bbox.x) > threshold
-            or abs(el1.bbox.y - el2.bbox.y) > threshold
-            or abs(el1.bbox.width - el2.bbox.width) > threshold
-            or abs(el1.bbox.height - el2.bbox.height) > threshold
-        )
-
-    @staticmethod
-    def _has_content_changed(el1: Element, el2: Element) -> bool:
-        """
-        Check if element's content has changed.
-
-        Args:
-            el1: First element
-            el2: Second element
-
-        Returns:
-            True if text, role, or visual properties changed
-        """
-        # Compare text content
-        if el1.text != el2.text:
-            return True
-
-        # Compare role
-        if el1.role != el2.role:
-            return True
-
-        # Compare visual cues
-        if el1.visual_cues.is_primary != el2.visual_cues.is_primary:
-            return True
-        if el1.visual_cues.is_clickable != el2.visual_cues.is_clickable:
-            return True
-
-        return False
+    def _element_to_dict(el: Element) -> dict:
+        """Convert Element model to dict for canonicalization helpers."""
+        return {
+            "id": el.id,
+            "role": el.role,
+            "text": el.text,
+            "bbox": {
+                "x": el.bbox.x,
+                "y": el.bbox.y,
+                "width": el.bbox.width,
+                "height": el.bbox.height,
+            },
+            "visual_cues": {
+                "is_primary": el.visual_cues.is_primary,
+                "is_clickable": el.visual_cues.is_clickable,
+            },
+        }
 
     @staticmethod
     def compute_diff_status(
@@ -75,6 +52,10 @@ class SnapshotDiff:
     ) -> list[Element]:
         """
         Compare current snapshot with previous and set diff_status on elements.
+
+        Uses canonicalized comparisons:
+        - Text is normalized (trimmed, collapsed whitespace, lowercased)
+        - Bbox is rounded to 2px grid to ignore sub-pixel differences
 
         Args:
             current: Current snapshot
@@ -110,19 +91,23 @@ class SnapshotDiff:
                 # Element is new - mark as ADDED
                 el_dict["diff_status"] = "ADDED"
             else:
-                # Element existed before - check for changes
+                # Element existed before - check for changes using canonicalized comparisons
                 prev_el = previous_by_id[el.id]
 
-                bbox_changed = SnapshotDiff._has_bbox_changed(el, prev_el)
-                content_changed = SnapshotDiff._has_content_changed(el, prev_el)
+                # Convert to dicts for canonicalization helpers
+                el_data = SnapshotDiff._element_to_dict(el)
+                prev_el_data = SnapshotDiff._element_to_dict(prev_el)
 
-                if bbox_changed and content_changed:
+                has_bbox_changed = bbox_changed(el_data["bbox"], prev_el_data["bbox"])
+                has_content_changed = content_changed(el_data, prev_el_data)
+
+                if has_bbox_changed and has_content_changed:
                     # Both position and content changed - mark as MODIFIED
                     el_dict["diff_status"] = "MODIFIED"
-                elif bbox_changed:
+                elif has_bbox_changed:
                     # Only position changed - mark as MOVED
                     el_dict["diff_status"] = "MOVED"
-                elif content_changed:
+                elif has_content_changed:
                     # Only content changed - mark as MODIFIED
                     el_dict["diff_status"] = "MODIFIED"
                 else:

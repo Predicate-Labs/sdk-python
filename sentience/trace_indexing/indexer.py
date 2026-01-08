@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from ..canonicalization import canonicalize_element
 from .index_schema import (
     ActionInfo,
     SnapshotInfo,
@@ -18,30 +19,6 @@ from .index_schema import (
     TraceIndex,
     TraceSummary,
 )
-
-
-def _normalize_text(text: str | None, max_len: int = 80) -> str:
-    """Normalize text for digest: trim, collapse whitespace, lowercase, cap length."""
-    if not text:
-        return ""
-    # Trim and collapse whitespace
-    normalized = " ".join(text.split())
-    # Lowercase
-    normalized = normalized.lower()
-    # Cap length
-    if len(normalized) > max_len:
-        normalized = normalized[:max_len]
-    return normalized
-
-
-def _round_bbox(bbox: dict[str, float], precision: int = 2) -> dict[str, int]:
-    """Round bbox coordinates to reduce noise (default: 2px precision)."""
-    return {
-        "x": round(bbox.get("x", 0) / precision) * precision,
-        "y": round(bbox.get("y", 0) / precision) * precision,
-        "width": round(bbox.get("width", 0) / precision) * precision,
-        "height": round(bbox.get("height", 0) / precision) * precision,
-    }
 
 
 def _compute_snapshot_digest(snapshot_data: dict[str, Any]) -> str:
@@ -55,31 +32,8 @@ def _compute_snapshot_digest(snapshot_data: dict[str, Any]) -> str:
     viewport = snapshot_data.get("viewport", {})
     elements = snapshot_data.get("elements", [])
 
-    # Canonicalize elements
-    canonical_elements = []
-    for elem in elements:
-        # Extract is_primary and is_clickable from visual_cues if present
-        visual_cues = elem.get("visual_cues", {})
-        is_primary = (
-            visual_cues.get("is_primary", False)
-            if isinstance(visual_cues, dict)
-            else elem.get("is_primary", False)
-        )
-        is_clickable = (
-            visual_cues.get("is_clickable", False)
-            if isinstance(visual_cues, dict)
-            else elem.get("is_clickable", False)
-        )
-
-        canonical_elem = {
-            "id": elem.get("id"),
-            "role": elem.get("role", ""),
-            "text_norm": _normalize_text(elem.get("text")),
-            "bbox": _round_bbox(elem.get("bbox", {"x": 0, "y": 0, "width": 0, "height": 0})),
-            "is_primary": is_primary,
-            "is_clickable": is_clickable,
-        }
-        canonical_elements.append(canonical_elem)
+    # Canonicalize elements using shared helper
+    canonical_elements = [canonicalize_element(elem) for elem in elements]
 
     # Sort by element id for determinism
     canonical_elements.sort(key=lambda e: e.get("id", 0))
