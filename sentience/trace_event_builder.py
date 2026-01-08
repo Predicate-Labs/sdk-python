@@ -84,6 +84,7 @@ class TraceEventBuilder:
         exec_data: dict[str, Any],
         verify_data: dict[str, Any],
         pre_elements: list[dict[str, Any]] | None = None,
+        assertions: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Build step_end trace event data.
@@ -100,6 +101,7 @@ class TraceEventBuilder:
             exec_data: Action execution data
             verify_data: Verification data
             pre_elements: Optional list of elements from pre-snapshot (with diff_status)
+            assertions: Optional list of assertion results from AgentRuntime
 
         Returns:
             Dictionary with step_end event data
@@ -113,6 +115,23 @@ class TraceEventBuilder:
         if pre_elements is not None:
             pre_data["elements"] = pre_elements
 
+        # Build verify data with assertions if provided
+        final_verify_data = verify_data.copy()
+        if assertions:
+            # Ensure signals dict exists
+            if "signals" not in final_verify_data:
+                final_verify_data["signals"] = {}
+
+            # Add assertions to signals
+            final_verify_data["signals"]["assertions"] = assertions
+
+            # Check for task completion (assertions marked as required that passed)
+            for a in assertions:
+                if a.get("passed") and a.get("required"):
+                    final_verify_data["signals"]["task_done"] = True
+                    final_verify_data["signals"]["task_done_label"] = a.get("label")
+                    break
+
         return {
             "v": 1,
             "step_id": step_id,
@@ -125,5 +144,5 @@ class TraceEventBuilder:
             "post": {
                 "url": post_url,
             },
-            "verify": verify_data,
+            "verify": final_verify_data,
         }

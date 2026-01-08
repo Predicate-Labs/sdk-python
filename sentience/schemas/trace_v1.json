@@ -248,7 +248,24 @@
                           }
                         }
                       }
-                    }
+                    },
+                    "assertions": {
+                      "type": "array",
+                      "description": "Assertion results from agent verification loop",
+                      "items": {
+                        "type": "object",
+                        "required": ["label", "passed"],
+                        "properties": {
+                          "label": {"type": "string", "description": "Human-readable assertion label"},
+                          "passed": {"type": "boolean", "description": "Whether the assertion passed"},
+                          "required": {"type": "boolean", "description": "If true, assertion gates step success"},
+                          "reason": {"type": "string", "description": "Explanation (especially when failed)"},
+                          "details": {"type": "object", "description": "Additional structured data for debugging"}
+                        }
+                      }
+                    },
+                    "task_done": {"type": "boolean", "description": "True if task completion assertion passed"},
+                    "task_done_label": {"type": "string", "description": "Label of the task completion assertion"}
                   }
                 }
               }
@@ -270,6 +287,15 @@
           "properties": {
             "step_id": {"type": "string"},
             "passed": {"type": "boolean"},
+            "kind": {
+              "type": "string",
+              "enum": ["assert", "task_done"],
+              "description": "Type of verification event"
+            },
+            "label": {"type": "string", "description": "Human-readable label for the assertion"},
+            "required": {"type": "boolean", "description": "If true, assertion gates step success"},
+            "reason": {"type": "string", "description": "Explanation (especially when failed)"},
+            "details": {"type": "object", "description": "Additional structured data for debugging"},
             "signals": {"type": "object"}
           }
         },

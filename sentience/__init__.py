@@ -5,6 +5,7 @@ Sentience Python SDK - AI Agent Browser Automation
 from .actions import click, click_rect, press, scroll_to, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
+from .agent_runtime import AgentRuntime
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
@@ -70,6 +71,21 @@ from .utils import (
 
 # Formatting (v0.12.0+)
 from .utils.formatting import format_snapshot_for_llm
+
+# Verification (agent assertion loop)
+from .verification import (
+    AssertContext,
+    AssertOutcome,
+    Predicate,
+    all_of,
+    any_of,
+    custom,
+    element_count,
+    exists,
+    not_exists,
+    url_contains,
+    url_matches,
+)
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for
 
@@ -160,4 +176,17 @@ __all__ = [
     # Enums
     "SentienceMethod",
     "AgentAction",
+    # Verification (agent assertion loop)
+    "AgentRuntime",
+    "AssertContext",
+    "AssertOutcome",
+    "Predicate",
+    "url_matches",
+    "url_contains",
+    "exists",
+    "not_exists",
+    "element_count",
+    "all_of",
+    "any_of",
+    "custom",
 ]
