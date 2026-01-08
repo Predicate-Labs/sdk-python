@@ -831,6 +831,40 @@ with browser:
 </details>
 
 <details>
+<summary><h3>🔍 Agent Runtime Verification</h3></summary>
+
+`AgentRuntime` provides assertion predicates for runtime verification in agent loops, enabling programmatic verification of browser state during execution.
+
+```python
+from sentience import (
+    AgentRuntime, SentienceBrowser,
+    url_contains, exists, all_of
+)
+from sentience.tracer_factory import create_tracer
+
+browser = SentienceBrowser()
+browser.start()
+tracer = create_tracer(run_id="my-run", upload_trace=False)
+runtime = AgentRuntime(browser, browser.page, tracer)
+
+# Navigate and take snapshot
+browser.page.goto("https://example.com")
+runtime.begin_step("Verify page")
+runtime.snapshot()
+
+# Run assertions
+runtime.assert_(url_contains("example.com"), "on_correct_domain")
+runtime.assert_(exists("role=heading"), "has_heading")
+runtime.assert_done(exists("text~'Example'"), "task_complete")
+
+print(f"Task done: {runtime.is_task_done}")
+```
+
+**See example:** [`examples/agent_runtime_verification.py`](examples/agent_runtime_verification.py)
+
+</details>
+
+<details>
 <summary><h3>🧰 Snapshot Utilities</h3></summary>
 
 New utility functions for working with snapshots:
