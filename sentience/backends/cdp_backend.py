@@ -188,9 +188,7 @@ class CDPBackendV0:
         if not object_id:
             # Fallback: evaluate the function directly
             if args:
-                args_json = ", ".join(
-                    repr(a) if isinstance(a, str) else str(a) for a in args
-                )
+                args_json = ", ".join(repr(a) if isinstance(a, str) else str(a) for a in args)
                 expression = f"({function_declaration})({args_json})"
             else:
                 expression = f"({function_declaration})()"
@@ -234,8 +232,12 @@ class CDPBackendV0:
         return LayoutMetrics(
             viewport_x=visual_viewport.get("pageX", 0),
             viewport_y=visual_viewport.get("pageY", 0),
-            viewport_width=visual_viewport.get("clientWidth", layout_viewport.get("clientWidth", 0)),
-            viewport_height=visual_viewport.get("clientHeight", layout_viewport.get("clientHeight", 0)),
+            viewport_width=visual_viewport.get(
+                "clientWidth", layout_viewport.get("clientWidth", 0)
+            ),
+            viewport_height=visual_viewport.get(
+                "clientHeight", layout_viewport.get("clientHeight", 0)
+            ),
             content_width=content_size.get("width", 0),
             content_height=content_size.get("height", 0),
             device_scale_factor=visual_viewport.get("scale", 1.0),
@@ -375,8 +377,7 @@ class CDPBackendV0:
             elapsed = time.monotonic() - start
             if elapsed >= timeout_sec:
                 raise TimeoutError(
-                    f"Timed out waiting for document.readyState='{state}' "
-                    f"after {timeout_ms}ms"
+                    f"Timed out waiting for document.readyState='{state}' " f"after {timeout_ms}ms"
                 )
 
             current_state = await self.eval("document.readyState")
