@@ -149,12 +149,16 @@ class SentienceBrowser:
 
             # Validate scheme
             if parsed.scheme not in ("http", "https", "socks5"):
-                logger.warning(f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5")
+                logger.warning(
+                    f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5"
+                )
                 return None
 
             # Validate host and port
             if not parsed.hostname or not parsed.port:
-                logger.warning("Proxy URL must include hostname and port. Expected format: http://username:password@host:port")
+                logger.warning(
+                    "Proxy URL must include hostname and port. Expected format: http://username:password@host:port"
+                )
                 return None
 
             # Build server URL
@@ -168,7 +172,9 @@ class SentienceBrowser:
             )
 
         except Exception as e:
-            logger.warning(f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port")
+            logger.warning(
+                f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
+            )
             return None
 
     def start(self) -> None:
@@ -193,7 +199,7 @@ class SentienceBrowser:
             "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
-        
+
         # Only add --no-sandbox on Linux (causes crashes on macOS)
         # macOS sandboxing works fine and the flag actually causes crashes
         if platform.system() == "Linux":
@@ -202,24 +208,26 @@ class SentienceBrowser:
         # Add GPU-disabling flags for macOS to prevent Chrome for Testing crash-on-exit
         # These flags help avoid EXC_BAD_ACCESS crashes during browser shutdown
         if platform.system() == "Darwin":  # macOS
-            args.extend([
-                "--disable-gpu",
-                "--disable-software-rasterizer",
-                "--disable-dev-shm-usage",
-                "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
-                "--disable-crash-reporter",  # Disable crash reporter UI
-                "--disable-crash-handler",  # Disable crash handler completely
-                "--disable-in-process-stack-traces",  # Disable stack trace collection
-                "--disable-hang-monitor",  # Disable hang detection
-                "--disable-background-networking",  # Disable background networking
-                "--disable-background-timer-throttling",  # Disable background throttling
-                "--disable-backgrounding-occluded-windows",  # Disable backgrounding
-                "--disable-renderer-backgrounding",  # Disable renderer backgrounding
-                "--disable-features=TranslateUI",  # Disable translate UI
-                "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
-                "--disable-logging",  # Disable logging to reduce stderr noise
-                "--log-level=3",  # Set log level to fatal only (suppresses warnings)
-            ])
+            args.extend(
+                [
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-dev-shm-usage",
+                    "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
+                    "--disable-crash-reporter",  # Disable crash reporter UI
+                    "--disable-crash-handler",  # Disable crash handler completely
+                    "--disable-in-process-stack-traces",  # Disable stack trace collection
+                    "--disable-hang-monitor",  # Disable hang detection
+                    "--disable-background-networking",  # Disable background networking
+                    "--disable-background-timer-throttling",  # Disable background throttling
+                    "--disable-backgrounding-occluded-windows",  # Disable backgrounding
+                    "--disable-renderer-backgrounding",  # Disable renderer backgrounding
+                    "--disable-features=TranslateUI",  # Disable translate UI
+                    "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
+                    "--disable-logging",  # Disable logging to reduce stderr noise
+                    "--log-level=3",  # Set log level to fatal only (suppresses warnings)
+                ]
+            )
 
         # Handle headless mode correctly for extensions
         # 'headless=True' DOES NOT support extensions in standard Chrome
@@ -267,7 +275,9 @@ class SentienceBrowser:
             video_dir.mkdir(parents=True, exist_ok=True)
             launch_params["record_video_dir"] = str(video_dir)
             launch_params["record_video_size"] = self.record_video_size
-            logger.info(f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})")
+            logger.info(
+                f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})"
+            )
 
         # Launch persistent context (required for extensions)
         # Note: We pass headless=False to launch_persistent_context because we handle
@@ -399,7 +409,9 @@ class SentienceBrowser:
                             }""",
                             localStorage_dict,
                         )
-                        logger.debug(f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}")
+                        logger.debug(
+                            f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to inject localStorage for {origin}: {e}")
 
@@ -722,12 +734,16 @@ class AsyncSentienceBrowser:
 
             # Validate scheme
             if parsed.scheme not in ("http", "https", "socks5"):
-                logger.warning(f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5")
+                logger.warning(
+                    f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5"
+                )
                 return None
 
             # Validate host and port
             if not parsed.hostname or not parsed.port:
-                logger.warning("Proxy URL must include hostname and port. Expected format: http://username:password@host:port")
+                logger.warning(
+                    "Proxy URL must include hostname and port. Expected format: http://username:password@host:port"
+                )
                 return None
 
             # Build server URL
@@ -741,7 +757,9 @@ class AsyncSentienceBrowser:
             )
 
         except Exception as e:
-            logger.warning(f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port")
+            logger.warning(
+                f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
+            )
             return None
 
     async def start(self) -> None:
@@ -764,7 +782,7 @@ class AsyncSentienceBrowser:
             "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
-        
+
         # Only add --no-sandbox on Linux (causes crashes on macOS)
         # macOS sandboxing works fine and the flag actually causes crashes
         if platform.system() == "Linux":
@@ -773,24 +791,26 @@ class AsyncSentienceBrowser:
         # Add GPU-disabling flags for macOS to prevent Chrome for Testing crash-on-exit
         # These flags help avoid EXC_BAD_ACCESS crashes during browser shutdown
         if platform.system() == "Darwin":  # macOS
-            args.extend([
-                "--disable-gpu",
-                "--disable-software-rasterizer",
-                "--disable-dev-shm-usage",
-                "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
-                "--disable-crash-reporter",  # Disable crash reporter UI
-                "--disable-crash-handler",  # Disable crash handler completely
-                "--disable-in-process-stack-traces",  # Disable stack trace collection
-                "--disable-hang-monitor",  # Disable hang detection
-                "--disable-background-networking",  # Disable background networking
-                "--disable-background-timer-throttling",  # Disable background throttling
-                "--disable-backgrounding-occluded-windows",  # Disable backgrounding
-                "--disable-renderer-backgrounding",  # Disable renderer backgrounding
-                "--disable-features=TranslateUI",  # Disable translate UI
-                "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
-                "--disable-logging",  # Disable logging to reduce stderr noise
-                "--log-level=3",  # Set log level to fatal only (suppresses warnings)
-            ])
+            args.extend(
+                [
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-dev-shm-usage",
+                    "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
+                    "--disable-crash-reporter",  # Disable crash reporter UI
+                    "--disable-crash-handler",  # Disable crash handler completely
+                    "--disable-in-process-stack-traces",  # Disable stack trace collection
+                    "--disable-hang-monitor",  # Disable hang detection
+                    "--disable-background-networking",  # Disable background networking
+                    "--disable-background-timer-throttling",  # Disable background throttling
+                    "--disable-backgrounding-occluded-windows",  # Disable backgrounding
+                    "--disable-renderer-backgrounding",  # Disable renderer backgrounding
+                    "--disable-features=TranslateUI",  # Disable translate UI
+                    "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
+                    "--disable-logging",  # Disable logging to reduce stderr noise
+                    "--log-level=3",  # Set log level to fatal only (suppresses warnings)
+                ]
+            )
 
         if self.headless:
             args.append("--headless=new")
@@ -838,7 +858,9 @@ class AsyncSentienceBrowser:
             video_dir.mkdir(parents=True, exist_ok=True)
             launch_params["record_video_dir"] = str(video_dir)
             launch_params["record_video_size"] = self.record_video_size
-            logger.info(f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})")
+            logger.info(
+                f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})"
+            )
 
         # Launch persistent context
         self.context = await self.playwright.chromium.launch_persistent_context(**launch_params)
@@ -952,7 +974,9 @@ class AsyncSentienceBrowser:
                             }""",
                             localStorage_dict,
                         )
-                        logger.debug(f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}")
+                        logger.debug(
+                            f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to inject localStorage for {origin}: {e}")
 
@@ -1031,7 +1055,7 @@ class AsyncSentienceBrowser:
                 # Increased timeout for macOS where 4K video finalization can take longer
                 await asyncio.wait_for(self.context.close(), timeout=30.0)
                 logger.debug("Context closed successfully")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Context close timed out, continuing with cleanup...")
                 context_close_success = False
             except Exception as e:
@@ -1053,7 +1077,7 @@ class AsyncSentienceBrowser:
                 # Increased timeout to match context close timeout
                 await asyncio.wait_for(self.playwright.stop(), timeout=15.0)
                 logger.debug("Playwright stopped successfully")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Playwright stop timed out, continuing with cleanup...")
                 playwright_stop_success = False
             except Exception as e:
@@ -1061,12 +1085,12 @@ class AsyncSentienceBrowser:
                 playwright_stop_success = False
             finally:
                 self.playwright = None
-        
+
         # Additional cleanup: On macOS, wait a bit more to ensure all browser processes are terminated
         # This helps prevent crash dialogs from appearing
         if platform.system() == "Darwin":
             await asyncio.sleep(0.5)
-        
+
         # NOW resolve video path after context is closed and video is finalized
         temp_video_path = None
         if self.record_video_dir:
@@ -1111,7 +1135,7 @@ class AsyncSentienceBrowser:
             )
         else:
             logger.debug("Browser shutdown completed cleanly")
-        
+
         # Return tuple: (video_path, shutdown_clean)
         # This allows callers to detect crashes even in headless mode
         return (final_path, shutdown_clean)

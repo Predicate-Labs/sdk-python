@@ -2,10 +2,30 @@
 Sentience Python SDK - AI Agent Browser Automation
 """
 
+# Extension helpers (for browser-use integration)
+from ._extension_loader import (
+    get_extension_dir,
+    get_extension_version,
+    verify_extension_injected,
+    verify_extension_injected_async,
+    verify_extension_version,
+    verify_extension_version_async,
+)
 from .actions import click, click_rect, press, scroll_to, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime
+
+# Browser backends (for browser-use integration)
+from .backends import (
+    BrowserBackendV0,
+    BrowserUseAdapter,
+    BrowserUseCDPTransport,
+    CDPBackendV0,
+    CDPTransport,
+    LayoutMetrics,
+    ViewportInfo,
+)
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
@@ -92,6 +112,21 @@ from .wait import wait_for
 __version__ = "0.92.3"
 
 __all__ = [
+    # Extension helpers (for browser-use integration)
+    "get_extension_dir",
+    "get_extension_version",
+    "verify_extension_injected",
+    "verify_extension_injected_async",
+    "verify_extension_version",
+    "verify_extension_version_async",
+    # Browser backends (for browser-use integration)
+    "BrowserBackendV0",
+    "CDPTransport",
+    "CDPBackendV0",
+    "BrowserUseAdapter",
+    "BrowserUseCDPTransport",
+    "ViewportInfo",
+    "LayoutMetrics",
     # Core SDK
     "SentienceBrowser",
     "Snapshot",

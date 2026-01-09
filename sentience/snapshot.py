@@ -72,14 +72,18 @@ def snapshot(
     if options is None:
         options = SnapshotOptions()
 
+    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
+    # This allows browser-use users to pass api_key via options without SentienceBrowser
+    effective_api_key = options.sentience_api_key or browser.api_key
+
     # Determine if we should use server-side API
     should_use_api = (
-        options.use_api if options.use_api is not None else (browser.api_key is not None)
+        options.use_api if options.use_api is not None else (effective_api_key is not None)
     )
 
-    if should_use_api and browser.api_key:
+    if should_use_api and effective_api_key:
         # Use server-side API (Pro/Enterprise tier)
-        return _snapshot_via_api(browser, options)
+        return _snapshot_via_api(browser, options, effective_api_key)
     else:
         # Use local extension (Free tier)
         return _snapshot_via_extension(browser, options)
@@ -150,16 +154,14 @@ def _snapshot_via_extension(
 def _snapshot_via_api(
     browser: SentienceBrowser,
     options: SnapshotOptions,
+    api_key: str,
 ) -> Snapshot:
     """Take snapshot using server-side API (Pro/Enterprise tier)"""
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
 
-    if not browser.api_key:
-        raise ValueError("API key required for server-side processing")
-
-    if not browser.api_url:
-        raise ValueError("API URL required for server-side processing")
+    # Use browser.api_url if set, otherwise default
+    api_url = browser.api_url or "https://api.sentienceapi.com"
 
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # Even for API mode, we need the extension to collect raw data locally
@@ -201,13 +203,13 @@ def _snapshot_via_api(
         )
 
     headers = {
-        "Authorization": f"Bearer {browser.api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
     try:
         response = requests.post(
-            f"{browser.api_url}/v1/snapshot",
+            f"{api_url}/v1/snapshot",
             data=payload_json,  # Reuse already-serialized JSON
             headers=headers,
             timeout=30,
@@ -281,14 +283,18 @@ async def snapshot_async(
     if options is None:
         options = SnapshotOptions()
 
+    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
+    # This allows browser-use users to pass api_key via options without SentienceBrowser
+    effective_api_key = options.sentience_api_key or browser.api_key
+
     # Determine if we should use server-side API
     should_use_api = (
-        options.use_api if options.use_api is not None else (browser.api_key is not None)
+        options.use_api if options.use_api is not None else (effective_api_key is not None)
     )
 
-    if should_use_api and browser.api_key:
+    if should_use_api and effective_api_key:
         # Use server-side API (Pro/Enterprise tier)
-        return await _snapshot_via_api_async(browser, options)
+        return await _snapshot_via_api_async(browser, options, effective_api_key)
     else:
         # Use local extension (Free tier)
         return await _snapshot_via_extension_async(browser, options)
@@ -388,16 +394,14 @@ async def _snapshot_via_extension_async(
 async def _snapshot_via_api_async(
     browser: AsyncSentienceBrowser,
     options: SnapshotOptions,
+    api_key: str,
 ) -> Snapshot:
     """Take snapshot using server-side API (Pro/Enterprise tier) - async"""
     if not browser.page:
         raise RuntimeError("Browser not started. Call await browser.start() first.")
 
-    if not browser.api_key:
-        raise ValueError("API key required for server-side processing")
-
-    if not browser.api_url:
-        raise ValueError("API URL required for server-side processing")
+    # Use browser.api_url if set, otherwise default
+    api_url = browser.api_url or "https://api.sentienceapi.com"
 
     # Wait for extension injection
     try:
@@ -466,7 +470,7 @@ async def _snapshot_via_api_async(
         )
 
     headers = {
-        "Authorization": f"Bearer {browser.api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
@@ -476,7 +480,7 @@ async def _snapshot_via_api_async(
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{browser.api_url}/v1/snapshot",
+                f"{api_url}/v1/snapshot",
                 content=payload_json,
                 headers=headers,
             )
