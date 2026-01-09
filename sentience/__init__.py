@@ -16,16 +16,25 @@ from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime
 
+# Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
 from .backends import (
     BrowserBackendV0,
     BrowserUseAdapter,
     BrowserUseCDPTransport,
+    CachedSnapshot,
     CDPBackendV0,
     CDPTransport,
     LayoutMetrics,
+    PlaywrightBackend,
     ViewportInfo,
 )
+from .backends import click as backend_click
+from .backends import scroll as backend_scroll
+from .backends import scroll_to_element as backend_scroll_to_element
+from .backends import snapshot as backend_snapshot
+from .backends import type_text as backend_type_text
+from .backends import wait_for_stable as backend_wait_for_stable
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
@@ -123,10 +132,19 @@ __all__ = [
     "BrowserBackendV0",
     "CDPTransport",
     "CDPBackendV0",
+    "PlaywrightBackend",
     "BrowserUseAdapter",
     "BrowserUseCDPTransport",
     "ViewportInfo",
     "LayoutMetrics",
+    "backend_snapshot",
+    "CachedSnapshot",
+    # Backend-agnostic actions (prefixed to avoid conflicts)
+    "backend_click",
+    "backend_type_text",
+    "backend_scroll",
+    "backend_scroll_to_element",
+    "backend_wait_for_stable",
     # Core SDK
     "SentienceBrowser",
     "Snapshot",
