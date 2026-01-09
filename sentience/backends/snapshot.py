@@ -25,6 +25,11 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from ..models import Snapshot, SnapshotOptions
+from ..snapshot import (
+    _build_snapshot_payload,
+    _merge_api_result_with_local,
+    _post_snapshot_to_gateway_async,
+)
 from .exceptions import ExtensionDiagnostics, ExtensionNotLoadedError, SnapshotError
 
 if TYPE_CHECKING:
@@ -145,8 +150,9 @@ async def snapshot(
     """
     Take a Sentience snapshot using the backend protocol.
 
-    This function calls window.sentience.snapshot() via the backend's eval(),
-    enabling snapshot collection with any BrowserBackendV0 implementation.
+    This function respects the `use_api` option and can call either:
+    - Server-side API (Pro/Enterprise tier) when `use_api=True` and API key is provided
+    - Local extension (Free tier) when `use_api=False` or no API key
 
     Requires:
         - Sentience extension loaded in browser (via --load-extension)
@@ -154,30 +160,127 @@ async def snapshot(
 
     Args:
         backend: BrowserBackendV0 implementation (CDPBackendV0, PlaywrightBackend, etc.)
-        options: Snapshot options (limit, filter, screenshot, etc.)
+        options: Snapshot options (limit, filter, screenshot, use_api, sentience_api_key, etc.)
 
     Returns:
         Snapshot with elements, viewport, and optional screenshot
 
     Example:
         from sentience.backends import BrowserUseAdapter
-        from sentience.backends.snapshot import snapshot_from_backend
+        from sentience.backends.snapshot import snapshot
+        from sentience.models import SnapshotOptions
 
         adapter = BrowserUseAdapter(session)
         backend = await adapter.create_backend()
 
-        # Basic snapshot
-        snap = await snapshot_from_backend(backend)
+        # Basic snapshot (uses local extension)
+        snap = await snapshot(backend)
 
-        # With options
-        snap = await snapshot_from_backend(backend, SnapshotOptions(
+        # With server-side API (Pro/Enterprise tier)
+        snap = await snapshot(backend, SnapshotOptions(
+            use_api=True,
+            sentience_api_key="sk_pro_xxxxx",
             limit=100,
             screenshot=True
+        ))
+
+        # Force local extension (Free tier)
+        snap = await snapshot(backend, SnapshotOptions(
+            use_api=False
         ))
     """
     if options is None:
         options = SnapshotOptions()
 
+    # Determine if we should use server-side API
+    # Same logic as main snapshot() function in sentience/snapshot.py
+    should_use_api = (
+        options.use_api if options.use_api is not None else (options.sentience_api_key is not None)
+    )
+
+    if should_use_api and options.sentience_api_key:
+        # Use server-side API (Pro/Enterprise tier)
+        return await _snapshot_via_api(backend, options)
+    else:
+        # Use local extension (Free tier)
+        return await _snapshot_via_extension(backend, options)
+
+
+async def _wait_for_extension(
+    backend: "BrowserBackendV0",
+    timeout_ms: int = 5000,
+) -> None:
+    """
+    Wait for Sentience extension to inject window.sentience API.
+
+    Args:
+        backend: BrowserBackendV0 implementation
+        timeout_ms: Maximum wait time
+
+    Raises:
+        RuntimeError: If extension not injected within timeout
+    """
+    import asyncio
+    import logging
+
+    logger = logging.getLogger("sentience.backends.snapshot")
+
+    start = time.monotonic()
+    timeout_sec = timeout_ms / 1000.0
+    poll_count = 0
+
+    logger.debug(f"Waiting for extension injection (timeout={timeout_ms}ms)...")
+
+    while True:
+        elapsed = time.monotonic() - start
+        poll_count += 1
+
+        if poll_count % 10 == 0:  # Log every 10 polls (~1 second)
+            logger.debug(f"Extension poll #{poll_count}, elapsed={elapsed*1000:.0f}ms")
+
+        if elapsed >= timeout_sec:
+            # Gather diagnostics
+            try:
+                diag_dict = await backend.eval(
+                    """
+                    (() => ({
+                        sentience_defined: typeof window.sentience !== 'undefined',
+                        sentience_snapshot: typeof window.sentience?.snapshot === 'function',
+                        url: window.location.href,
+                        extension_id: document.documentElement.dataset.sentienceExtensionId || null,
+                        has_content_script: !!document.documentElement.dataset.sentienceExtensionId
+                    }))()
+                """
+                )
+                diagnostics = ExtensionDiagnostics.from_dict(diag_dict)
+                logger.debug(f"Extension diagnostics: {diag_dict}")
+            except Exception as e:
+                diagnostics = ExtensionDiagnostics(error=f"Could not gather diagnostics: {e}")
+
+            raise ExtensionNotLoadedError.from_timeout(
+                timeout_ms=timeout_ms,
+                diagnostics=diagnostics,
+            )
+
+        # Check if extension is ready
+        try:
+            ready = await backend.eval(
+                "typeof window.sentience !== 'undefined' && "
+                "typeof window.sentience.snapshot === 'function'"
+            )
+            if ready:
+                return
+        except Exception:
+            pass  # Keep polling
+
+        await asyncio.sleep(0.1)
+
+
+async def _snapshot_via_extension(
+    backend: "BrowserBackendV0",
+    options: SnapshotOptions,
+) -> Snapshot:
+    """Take snapshot using local extension (Free tier)"""
     # Wait for extension injection
     await _wait_for_extension(backend, timeout_ms=5000)
 
@@ -220,60 +323,75 @@ async def snapshot(
     return Snapshot(**result)
 
 
-async def _wait_for_extension(
+async def _snapshot_via_api(
     backend: "BrowserBackendV0",
-    timeout_ms: int = 5000,
-) -> None:
+    options: SnapshotOptions,
+) -> Snapshot:
+    """Take snapshot using server-side API (Pro/Enterprise tier)"""
+    # Default API URL (same as main snapshot function)
+    api_url = "https://api.sentienceapi.com"
+
+    # Wait for extension injection (needed even for API mode to collect raw data)
+    await _wait_for_extension(backend, timeout_ms=5000)
+
+    # Step 1: Get raw data from local extension (always happens locally)
+    raw_options: dict[str, Any] = {}
+    if options.screenshot is not False:
+        raw_options["screenshot"] = options.screenshot
+
+    # Call extension to get raw elements
+    raw_result = await backend.eval(
+        f"""
+        (() => {{
+            const options = {_json_serialize(raw_options)};
+            return window.sentience.snapshot(options);
+        }})()
     """
-    Wait for Sentience extension to inject window.sentience API.
+    )
 
-    Args:
-        backend: BrowserBackendV0 implementation
-        timeout_ms: Maximum wait time
+    if raw_result is None:
+        try:
+            url = await backend.eval("window.location.href")
+        except Exception:
+            url = None
+        raise SnapshotError.from_null_result(url=url)
 
-    Raises:
-        RuntimeError: If extension not injected within timeout
-    """
-    import asyncio
+    # Step 2: Send to server for smart ranking/filtering
+    payload = _build_snapshot_payload(raw_result, options)
 
-    start = time.monotonic()
-    timeout_sec = timeout_ms / 1000.0
+    try:
+        api_result = await _post_snapshot_to_gateway_async(
+            payload, options.sentience_api_key, api_url
+        )
 
-    while True:
-        elapsed = time.monotonic() - start
-        if elapsed >= timeout_sec:
-            # Gather diagnostics
-            try:
-                diag_dict = await backend.eval(
-                    """
-                    (() => ({
-                        sentience_defined: typeof window.sentience !== 'undefined',
-                        sentience_snapshot: typeof window.sentience?.snapshot === 'function',
-                        url: window.location.href
-                    }))()
+        # Merge API result with local data (screenshot, etc.)
+        snapshot_data = _merge_api_result_with_local(api_result, raw_result)
+
+        # Show visual overlay if requested (use API-ranked elements)
+        if options.show_overlay:
+            elements = api_result.get("elements", [])
+            if elements:
+                await backend.eval(
+                    f"""
+                    (() => {{
+                        if (window.sentience && window.sentience.showOverlay) {{
+                            window.sentience.showOverlay({_json_serialize(elements)}, null);
+                        }}
+                    }})()
                 """
                 )
-                diagnostics = ExtensionDiagnostics.from_dict(diag_dict)
-            except Exception as e:
-                diagnostics = ExtensionDiagnostics(error=f"Could not gather diagnostics: {e}")
 
-            raise ExtensionNotLoadedError.from_timeout(
-                timeout_ms=timeout_ms,
-                diagnostics=diagnostics,
-            )
-
-        # Check if extension is ready
-        try:
-            ready = await backend.eval(
-                "typeof window.sentience !== 'undefined' && "
-                "typeof window.sentience.snapshot === 'function'"
-            )
-            if ready:
-                return
-        except Exception:
-            pass  # Keep polling
-
-        await asyncio.sleep(0.1)
+        return Snapshot(**snapshot_data)
+    except (RuntimeError, ValueError):
+        # Re-raise validation errors as-is
+        raise
+    except Exception as e:
+        # Fallback to local extension on API error
+        # This matches the behavior of the main snapshot function
+        raise RuntimeError(
+            f"Server-side snapshot API failed: {e}. "
+            "Try using use_api=False to use local extension instead."
+        ) from e
 
 
 def _build_extension_options(options: SnapshotOptions) -> dict[str, Any]:
