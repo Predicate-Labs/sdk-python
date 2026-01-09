@@ -158,9 +158,7 @@ class BrowserUseAdapter:
         if hasattr(self._session, "get_current_page"):
             # This is async, but we need sync access for property
             # Caller should use get_page_async() instead
-            raise RuntimeError(
-                "Use await adapter.get_page_async() to get the page"
-            )
+            raise RuntimeError("Use await adapter.get_page_async() to get the page")
         raise RuntimeError("Could not find page in browser-use session")
 
     async def get_page_async(self) -> Any:

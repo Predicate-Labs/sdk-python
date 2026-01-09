@@ -6,6 +6,7 @@ without requiring a real browser (using mocked CDP transport).
 """
 
 import asyncio
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,11 +16,18 @@ from sentience.backends import (
     BrowserBackendV0,
     BrowserUseAdapter,
     BrowserUseCDPTransport,
+    CachedSnapshot,
     CDPBackendV0,
     CDPTransport,
     LayoutMetrics,
+    PlaywrightBackend,
     ViewportInfo,
+    click,
+    scroll,
+    type_text,
+    wait_for_stable,
 )
+from sentience.models import ActionResult, BBox
 
 
 class MockCDPTransport:
@@ -150,9 +158,7 @@ class TestCDPBackendV0:
         assert info.scroll_y == 100
 
     @pytest.mark.asyncio
-    async def test_eval(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_eval(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test eval executes JavaScript and returns value."""
         transport.set_response(
             "Runtime.evaluate",
@@ -167,9 +173,7 @@ class TestCDPBackendV0:
         assert transport.calls[0][1]["expression"] == "1 + 1"
 
     @pytest.mark.asyncio
-    async def test_eval_exception(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_eval_exception(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test eval raises on JavaScript exception."""
         transport.set_response(
             "Runtime.evaluate",
@@ -211,9 +215,7 @@ class TestCDPBackendV0:
         assert metrics.content_height == 5000
 
     @pytest.mark.asyncio
-    async def test_screenshot_png(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_screenshot_png(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test screenshot_png returns PNG bytes."""
         import base64
 
@@ -230,9 +232,7 @@ class TestCDPBackendV0:
         assert result.startswith(b"\x89PNG")
 
     @pytest.mark.asyncio
-    async def test_mouse_move(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_mouse_move(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test mouse_move dispatches mouseMoved event."""
         await backend.mouse_move(100, 200)
 
@@ -244,9 +244,7 @@ class TestCDPBackendV0:
         assert params["y"] == 200
 
     @pytest.mark.asyncio
-    async def test_mouse_click(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_mouse_click(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test mouse_click dispatches press and release events."""
         await backend.mouse_click(100, 200)
 
@@ -276,9 +274,7 @@ class TestCDPBackendV0:
         assert params["button"] == "right"
 
     @pytest.mark.asyncio
-    async def test_wheel(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_wheel(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test wheel dispatches mouseWheel event."""
         # First set up viewport info for default coordinates
         transport.set_response(
@@ -304,9 +300,7 @@ class TestCDPBackendV0:
         assert params["y"] == 300
 
     @pytest.mark.asyncio
-    async def test_type_text(
-        self, backend: CDPBackendV0, transport: MockCDPTransport
-    ) -> None:
+    async def test_type_text(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
         """Test type_text dispatches key events for each character."""
         await backend.type_text("Hi")
 
@@ -434,9 +428,7 @@ class TestBrowserUseAdapter:
 
         # Create mock browser session
         mock_session = MagicMock()
-        mock_session.get_or_create_cdp_session = AsyncMock(
-            return_value=mock_cdp_session
-        )
+        mock_session.get_or_create_cdp_session = AsyncMock(return_value=mock_cdp_session)
 
         adapter = BrowserUseAdapter(mock_session)
         backend = await adapter.create_backend()
@@ -452,9 +444,7 @@ class TestBrowserUseAdapter:
         mock_cdp_session.session_id = "session-123"
 
         mock_session = MagicMock()
-        mock_session.get_or_create_cdp_session = AsyncMock(
-            return_value=mock_cdp_session
-        )
+        mock_session.get_or_create_cdp_session = AsyncMock(return_value=mock_cdp_session)
 
         adapter = BrowserUseAdapter(mock_session)
 
@@ -486,3 +476,483 @@ class TestBrowserUseAdapter:
         page = await adapter.get_page_async()
 
         assert page is mock_page
+
+
+class TestBackendAgnosticActions:
+    """Tests for backend-agnostic action functions."""
+
+    @pytest.fixture
+    def transport(self) -> MockCDPTransport:
+        """Create mock transport."""
+        return MockCDPTransport()
+
+    @pytest.fixture
+    def backend(self, transport: MockCDPTransport) -> CDPBackendV0:
+        """Create backend with mock transport."""
+        return CDPBackendV0(transport)
+
+    @pytest.mark.asyncio
+    async def test_click_with_tuple(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test click with (x, y) tuple."""
+        result = await click(backend, (100, 200))
+
+        assert isinstance(result, ActionResult)
+        assert result.success is True
+
+        # Should have mouse move + mouse click (press + release)
+        mouse_events = [c for c in transport.calls if c[0] == "Input.dispatchMouseEvent"]
+        assert len(mouse_events) == 3  # move, press, release
+
+    @pytest.mark.asyncio
+    async def test_click_with_bbox(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test click with BBox (clicks center)."""
+        bbox = BBox(x=100, y=200, width=50, height=30)
+        result = await click(backend, bbox)
+
+        assert result.success is True
+
+        # Find the click event
+        press_events = [
+            c
+            for c in transport.calls
+            if c[0] == "Input.dispatchMouseEvent" and c[1]["type"] == "mousePressed"
+        ]
+        assert len(press_events) == 1
+        # Should click at center: (100 + 25, 200 + 15) = (125, 215)
+        assert press_events[0][1]["x"] == 125
+        assert press_events[0][1]["y"] == 215
+
+    @pytest.mark.asyncio
+    async def test_click_with_dict(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test click with dict containing x, y."""
+        result = await click(backend, {"x": 150, "y": 250})
+
+        assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_click_double(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
+        """Test double-click."""
+        result = await click(backend, (100, 200), click_count=2)
+
+        assert result.success is True
+
+        # Check clickCount parameter
+        press_events = [
+            c
+            for c in transport.calls
+            if c[0] == "Input.dispatchMouseEvent" and c[1]["type"] == "mousePressed"
+        ]
+        assert press_events[0][1]["clickCount"] == 2
+
+    @pytest.mark.asyncio
+    async def test_type_text_simple(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test typing text."""
+        result = await type_text(backend, "Hi")
+
+        assert isinstance(result, ActionResult)
+        assert result.success is True
+
+        # Check key events were dispatched
+        key_events = [c for c in transport.calls if c[0] == "Input.dispatchKeyEvent"]
+        assert len(key_events) == 6  # 2 chars * 3 events each
+
+    @pytest.mark.asyncio
+    async def test_type_text_with_target(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test typing text with click target."""
+        result = await type_text(backend, "test", target=(100, 200))
+
+        assert result.success is True
+
+        # Should have click + key events
+        mouse_events = [c for c in transport.calls if c[0] == "Input.dispatchMouseEvent"]
+        key_events = [c for c in transport.calls if c[0] == "Input.dispatchKeyEvent"]
+        assert len(mouse_events) >= 2  # At least press + release
+        assert len(key_events) == 12  # 4 chars * 3 events
+
+    @pytest.mark.asyncio
+    async def test_scroll_down(self, backend: CDPBackendV0, transport: MockCDPTransport) -> None:
+        """Test scrolling down."""
+        # Set up viewport for default coordinates
+        transport.set_response(
+            "Runtime.evaluate",
+            {
+                "result": {
+                    "type": "object",
+                    "value": {"width": 1920, "height": 1080},
+                }
+            },
+        )
+
+        result = await scroll(backend, delta_y=300)
+
+        assert result.success is True
+
+        wheel_events = [
+            c
+            for c in transport.calls
+            if c[0] == "Input.dispatchMouseEvent" and c[1].get("type") == "mouseWheel"
+        ]
+        assert len(wheel_events) == 1
+        assert wheel_events[0][1]["deltaY"] == 300
+
+    @pytest.mark.asyncio
+    async def test_scroll_at_position(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test scrolling at specific position."""
+        result = await scroll(backend, delta_y=200, target=(500, 300))
+
+        assert result.success is True
+
+        wheel_events = [
+            c
+            for c in transport.calls
+            if c[0] == "Input.dispatchMouseEvent" and c[1].get("type") == "mouseWheel"
+        ]
+        assert wheel_events[0][1]["x"] == 500
+        assert wheel_events[0][1]["y"] == 300
+
+    @pytest.mark.asyncio
+    async def test_wait_for_stable_success(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test wait_for_stable with immediate success."""
+        transport.set_response(
+            "Runtime.evaluate",
+            {"result": {"type": "string", "value": "complete"}},
+        )
+
+        result = await wait_for_stable(backend, state="complete", timeout_ms=1000)
+
+        assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_wait_for_stable_timeout(
+        self, backend: CDPBackendV0, transport: MockCDPTransport
+    ) -> None:
+        """Test wait_for_stable timeout."""
+        transport.set_response(
+            "Runtime.evaluate",
+            {"result": {"type": "string", "value": "loading"}},
+        )
+
+        result = await wait_for_stable(backend, state="complete", timeout_ms=200)
+
+        assert result.success is False
+        assert result.error["code"] == "timeout"
+
+
+class TestPlaywrightBackend:
+    """Tests for PlaywrightBackend wrapper."""
+
+    def test_implements_protocol(self) -> None:
+        """Verify PlaywrightBackend implements BrowserBackendV0."""
+        mock_page = MagicMock()
+        backend = PlaywrightBackend(mock_page)
+        assert isinstance(backend, BrowserBackendV0)
+
+    def test_page_property(self) -> None:
+        """Test page property returns underlying page."""
+        mock_page = MagicMock()
+        backend = PlaywrightBackend(mock_page)
+        assert backend.page is mock_page
+
+    @pytest.mark.asyncio
+    async def test_refresh_page_info(self) -> None:
+        """Test refresh_page_info calls page.evaluate."""
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(
+            return_value={
+                "width": 1920,
+                "height": 1080,
+                "scroll_x": 0,
+                "scroll_y": 100,
+                "content_width": 1920,
+                "content_height": 5000,
+            }
+        )
+
+        backend = PlaywrightBackend(mock_page)
+        info = await backend.refresh_page_info()
+
+        assert isinstance(info, ViewportInfo)
+        assert info.width == 1920
+        assert info.scroll_y == 100
+
+    @pytest.mark.asyncio
+    async def test_eval(self) -> None:
+        """Test eval calls page.evaluate."""
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(return_value=42)
+
+        backend = PlaywrightBackend(mock_page)
+        result = await backend.eval("1 + 1")
+
+        assert result == 42
+
+    @pytest.mark.asyncio
+    async def test_mouse_click(self) -> None:
+        """Test mouse_click calls page.mouse.click."""
+        mock_mouse = AsyncMock()
+        mock_page = MagicMock()
+        mock_page.mouse = mock_mouse
+
+        backend = PlaywrightBackend(mock_page)
+        await backend.mouse_click(100, 200, button="left", click_count=1)
+
+        mock_mouse.click.assert_called_once_with(100, 200, button="left", click_count=1)
+
+    @pytest.mark.asyncio
+    async def test_type_text(self) -> None:
+        """Test type_text calls page.keyboard.type."""
+        mock_keyboard = AsyncMock()
+        mock_page = MagicMock()
+        mock_page.keyboard = mock_keyboard
+
+        backend = PlaywrightBackend(mock_page)
+        await backend.type_text("Hello")
+
+        mock_keyboard.type.assert_called_once_with("Hello")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_png(self) -> None:
+        """Test screenshot_png calls page.screenshot."""
+        mock_page = AsyncMock()
+        mock_page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n")
+
+        backend = PlaywrightBackend(mock_page)
+        result = await backend.screenshot_png()
+
+        assert result.startswith(b"\x89PNG")
+        mock_page.screenshot.assert_called_once_with(type="png")
+
+
+class TestCachedSnapshot:
+    """Tests for CachedSnapshot caching behavior."""
+
+    @pytest.fixture
+    def mock_backend(self) -> MagicMock:
+        """Create mock backend."""
+        backend = MagicMock()
+        backend.eval = AsyncMock()
+        return backend
+
+    def test_initial_state(self, mock_backend: MagicMock) -> None:
+        """Test initial cache state."""
+        cache = CachedSnapshot(mock_backend, max_age_ms=2000)
+
+        assert cache.is_cached is False
+        assert cache.age_ms == float("inf")
+
+    def test_invalidate(self, mock_backend: MagicMock) -> None:
+        """Test cache invalidation."""
+        cache = CachedSnapshot(mock_backend)
+        cache._cached = MagicMock()  # Simulate cached snapshot
+        cache._cached_at = time.time()
+
+        assert cache.is_cached is True
+
+        cache.invalidate()
+
+        assert cache.is_cached is False
+        assert cache.age_ms == float("inf")
+
+    def test_staleness_by_age(self, mock_backend: MagicMock) -> None:
+        """Test cache staleness detection."""
+        cache = CachedSnapshot(mock_backend, max_age_ms=100)
+
+        # Simulate old cache
+        cache._cached = MagicMock()
+        cache._cached_at = time.time() - 0.2  # 200ms ago
+
+        assert cache._is_stale() is True
+
+    def test_fresh_cache(self, mock_backend: MagicMock) -> None:
+        """Test fresh cache detection."""
+        cache = CachedSnapshot(mock_backend, max_age_ms=2000)
+
+        # Simulate fresh cache
+        cache._cached = MagicMock()
+        cache._cached_at = time.time()
+
+        assert cache._is_stale() is False
+
+
+class TestCoordinateResolution:
+    """Test coordinate resolution in actions."""
+
+    @pytest.mark.asyncio
+    async def test_bbox_center_calculation(self) -> None:
+        """Test BBox center calculation."""
+        from sentience.backends.actions import _resolve_coordinates
+
+        bbox = BBox(x=100, y=200, width=50, height=30)
+        x, y = _resolve_coordinates(bbox)
+
+        assert x == 125  # 100 + 50/2
+        assert y == 215  # 200 + 30/2
+
+    @pytest.mark.asyncio
+    async def test_dict_with_dimensions(self) -> None:
+        """Test dict with width/height computes center."""
+        from sentience.backends.actions import _resolve_coordinates
+
+        target = {"x": 100, "y": 200, "width": 50, "height": 30}
+        x, y = _resolve_coordinates(target)
+
+        assert x == 125
+        assert y == 215
+
+    @pytest.mark.asyncio
+    async def test_dict_without_dimensions(self) -> None:
+        """Test dict without width/height uses x/y directly."""
+        from sentience.backends.actions import _resolve_coordinates
+
+        target = {"x": 150, "y": 250}
+        x, y = _resolve_coordinates(target)
+
+        assert x == 150
+        assert y == 250
+
+    @pytest.mark.asyncio
+    async def test_tuple_passthrough(self) -> None:
+        """Test tuple passes through unchanged."""
+        from sentience.backends.actions import _resolve_coordinates
+
+        x, y = _resolve_coordinates((300, 400))
+
+        assert x == 300
+        assert y == 400
+
+
+class TestBackendExceptions:
+    """Tests for custom backend exceptions."""
+
+    def test_extension_diagnostics_from_dict(self) -> None:
+        """Test ExtensionDiagnostics.from_dict."""
+        from sentience.backends.exceptions import ExtensionDiagnostics
+
+        data = {
+            "sentience_defined": True,
+            "sentience_snapshot": False,
+            "url": "https://example.com",
+        }
+        diag = ExtensionDiagnostics.from_dict(data)
+
+        assert diag.sentience_defined is True
+        assert diag.sentience_snapshot is False
+        assert diag.url == "https://example.com"
+        assert diag.error is None
+
+    def test_extension_diagnostics_to_dict(self) -> None:
+        """Test ExtensionDiagnostics.to_dict."""
+        from sentience.backends.exceptions import ExtensionDiagnostics
+
+        diag = ExtensionDiagnostics(
+            sentience_defined=True,
+            sentience_snapshot=True,
+            url="https://test.com",
+            error=None,
+        )
+        result = diag.to_dict()
+
+        assert result["sentience_defined"] is True
+        assert result["sentience_snapshot"] is True
+        assert result["url"] == "https://test.com"
+
+    def test_extension_not_loaded_error_from_timeout(self) -> None:
+        """Test ExtensionNotLoadedError.from_timeout creates helpful message."""
+        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+
+        diag = ExtensionDiagnostics(
+            sentience_defined=False,
+            sentience_snapshot=False,
+            url="https://example.com",
+        )
+        error = ExtensionNotLoadedError.from_timeout(timeout_ms=5000, diagnostics=diag)
+
+        assert error.timeout_ms == 5000
+        assert error.diagnostics is diag
+        assert "5000ms" in str(error)
+        assert "window.sentience defined: False" in str(error)
+        assert "get_extension_dir" in str(error)  # Contains fix suggestion
+
+    def test_extension_not_loaded_error_with_eval_error(self) -> None:
+        """Test ExtensionNotLoadedError when diagnostics collection failed."""
+        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+
+        diag = ExtensionDiagnostics(error="Could not evaluate JavaScript")
+        error = ExtensionNotLoadedError.from_timeout(timeout_ms=3000, diagnostics=diag)
+
+        assert "Could not evaluate JavaScript" in str(error)
+
+    def test_snapshot_error_from_null_result(self) -> None:
+        """Test SnapshotError.from_null_result creates helpful message."""
+        from sentience.backends.exceptions import SnapshotError
+
+        error = SnapshotError.from_null_result(url="https://example.com/page")
+
+        assert error.url == "https://example.com/page"
+        assert "returned null" in str(error)
+        assert "example.com/page" in str(error)
+
+    def test_snapshot_error_from_null_result_no_url(self) -> None:
+        """Test SnapshotError.from_null_result without URL."""
+        from sentience.backends.exceptions import SnapshotError
+
+        error = SnapshotError.from_null_result(url=None)
+
+        assert error.url is None
+        assert "returned null" in str(error)
+
+    def test_action_error_message_format(self) -> None:
+        """Test ActionError formats message correctly."""
+        from sentience.backends.exceptions import ActionError
+
+        error = ActionError(
+            action="click",
+            message="Element not found",
+            coordinates=(100, 200),
+        )
+
+        assert error.action == "click"
+        assert error.coordinates == (100, 200)
+        assert "click failed" in str(error)
+        assert "Element not found" in str(error)
+
+    def test_sentience_backend_error_inheritance(self) -> None:
+        """Test all exceptions inherit from SentienceBackendError."""
+        from sentience.backends.exceptions import (
+            ActionError,
+            BackendEvalError,
+            ExtensionInjectionError,
+            ExtensionNotLoadedError,
+            SentienceBackendError,
+            SnapshotError,
+        )
+
+        assert issubclass(ExtensionNotLoadedError, SentienceBackendError)
+        assert issubclass(ExtensionInjectionError, SentienceBackendError)
+        assert issubclass(BackendEvalError, SentienceBackendError)
+        assert issubclass(SnapshotError, SentienceBackendError)
+        assert issubclass(ActionError, SentienceBackendError)
+
+    def test_extension_injection_error_from_page(self) -> None:
+        """Test ExtensionInjectionError.from_page."""
+        from sentience.backends.exceptions import ExtensionInjectionError
+
+        error = ExtensionInjectionError.from_page("https://secure-site.com")
+
+        assert error.url == "https://secure-site.com"
+        assert "secure-site.com" in str(error)
+        assert "Content Security Policy" in str(error)
