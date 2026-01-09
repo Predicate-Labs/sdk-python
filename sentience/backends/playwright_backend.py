@@ -57,7 +57,8 @@ class PlaywrightBackend:
 
     async def refresh_page_info(self) -> ViewportInfo:
         """Cache viewport + scroll offsets; cheap & safe to call often."""
-        result = await self._page.evaluate("""
+        result = await self._page.evaluate(
+            """
             (() => ({
                 width: window.innerWidth,
                 height: window.innerHeight,
@@ -66,7 +67,8 @@ class PlaywrightBackend:
                 content_width: document.documentElement.scrollWidth,
                 content_height: document.documentElement.scrollHeight
             }))()
-        """)
+        """
+        )
 
         self._cached_viewport = ViewportInfo(
             width=result.get("width", 0),
@@ -96,7 +98,8 @@ class PlaywrightBackend:
         """Get page layout metrics."""
         # Playwright doesn't expose CDP directly in the same way,
         # so we approximate using JavaScript
-        result = await self._page.evaluate("""
+        result = await self._page.evaluate(
+            """
             (() => ({
                 viewport_x: window.scrollX,
                 viewport_y: window.scrollY,
@@ -106,7 +109,8 @@ class PlaywrightBackend:
                 content_height: document.documentElement.scrollHeight,
                 device_scale_factor: window.devicePixelRatio || 1
             }))()
-        """)
+        """
+        )
 
         return LayoutMetrics(
             viewport_x=result.get("viewport_x", 0),
@@ -172,8 +176,7 @@ class PlaywrightBackend:
             elapsed = time.monotonic() - start
             if elapsed >= timeout_sec:
                 raise TimeoutError(
-                    f"Timed out waiting for document.readyState='{state}' "
-                    f"after {timeout_ms}ms"
+                    f"Timed out waiting for document.readyState='{state}' " f"after {timeout_ms}ms"
                 )
 
             current_state = await self._page.evaluate("document.readyState")

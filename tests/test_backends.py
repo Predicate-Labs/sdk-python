@@ -833,3 +833,126 @@ class TestCoordinateResolution:
 
         assert x == 300
         assert y == 400
+
+
+class TestBackendExceptions:
+    """Tests for custom backend exceptions."""
+
+    def test_extension_diagnostics_from_dict(self) -> None:
+        """Test ExtensionDiagnostics.from_dict."""
+        from sentience.backends.exceptions import ExtensionDiagnostics
+
+        data = {
+            "sentience_defined": True,
+            "sentience_snapshot": False,
+            "url": "https://example.com",
+        }
+        diag = ExtensionDiagnostics.from_dict(data)
+
+        assert diag.sentience_defined is True
+        assert diag.sentience_snapshot is False
+        assert diag.url == "https://example.com"
+        assert diag.error is None
+
+    def test_extension_diagnostics_to_dict(self) -> None:
+        """Test ExtensionDiagnostics.to_dict."""
+        from sentience.backends.exceptions import ExtensionDiagnostics
+
+        diag = ExtensionDiagnostics(
+            sentience_defined=True,
+            sentience_snapshot=True,
+            url="https://test.com",
+            error=None,
+        )
+        result = diag.to_dict()
+
+        assert result["sentience_defined"] is True
+        assert result["sentience_snapshot"] is True
+        assert result["url"] == "https://test.com"
+
+    def test_extension_not_loaded_error_from_timeout(self) -> None:
+        """Test ExtensionNotLoadedError.from_timeout creates helpful message."""
+        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+
+        diag = ExtensionDiagnostics(
+            sentience_defined=False,
+            sentience_snapshot=False,
+            url="https://example.com",
+        )
+        error = ExtensionNotLoadedError.from_timeout(timeout_ms=5000, diagnostics=diag)
+
+        assert error.timeout_ms == 5000
+        assert error.diagnostics is diag
+        assert "5000ms" in str(error)
+        assert "window.sentience defined: False" in str(error)
+        assert "get_extension_dir" in str(error)  # Contains fix suggestion
+
+    def test_extension_not_loaded_error_with_eval_error(self) -> None:
+        """Test ExtensionNotLoadedError when diagnostics collection failed."""
+        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+
+        diag = ExtensionDiagnostics(error="Could not evaluate JavaScript")
+        error = ExtensionNotLoadedError.from_timeout(timeout_ms=3000, diagnostics=diag)
+
+        assert "Could not evaluate JavaScript" in str(error)
+
+    def test_snapshot_error_from_null_result(self) -> None:
+        """Test SnapshotError.from_null_result creates helpful message."""
+        from sentience.backends.exceptions import SnapshotError
+
+        error = SnapshotError.from_null_result(url="https://example.com/page")
+
+        assert error.url == "https://example.com/page"
+        assert "returned null" in str(error)
+        assert "example.com/page" in str(error)
+
+    def test_snapshot_error_from_null_result_no_url(self) -> None:
+        """Test SnapshotError.from_null_result without URL."""
+        from sentience.backends.exceptions import SnapshotError
+
+        error = SnapshotError.from_null_result(url=None)
+
+        assert error.url is None
+        assert "returned null" in str(error)
+
+    def test_action_error_message_format(self) -> None:
+        """Test ActionError formats message correctly."""
+        from sentience.backends.exceptions import ActionError
+
+        error = ActionError(
+            action="click",
+            message="Element not found",
+            coordinates=(100, 200),
+        )
+
+        assert error.action == "click"
+        assert error.coordinates == (100, 200)
+        assert "click failed" in str(error)
+        assert "Element not found" in str(error)
+
+    def test_sentience_backend_error_inheritance(self) -> None:
+        """Test all exceptions inherit from SentienceBackendError."""
+        from sentience.backends.exceptions import (
+            ActionError,
+            BackendEvalError,
+            ExtensionInjectionError,
+            ExtensionNotLoadedError,
+            SentienceBackendError,
+            SnapshotError,
+        )
+
+        assert issubclass(ExtensionNotLoadedError, SentienceBackendError)
+        assert issubclass(ExtensionInjectionError, SentienceBackendError)
+        assert issubclass(BackendEvalError, SentienceBackendError)
+        assert issubclass(SnapshotError, SentienceBackendError)
+        assert issubclass(ActionError, SentienceBackendError)
+
+    def test_extension_injection_error_from_page(self) -> None:
+        """Test ExtensionInjectionError.from_page."""
+        from sentience.backends.exceptions import ExtensionInjectionError
+
+        error = ExtensionInjectionError.from_page("https://secure-site.com")
+
+        assert error.url == "https://secure-site.com"
+        assert "secure-site.com" in str(error)
+        assert "Content Security Policy" in str(error)

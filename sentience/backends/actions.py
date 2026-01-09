@@ -226,7 +226,8 @@ async def scroll_to_element(
     start_time = time.time()
 
     try:
-        scrolled = await backend.eval(f"""
+        scrolled = await backend.eval(
+            f"""
             (() => {{
                 const el = window.sentience_registry && window.sentience_registry[{element_id}];
                 if (el && el.scrollIntoView) {{
@@ -239,7 +240,8 @@ async def scroll_to_element(
                 }}
                 return false;
             }})()
-        """)
+        """
+        )
 
         # Wait for scroll animation
         wait_time = 0.3 if behavior == "smooth" else 0.05
