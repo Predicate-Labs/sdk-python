@@ -14,15 +14,8 @@ Usage:
 
 import asyncio
 
-# browser-use imports (install via: pip install browser-use)
-# from browser_use import BrowserSession, BrowserProfile
-
 # Sentience imports
-from sentience import (
-    find,
-    get_extension_dir,
-    query,
-)
+from sentience import find, get_extension_dir, query
 from sentience.backends import (
     BrowserUseAdapter,
     CachedSnapshot,
@@ -32,6 +25,9 @@ from sentience.backends import (
     snapshot,
     type_text,
 )
+
+# browser-use imports (install via: pip install browser-use)
+# from browser_use import BrowserSession, BrowserProfile
 
 
 async def main() -> None:
