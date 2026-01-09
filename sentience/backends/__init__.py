@@ -5,14 +5,29 @@ This module provides backend protocols and implementations that allow
 Sentience actions (click, type, scroll) to work with different browser
 automation frameworks.
 
-Supported backends:
-- PlaywrightBackend: Default backend using Playwright (existing SentienceBrowser)
-- CDPBackendV0: CDP-based backend for browser-use integration
+Supported Backends
+------------------
 
-For browser-use integration:
+**PlaywrightBackend**
+    Wraps Playwright Page objects. Use this when integrating with existing
+    SentienceBrowser or Playwright-based code.
+
+**CDPBackendV0**
+    Low-level CDP (Chrome DevTools Protocol) backend. Use this when you have
+    direct access to a CDP client and session.
+
+**BrowserUseAdapter**
+    High-level adapter for browser-use framework. Automatically creates a
+    CDPBackendV0 from a BrowserSession.
+
+Quick Start with browser-use
+----------------------------
+
+.. code-block:: python
+
     from browser_use import BrowserSession, BrowserProfile
-    from sentience import get_extension_dir
-    from sentience.backends import BrowserUseAdapter, CDPBackendV0
+    from sentience import get_extension_dir, find
+    from sentience.backends import BrowserUseAdapter, snapshot, click, type_text
 
     # Setup browser-use with Sentience extension
     profile = BrowserProfile(args=[f"--load-extension={get_extension_dir()}"])
@@ -23,13 +38,66 @@ For browser-use integration:
     adapter = BrowserUseAdapter(session)
     backend = await adapter.create_backend()
 
-    # Use backend for precise operations
-    await backend.mouse_click(100, 200)
+    # Take snapshot and interact with elements
+    snap = await snapshot(backend)
+    search_box = find(snap, 'role=textbox[name*="Search"]')
+    await click(backend, search_box.bbox)
+    await type_text(backend, "Sentience AI")
+
+Snapshot Caching
+----------------
+
+Use CachedSnapshot to reduce redundant snapshot calls in action loops:
+
+.. code-block:: python
+
+    from sentience.backends import CachedSnapshot
+
+    cache = CachedSnapshot(backend, max_age_ms=2000)
+
+    snap1 = await cache.get()  # Takes fresh snapshot
+    snap2 = await cache.get()  # Returns cached if < 2s old
+
+    await click(backend, element.bbox)
+    cache.invalidate()  # Force refresh on next get()
+
+Error Handling
+--------------
+
+The module provides specific exceptions for common failure modes:
+
+- ``ExtensionNotLoadedError``: Extension not loaded in browser launch args
+- ``SnapshotError``: window.sentience.snapshot() failed
+- ``ActionError``: Click/type/scroll operation failed
+
+All exceptions inherit from ``SentienceBackendError`` and include helpful
+fix suggestions in their error messages.
+
+.. code-block:: python
+
+    from sentience.backends import ExtensionNotLoadedError, snapshot
+
+    try:
+        snap = await snapshot(backend)
+    except ExtensionNotLoadedError as e:
+        print(f"Fix suggestion: {e}")
 """
 
+from .actions import click, scroll, scroll_to_element, type_text, wait_for_stable
 from .browser_use_adapter import BrowserUseAdapter, BrowserUseCDPTransport
 from .cdp_backend import CDPBackendV0, CDPTransport
+from .exceptions import (
+    ActionError,
+    BackendEvalError,
+    ExtensionDiagnostics,
+    ExtensionInjectionError,
+    ExtensionNotLoadedError,
+    SentienceBackendError,
+    SnapshotError,
+)
+from .playwright_backend import PlaywrightBackend
 from .protocol_v0 import BrowserBackendV0, LayoutMetrics, ViewportInfo
+from .snapshot import CachedSnapshot, snapshot
 
 __all__ = [
     # Protocol
@@ -40,7 +108,25 @@ __all__ = [
     # CDP Backend
     "CDPTransport",
     "CDPBackendV0",
+    # Playwright Backend
+    "PlaywrightBackend",
     # browser-use adapter
     "BrowserUseAdapter",
     "BrowserUseCDPTransport",
+    # Backend-agnostic functions
+    "snapshot",
+    "CachedSnapshot",
+    "click",
+    "type_text",
+    "scroll",
+    "scroll_to_element",
+    "wait_for_stable",
+    # Exceptions
+    "SentienceBackendError",
+    "ExtensionNotLoadedError",
+    "ExtensionInjectionError",
+    "ExtensionDiagnostics",
+    "BackendEvalError",
+    "SnapshotError",
+    "ActionError",
 ]
