@@ -1,7 +1,10 @@
 """Tests for proxy support in SentienceBrowser"""
 
+import logging
 import os
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sentience.browser import SentienceBrowser
 from sentience.models import ProxyConfig
@@ -96,33 +99,33 @@ class TestBrowserProxyParsing:
         assert config.username == "user"
         assert config.password == "pass"
 
-    def test_parse_proxy_invalid_scheme(self, capsys):
+    def test_parse_proxy_invalid_scheme(self, caplog):
         """Test parsing proxy with invalid scheme"""
-        browser = SentienceBrowser()
-        config = browser._parse_proxy("ftp://proxy.example.com:8080")
+        with caplog.at_level(logging.WARNING):
+            browser = SentienceBrowser()
+            config = browser._parse_proxy("ftp://proxy.example.com:8080")
 
-        assert config is None
-        captured = capsys.readouterr()
-        assert "Unsupported proxy scheme: ftp" in captured.out
-        assert "Supported: http, https, socks5" in captured.out
+            assert config is None
+            assert "Unsupported proxy scheme: ftp" in caplog.text
+            assert "Supported: http, https, socks5" in caplog.text
 
-    def test_parse_proxy_missing_port(self, capsys):
+    def test_parse_proxy_missing_port(self, caplog):
         """Test parsing proxy without port"""
-        browser = SentienceBrowser()
-        config = browser._parse_proxy("http://proxy.example.com")
+        with caplog.at_level(logging.WARNING):
+            browser = SentienceBrowser()
+            config = browser._parse_proxy("http://proxy.example.com")
 
-        assert config is None
-        captured = capsys.readouterr()
-        assert "Proxy URL must include hostname and port" in captured.out
+            assert config is None
+            assert "Proxy URL must include hostname and port" in caplog.text
 
-    def test_parse_proxy_missing_host(self, capsys):
+    def test_parse_proxy_missing_host(self, caplog):
         """Test parsing proxy without hostname"""
-        browser = SentienceBrowser()
-        config = browser._parse_proxy("http://:8080")
+        with caplog.at_level(logging.WARNING):
+            browser = SentienceBrowser()
+            config = browser._parse_proxy("http://:8080")
 
-        assert config is None
-        captured = capsys.readouterr()
-        assert "Proxy URL must include hostname and port" in captured.out
+            assert config is None
+            assert "Proxy URL must include hostname and port" in caplog.text
 
     def test_parse_proxy_empty_string(self):
         """Test parsing empty proxy string"""
@@ -202,7 +205,7 @@ class TestBrowserProxyIntegration:
 
     @patch("sentience.browser.shutil.copytree")
     @patch("sentience.browser.sync_playwright")
-    def test_start_with_proxy(self, mock_playwright, mock_copytree, capsys):
+    def test_start_with_proxy(self, mock_playwright, mock_copytree, caplog):
         """Test browser start with proxy"""
         # Mock Playwright
         mock_pw_instance = MagicMock()
@@ -221,21 +224,21 @@ class TestBrowserProxyIntegration:
             mock_path.return_value.parent.parent.parent = MagicMock()
             mock_path.return_value.parent.parent.parent.__truediv__.return_value = mock_ext_path
 
-            browser = SentienceBrowser(proxy="http://user:pass@proxy.example.com:8080")
-            browser.start()
+            with caplog.at_level(logging.INFO):
+                browser = SentienceBrowser(proxy="http://user:pass@proxy.example.com:8080")
+                browser.start()
 
-            # Verify proxy was passed to launch_persistent_context
-            call_kwargs = mock_pw_instance.chromium.launch_persistent_context.call_args[1]
-            assert "proxy" in call_kwargs
-            assert call_kwargs["proxy"] == {
-                "server": "http://proxy.example.com:8080",
-                "username": "user",
-                "password": "pass",
-            }
+                # Verify proxy was passed to launch_persistent_context
+                call_kwargs = mock_pw_instance.chromium.launch_persistent_context.call_args[1]
+                assert "proxy" in call_kwargs
+                assert call_kwargs["proxy"] == {
+                    "server": "http://proxy.example.com:8080",
+                    "username": "user",
+                    "password": "pass",
+                }
 
-            # Verify console message
-            captured = capsys.readouterr()
-            assert "Using proxy: http://proxy.example.com:8080" in captured.out
+                # Verify log message
+                assert "Using proxy: http://proxy.example.com:8080" in caplog.text
 
     @patch("sentience.browser.shutil.copytree")
     @patch("sentience.browser.sync_playwright")

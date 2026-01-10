@@ -22,6 +22,10 @@ def test_video_recording_basic():
         try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("domcontentloaded")
+            
+            # Small delay to ensure page is fully loaded and video recording is stable
+            import time
+            time.sleep(0.5)
 
             video_path = browser.close()
 
@@ -33,9 +37,29 @@ def test_video_recording_basic():
             # Verify file has content
             file_size = os.path.getsize(video_path)
             assert file_size > 0
-        except Exception:
-            browser.close()
-            raise
+        except Exception as e:
+            # Ensure browser is closed even on error
+            # Catch Playwright "Event loop is closed" errors during cleanup
+            try:
+                if browser.page:
+                    try:
+                        browser.page.close()
+                    except Exception:
+                        pass  # Page might already be closed
+                if browser.context:
+                    try:
+                        browser.context.close()
+                    except Exception:
+                        pass  # Context might already be closed
+                if browser.playwright:
+                    try:
+                        browser.playwright.stop()
+                    except Exception:
+                        pass  # Playwright might already be stopped
+            except Exception:
+                pass  # Ignore cleanup errors
+            # Re-raise original exception
+            raise e
 
 
 def test_video_recording_custom_resolution():

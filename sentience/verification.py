@@ -26,8 +26,9 @@ Example usage:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .models import Snapshot
@@ -330,7 +331,10 @@ def any_of(*predicates: Predicate) -> Predicate:
                 return AssertOutcome(
                     passed=True,
                     reason="",
-                    details={"sub_predicates": all_details, "matched_at_index": len(all_details) - 1},
+                    details={
+                        "sub_predicates": all_details,
+                        "matched_at_index": len(all_details) - 1,
+                    },
                 )
             all_reasons.append(outcome.reason)
 

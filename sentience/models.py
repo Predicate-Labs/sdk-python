@@ -118,6 +118,16 @@ class SnapshotOptions(BaseModel):
     """
     Configuration for snapshot calls.
     Matches TypeScript SnapshotOptions interface from sdk-ts/src/snapshot.ts
+
+    For browser-use integration (where you don't have a SentienceBrowser),
+    you can pass sentience_api_key directly in options:
+
+        from sentience.models import SnapshotOptions
+        options = SnapshotOptions(
+            sentience_api_key="sk_pro_xxxxx",
+            use_api=True,
+            goal="Find the login button"
+        )
     """
 
     screenshot: bool | ScreenshotConfig = False  # Union type: boolean or config
@@ -128,6 +138,9 @@ class SnapshotOptions(BaseModel):
     trace_path: str | None = None  # Path to save trace (default: "trace_{timestamp}.json")
     goal: str | None = None  # Optional goal/task description for the snapshot
     show_overlay: bool = False  # Show visual overlay highlighting elements in browser
+
+    # API credentials (for browser-use integration without SentienceBrowser)
+    sentience_api_key: str | None = None  # Sentience API key for Pro/Enterprise features
 
     class Config:
         arbitrary_types_allowed = True

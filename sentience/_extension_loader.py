@@ -1,8 +1,19 @@
 """
-Shared extension loading logic for sync and async implementations
+Shared extension loading logic for sync and async implementations.
+
+Provides:
+- get_extension_dir(): Returns path to bundled extension (for browser-use integration)
+- verify_extension_injected(): Verifies window.sentience API is available
+- get_extension_version(): Gets extension version from manifest
+- verify_extension_version(): Checks SDK-extension version compatibility
 """
 
+import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .protocols import AsyncPageProtocol, PageProtocol
 
 
 def find_extension_path() -> Path:
@@ -38,3 +49,147 @@ def find_extension_path() -> Path:
             f"2. {dev_ext_path}\n"
             "Make sure the extension is built and 'sentience/extension' directory exists."
         )
+
+
+def get_extension_dir() -> str:
+    """
+    Get path to the bundled Sentience extension directory.
+
+    Use this to load the extension into browser-use or other Chromium-based browsers:
+
+        from sentience import get_extension_dir
+        from browser_use import BrowserSession, BrowserProfile
+
+        profile = BrowserProfile(
+            args=[f"--load-extension={get_extension_dir()}"],
+        )
+        session = BrowserSession(browser_profile=profile)
+
+    Returns:
+        Absolute path to extension directory as string
+
+    Raises:
+        FileNotFoundError: If extension not found in package
+    """
+    return str(find_extension_path())
+
+
+def get_extension_version() -> str:
+    """
+    Get the version of the bundled extension from manifest.json.
+
+    Returns:
+        Version string (e.g., "2.2.0")
+
+    Raises:
+        FileNotFoundError: If extension or manifest not found
+    """
+    ext_path = find_extension_path()
+    manifest_path = ext_path / "manifest.json"
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    return manifest.get("version", "unknown")
+
+
+def verify_extension_injected(page: "PageProtocol") -> bool:
+    """
+    Verify the Sentience extension injected window.sentience API (sync).
+
+    Call this after navigating to a page to confirm the extension is working:
+
+        browser.goto("https://example.com")
+        if not verify_extension_injected(browser.page):
+            raise RuntimeError("Extension not injected")
+
+    Args:
+        page: Playwright Page object (sync)
+
+    Returns:
+        True if window.sentience.snapshot is available, False otherwise
+    """
+    try:
+        result = page.evaluate(
+            "(() => !!(window.sentience && typeof window.sentience.snapshot === 'function'))()"
+        )
+        return bool(result)
+    except Exception:
+        return False
+
+
+async def verify_extension_injected_async(page: "AsyncPageProtocol") -> bool:
+    """
+    Verify the Sentience extension injected window.sentience API (async).
+
+    Call this after navigating to a page to confirm the extension is working:
+
+        await browser.goto("https://example.com")
+        if not await verify_extension_injected_async(browser.page):
+            raise RuntimeError("Extension not injected")
+
+    Args:
+        page: Playwright Page object (async)
+
+    Returns:
+        True if window.sentience.snapshot is available, False otherwise
+    """
+    try:
+        result = await page.evaluate(
+            "(() => !!(window.sentience && typeof window.sentience.snapshot === 'function'))()"
+        )
+        return bool(result)
+    except Exception:
+        return False
+
+
+def verify_extension_version(page: "PageProtocol", expected: str | None = None) -> str | None:
+    """
+    Check extension version exposed in page (sync).
+
+    The extension sets window.__SENTIENCE_EXTENSION_VERSION__ when injected.
+
+    Args:
+        page: Playwright Page object (sync)
+        expected: If provided, raises RuntimeError on mismatch
+
+    Returns:
+        Version string if found, None if not set (page may not have injected yet)
+
+    Raises:
+        RuntimeError: If expected version provided and doesn't match
+    """
+    try:
+        got = page.evaluate("window.__SENTIENCE_EXTENSION_VERSION__ || null")
+    except Exception:
+        got = None
+
+    if expected and got and got != expected:
+        raise RuntimeError(f"Sentience extension version mismatch: expected {expected}, got {got}")
+    return got
+
+
+async def verify_extension_version_async(
+    page: "AsyncPageProtocol", expected: str | None = None
+) -> str | None:
+    """
+    Check extension version exposed in page (async).
+
+    The extension sets window.__SENTIENCE_EXTENSION_VERSION__ when injected.
+
+    Args:
+        page: Playwright Page object (async)
+        expected: If provided, raises RuntimeError on mismatch
+
+    Returns:
+        Version string if found, None if not set (page may not have injected yet)
+
+    Raises:
+        RuntimeError: If expected version provided and doesn't match
+    """
+    try:
+        got = await page.evaluate("window.__SENTIENCE_EXTENSION_VERSION__ || null")
+    except Exception:
+        got = None
+
+    if expected and got and got != expected:
+        raise RuntimeError(f"Sentience extension version mismatch: expected {expected}, got {got}")
+    return got
