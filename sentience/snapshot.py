@@ -19,6 +19,122 @@ from .sentience_methods import SentienceMethod
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
+def _build_snapshot_payload(
+    raw_result: dict[str, Any],
+    options: SnapshotOptions,
+) -> dict[str, Any]:
+    """
+    Build payload dict for gateway snapshot API.
+
+    Shared helper used by both sync and async snapshot implementations.
+    """
+    return {
+        "raw_elements": raw_result.get("raw_elements", []),
+        "url": raw_result.get("url", ""),
+        "viewport": raw_result.get("viewport"),
+        "goal": options.goal,
+        "options": {
+            "limit": options.limit,
+            "filter": options.filter.model_dump() if options.filter else None,
+        },
+    }
+
+
+def _validate_payload_size(payload_json: str) -> None:
+    """
+    Validate payload size before sending to gateway.
+
+    Raises ValueError if payload exceeds server limit.
+    """
+    payload_size = len(payload_json.encode("utf-8"))
+    if payload_size > MAX_PAYLOAD_BYTES:
+        raise ValueError(
+            f"Payload size ({payload_size / 1024 / 1024:.2f}MB) exceeds server limit "
+            f"({MAX_PAYLOAD_BYTES / 1024 / 1024:.0f}MB). "
+            f"Try reducing the number of elements on the page or filtering elements."
+        )
+
+
+def _post_snapshot_to_gateway_sync(
+    payload: dict[str, Any],
+    api_key: str,
+    api_url: str = "https://api.sentienceapi.com",
+) -> dict[str, Any]:
+    """
+    Post snapshot payload to gateway (synchronous).
+
+    Used by sync snapshot() function.
+    """
+    payload_json = json.dumps(payload)
+    _validate_payload_size(payload_json)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    response = requests.post(
+        f"{api_url}/v1/snapshot",
+        data=payload_json,
+        headers=headers,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+async def _post_snapshot_to_gateway_async(
+    payload: dict[str, Any],
+    api_key: str,
+    api_url: str = "https://api.sentienceapi.com",
+) -> dict[str, Any]:
+    """
+    Post snapshot payload to gateway (asynchronous).
+
+    Used by async backend snapshot() function.
+    """
+    # Lazy import httpx - only needed for async API calls
+    import httpx
+
+    payload_json = json.dumps(payload)
+    _validate_payload_size(payload_json)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{api_url}/v1/snapshot",
+            content=payload_json,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def _merge_api_result_with_local(
+    api_result: dict[str, Any],
+    raw_result: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Merge API result with local data (screenshot, etc.).
+
+    Shared helper used by both sync and async snapshot implementations.
+    """
+    return {
+        "status": api_result.get("status", "success"),
+        "timestamp": api_result.get("timestamp"),
+        "url": api_result.get("url", raw_result.get("url", "")),
+        "viewport": api_result.get("viewport", raw_result.get("viewport")),
+        "elements": api_result.get("elements", []),
+        "screenshot": raw_result.get("screenshot"),  # Keep local screenshot
+        "screenshot_format": raw_result.get("screenshot_format"),
+        "error": api_result.get("error"),
+    }
+
+
 def _save_trace_to_file(raw_elements: list[dict[str, Any]], trace_path: str | None = None) -> None:
     """
     Save raw_elements to a JSON file for benchmarking/training
@@ -72,14 +188,18 @@ def snapshot(
     if options is None:
         options = SnapshotOptions()
 
+    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
+    # This allows browser-use users to pass api_key via options without SentienceBrowser
+    effective_api_key = options.sentience_api_key or browser.api_key
+
     # Determine if we should use server-side API
     should_use_api = (
-        options.use_api if options.use_api is not None else (browser.api_key is not None)
+        options.use_api if options.use_api is not None else (effective_api_key is not None)
     )
 
-    if should_use_api and browser.api_key:
+    if should_use_api and effective_api_key:
         # Use server-side API (Pro/Enterprise tier)
-        return _snapshot_via_api(browser, options)
+        return _snapshot_via_api(browser, options, effective_api_key)
     else:
         # Use local extension (Free tier)
         return _snapshot_via_extension(browser, options)
@@ -150,16 +270,14 @@ def _snapshot_via_extension(
 def _snapshot_via_api(
     browser: SentienceBrowser,
     options: SnapshotOptions,
+    api_key: str,
 ) -> Snapshot:
     """Take snapshot using server-side API (Pro/Enterprise tier)"""
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
 
-    if not browser.api_key:
-        raise ValueError("API key required for server-side processing")
-
-    if not browser.api_url:
-        raise ValueError("API URL required for server-side processing")
+    # Use browser.api_url if set, otherwise default
+    api_url = browser.api_url or "https://api.sentienceapi.com"
 
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # Even for API mode, we need the extension to collect raw data locally
@@ -179,54 +297,13 @@ def _snapshot_via_api(
     # Step 2: Send to server for smart ranking/filtering
     # Use raw_elements (raw data) instead of elements (processed data)
     # Server validates API key and applies proprietary ranking logic
-    payload = {
-        "raw_elements": raw_result.get("raw_elements", []),  # Raw data needed for server processing
-        "url": raw_result.get("url", ""),
-        "viewport": raw_result.get("viewport"),
-        "goal": options.goal,  # Optional goal/task description
-        "options": {
-            "limit": options.limit,
-            "filter": options.filter.model_dump() if options.filter else None,
-        },
-    }
-
-    # Check payload size before sending (server has 10MB limit)
-    payload_json = json.dumps(payload)
-    payload_size = len(payload_json.encode("utf-8"))
-    if payload_size > MAX_PAYLOAD_BYTES:
-        raise ValueError(
-            f"Payload size ({payload_size / 1024 / 1024:.2f}MB) exceeds server limit "
-            f"({MAX_PAYLOAD_BYTES / 1024 / 1024:.0f}MB). "
-            f"Try reducing the number of elements on the page or filtering elements."
-        )
-
-    headers = {
-        "Authorization": f"Bearer {browser.api_key}",
-        "Content-Type": "application/json",
-    }
+    payload = _build_snapshot_payload(raw_result, options)
 
     try:
-        response = requests.post(
-            f"{browser.api_url}/v1/snapshot",
-            data=payload_json,  # Reuse already-serialized JSON
-            headers=headers,
-            timeout=30,
-        )
-        response.raise_for_status()
-
-        api_result = response.json()
+        api_result = _post_snapshot_to_gateway_sync(payload, api_key, api_url)
 
         # Merge API result with local data (screenshot, etc.)
-        snapshot_data = {
-            "status": api_result.get("status", "success"),
-            "timestamp": api_result.get("timestamp"),
-            "url": api_result.get("url", raw_result.get("url", "")),
-            "viewport": api_result.get("viewport", raw_result.get("viewport")),
-            "elements": api_result.get("elements", []),
-            "screenshot": raw_result.get("screenshot"),  # Keep local screenshot
-            "screenshot_format": raw_result.get("screenshot_format"),
-            "error": api_result.get("error"),
-        }
+        snapshot_data = _merge_api_result_with_local(api_result, raw_result)
 
         # Show visual overlay if requested (use API-ranked elements)
         if options.show_overlay:
@@ -245,7 +322,7 @@ def _snapshot_via_api(
 
         return Snapshot(**snapshot_data)
     except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"API request failed: {e}")
+        raise RuntimeError(f"API request failed: {e}") from e
 
 
 # ========== Async Snapshot Functions ==========
@@ -281,14 +358,18 @@ async def snapshot_async(
     if options is None:
         options = SnapshotOptions()
 
+    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
+    # This allows browser-use users to pass api_key via options without SentienceBrowser
+    effective_api_key = options.sentience_api_key or browser.api_key
+
     # Determine if we should use server-side API
     should_use_api = (
-        options.use_api if options.use_api is not None else (browser.api_key is not None)
+        options.use_api if options.use_api is not None else (effective_api_key is not None)
     )
 
-    if should_use_api and browser.api_key:
+    if should_use_api and effective_api_key:
         # Use server-side API (Pro/Enterprise tier)
-        return await _snapshot_via_api_async(browser, options)
+        return await _snapshot_via_api_async(browser, options, effective_api_key)
     else:
         # Use local extension (Free tier)
         return await _snapshot_via_extension_async(browser, options)
@@ -388,16 +469,14 @@ async def _snapshot_via_extension_async(
 async def _snapshot_via_api_async(
     browser: AsyncSentienceBrowser,
     options: SnapshotOptions,
+    api_key: str,
 ) -> Snapshot:
     """Take snapshot using server-side API (Pro/Enterprise tier) - async"""
     if not browser.page:
         raise RuntimeError("Browser not started. Call await browser.start() first.")
 
-    if not browser.api_key:
-        raise ValueError("API key required for server-side processing")
-
-    if not browser.api_url:
-        raise ValueError("API URL required for server-side processing")
+    # Use browser.api_url if set, otherwise default
+    api_url = browser.api_url or "https://api.sentienceapi.com"
 
     # Wait for extension injection
     try:
@@ -466,7 +545,7 @@ async def _snapshot_via_api_async(
         )
 
     headers = {
-        "Authorization": f"Bearer {browser.api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
@@ -476,7 +555,7 @@ async def _snapshot_via_api_async(
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{browser.api_url}/v1/snapshot",
+                f"{api_url}/v1/snapshot",
                 content=payload_json,
                 headers=headers,
             )

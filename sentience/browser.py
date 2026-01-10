@@ -3,7 +3,9 @@ Playwright browser harness with extension loading
 """
 
 import asyncio
+import logging
 import os
+import platform
 import shutil
 import tempfile
 import time
@@ -19,6 +21,8 @@ from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwrigh
 
 from sentience._extension_loader import find_extension_path
 from sentience.models import ProxyConfig, StorageState, Viewport
+
+logger = logging.getLogger(__name__)
 
 # Import stealth for bot evasion (optional - graceful fallback if not available)
 try:
@@ -145,14 +149,16 @@ class SentienceBrowser:
 
             # Validate scheme
             if parsed.scheme not in ("http", "https", "socks5"):
-                print(f"⚠️  [Sentience] Unsupported proxy scheme: {parsed.scheme}")
-                print("   Supported: http, https, socks5")
+                logger.warning(
+                    f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5"
+                )
                 return None
 
             # Validate host and port
             if not parsed.hostname or not parsed.port:
-                print("⚠️  [Sentience] Proxy URL must include hostname and port")
-                print("   Expected format: http://username:password@host:port")
+                logger.warning(
+                    "Proxy URL must include hostname and port. Expected format: http://username:password@host:port"
+                )
                 return None
 
             # Build server URL
@@ -166,8 +172,9 @@ class SentienceBrowser:
             )
 
         except Exception as e:
-            print(f"⚠️  [Sentience] Invalid proxy configuration: {e}")
-            print("   Expected format: http://username:password@host:port")
+            logger.warning(
+                f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
+            )
             return None
 
     def start(self) -> None:
@@ -187,12 +194,40 @@ class SentienceBrowser:
             f"--disable-extensions-except={self._extension_path}",
             f"--load-extension={self._extension_path}",
             "--disable-blink-features=AutomationControlled",  # Hides 'navigator.webdriver'
-            "--no-sandbox",
             "--disable-infobars",
             # WebRTC leak protection (prevents real IP exposure when using proxies/VPNs)
             "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
+
+        # Only add --no-sandbox on Linux (causes crashes on macOS)
+        # macOS sandboxing works fine and the flag actually causes crashes
+        if platform.system() == "Linux":
+            args.append("--no-sandbox")
+
+        # Add GPU-disabling flags for macOS to prevent Chrome for Testing crash-on-exit
+        # These flags help avoid EXC_BAD_ACCESS crashes during browser shutdown
+        if platform.system() == "Darwin":  # macOS
+            args.extend(
+                [
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-dev-shm-usage",
+                    "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
+                    "--disable-crash-reporter",  # Disable crash reporter UI
+                    "--disable-crash-handler",  # Disable crash handler completely
+                    "--disable-in-process-stack-traces",  # Disable stack trace collection
+                    "--disable-hang-monitor",  # Disable hang detection
+                    "--disable-background-networking",  # Disable background networking
+                    "--disable-background-timer-throttling",  # Disable background throttling
+                    "--disable-backgrounding-occluded-windows",  # Disable backgrounding
+                    "--disable-renderer-backgrounding",  # Disable renderer backgrounding
+                    "--disable-features=TranslateUI",  # Disable translate UI
+                    "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
+                    "--disable-logging",  # Disable logging to reduce stderr noise
+                    "--log-level=3",  # Set log level to fatal only (suppresses warnings)
+                ]
+            )
 
         # Handle headless mode correctly for extensions
         # 'headless=True' DOES NOT support extensions in standard Chrome
@@ -219,6 +254,8 @@ class SentienceBrowser:
             "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             # Remove "HeadlessChrome" from User Agent automatically
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            # Note: Don't set "channel" - let Playwright use its default managed Chromium
+            # Setting channel=None doesn't force bundled Chromium and can still pick Chrome for Testing
         }
 
         # Add device scale factor if configured
@@ -230,7 +267,7 @@ class SentienceBrowser:
             launch_params["proxy"] = proxy_config.to_playwright_dict()
             # Ignore HTTPS errors when using proxy (many residential proxies use self-signed certs)
             launch_params["ignore_https_errors"] = True
-            print(f"🌐 [Sentience] Using proxy: {proxy_config.server}")
+            logger.info(f"Using proxy: {proxy_config.server}")
 
         # Add video recording if configured
         if self.record_video_dir:
@@ -238,9 +275,8 @@ class SentienceBrowser:
             video_dir.mkdir(parents=True, exist_ok=True)
             launch_params["record_video_dir"] = str(video_dir)
             launch_params["record_video_size"] = self.record_video_size
-            print(f"🎥 [Sentience] Recording video to: {video_dir}")
-            print(
-                f"   Resolution: {self.record_video_size['width']}x{self.record_video_size['height']}"
+            logger.info(
+                f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})"
             )
 
         # Launch persistent context (required for extensions)
@@ -346,7 +382,7 @@ class SentienceBrowser:
                 playwright_cookies.append(playwright_cookie)
 
             self.context.add_cookies(playwright_cookies)
-            print(f"✅ [Sentience] Injected {len(state.cookies)} cookie(s)")
+            logger.debug(f"Injected {len(state.cookies)} cookie(s)")
 
         # Inject LocalStorage (requires navigation to each domain)
         if state.origins:
@@ -373,11 +409,11 @@ class SentienceBrowser:
                             }""",
                             localStorage_dict,
                         )
-                        print(
-                            f"✅ [Sentience] Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
+                        logger.debug(
+                            f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
                         )
                 except Exception as e:
-                    print(f"⚠️  [Sentience] Failed to inject localStorage for {origin}: {e}")
+                    logger.warning(f"Failed to inject localStorage for {origin}: {e}")
 
     def _wait_for_extension(self, timeout_sec: float = 5.0) -> bool:
         """Poll for window.sentience to be available"""
@@ -438,30 +474,15 @@ class SentienceBrowser:
             Note: Video files are saved automatically by Playwright when context closes.
             If multiple pages exist, returns the path to the first page's video.
         """
-        temp_video_path = None
-
-        # Get video path before closing (if recording was enabled)
-        # Note: Playwright saves videos when pages/context close, but we can get the
-        # expected path before closing. The actual file will be available after close.
-        if self.record_video_dir:
-            try:
-                # Try to get video path from the first page
-                if self.page and self.page.video:
-                    temp_video_path = self.page.video.path()
-                # If that fails, check all pages in the context
-                elif self.context:
-                    for page in self.context.pages:
-                        if page.video:
-                            temp_video_path = page.video.path()
-                            break
-            except Exception:
-                # Video path might not be available until after close
-                # In that case, we'll return None and user can check the directory
-                pass
+        # CRITICAL: Don't access page.video.path() BEFORE closing context
+        # This can poke the video subsystem at an awkward time and cause crashes on macOS
+        # Instead, we'll locate the video file after context closes
 
         # Close context (this triggers video file finalization)
         if self.context:
             self.context.close()
+            # Small grace period to ensure video file is fully flushed to disk
+            time.sleep(0.5)
 
         # Close playwright
         if self.playwright:
@@ -471,8 +492,24 @@ class SentienceBrowser:
         if self._extension_path and os.path.exists(self._extension_path):
             shutil.rmtree(self._extension_path)
 
+        # NOW resolve video path after context is closed and video is finalized
+        temp_video_path = None
+        if self.record_video_dir:
+            try:
+                # Locate the newest .webm file in record_video_dir
+                # This avoids touching page.video during teardown
+                video_dir = Path(self.record_video_dir)
+                if video_dir.exists():
+                    webm_files = list(video_dir.glob("*.webm"))
+                    if webm_files:
+                        # Get the most recently modified file
+                        temp_video_path = max(webm_files, key=lambda p: p.stat().st_mtime)
+                        logger.debug(f"Found video file: {temp_video_path}")
+            except Exception as e:
+                logger.warning(f"Could not locate video file: {e}")
+
         # Rename/move video if output_path is specified
-        final_path = temp_video_path
+        final_path = str(temp_video_path) if temp_video_path else None
         if temp_video_path and output_path and os.path.exists(temp_video_path):
             try:
                 output_path = str(output_path)
@@ -485,7 +522,7 @@ class SentienceBrowser:
 
                 warnings.warn(f"Failed to rename video file: {e}")
                 # Return original path if rename fails
-                final_path = temp_video_path
+                final_path = str(temp_video_path)
 
         return final_path
 
@@ -605,6 +642,7 @@ class AsyncSentienceBrowser:
         record_video_size: dict[str, int] | None = None,
         viewport: Viewport | dict[str, int] | None = None,
         device_scale_factor: float | None = None,
+        executable_path: str | None = None,
     ):
         """
         Initialize Async Sentience browser
@@ -629,6 +667,10 @@ class AsyncSentienceBrowser:
                                         2.0 (Retina/high-DPI, like MacBook Pro)
                                         3.0 (very high DPI)
                                If None, defaults to 1.0 (standard DPI).
+            executable_path: Optional path to Chromium executable. If provided, forces use of
+                            this specific browser binary instead of Playwright's managed browser.
+                            Useful to guarantee Chromium (not Chrome for Testing) on macOS.
+                            Example: "/path/to/playwright/chromium-1234/chrome-mac/Chromium.app/Contents/MacOS/Chromium"
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -666,6 +708,9 @@ class AsyncSentienceBrowser:
         # Device scale factor for high-DPI emulation
         self.device_scale_factor = device_scale_factor
 
+        # Executable path override (for forcing specific Chromium binary)
+        self.executable_path = executable_path
+
         self.playwright: AsyncPlaywright | None = None
         self.context: AsyncBrowserContext | None = None
         self.page: AsyncPage | None = None
@@ -689,14 +734,16 @@ class AsyncSentienceBrowser:
 
             # Validate scheme
             if parsed.scheme not in ("http", "https", "socks5"):
-                print(f"⚠️  [Sentience] Unsupported proxy scheme: {parsed.scheme}")
-                print("   Supported: http, https, socks5")
+                logger.warning(
+                    f"Unsupported proxy scheme: {parsed.scheme}. Supported: http, https, socks5"
+                )
                 return None
 
             # Validate host and port
             if not parsed.hostname or not parsed.port:
-                print("⚠️  [Sentience] Proxy URL must include hostname and port")
-                print("   Expected format: http://username:password@host:port")
+                logger.warning(
+                    "Proxy URL must include hostname and port. Expected format: http://username:password@host:port"
+                )
                 return None
 
             # Build server URL
@@ -710,8 +757,9 @@ class AsyncSentienceBrowser:
             )
 
         except Exception as e:
-            print(f"⚠️  [Sentience] Invalid proxy configuration: {e}")
-            print("   Expected format: http://username:password@host:port")
+            logger.warning(
+                f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
+            )
             return None
 
     async def start(self) -> None:
@@ -730,11 +778,39 @@ class AsyncSentienceBrowser:
             f"--disable-extensions-except={self._extension_path}",
             f"--load-extension={self._extension_path}",
             "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
             "--disable-infobars",
             "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
+
+        # Only add --no-sandbox on Linux (causes crashes on macOS)
+        # macOS sandboxing works fine and the flag actually causes crashes
+        if platform.system() == "Linux":
+            args.append("--no-sandbox")
+
+        # Add GPU-disabling flags for macOS to prevent Chrome for Testing crash-on-exit
+        # These flags help avoid EXC_BAD_ACCESS crashes during browser shutdown
+        if platform.system() == "Darwin":  # macOS
+            args.extend(
+                [
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-dev-shm-usage",
+                    "--disable-breakpad",  # Disable crash reporter to prevent macOS crash dialogs
+                    "--disable-crash-reporter",  # Disable crash reporter UI
+                    "--disable-crash-handler",  # Disable crash handler completely
+                    "--disable-in-process-stack-traces",  # Disable stack trace collection
+                    "--disable-hang-monitor",  # Disable hang detection
+                    "--disable-background-networking",  # Disable background networking
+                    "--disable-background-timer-throttling",  # Disable background throttling
+                    "--disable-backgrounding-occluded-windows",  # Disable backgrounding
+                    "--disable-renderer-backgrounding",  # Disable renderer backgrounding
+                    "--disable-features=TranslateUI",  # Disable translate UI
+                    "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
+                    "--disable-logging",  # Disable logging to reduce stderr noise
+                    "--log-level=3",  # Set log level to fatal only (suppresses warnings)
+                ]
+            )
 
         if self.headless:
             args.append("--headless=new")
@@ -756,7 +832,15 @@ class AsyncSentienceBrowser:
             "args": args,
             "viewport": {"width": self.viewport.width, "height": self.viewport.height},
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            # Note: Don't set "channel" - let Playwright use its default managed Chromium
+            # Setting channel=None doesn't force bundled Chromium and can still pick Chrome for Testing
         }
+
+        # If executable_path is provided, use it to force specific Chromium binary
+        # This guarantees we use Chromium (not Chrome for Testing) on macOS
+        if self.executable_path:
+            launch_params["executable_path"] = self.executable_path
+            logger.info(f"Using explicit executable: {self.executable_path}")
 
         # Add device scale factor if configured
         if self.device_scale_factor is not None:
@@ -766,7 +850,7 @@ class AsyncSentienceBrowser:
         if proxy_config:
             launch_params["proxy"] = proxy_config.to_playwright_dict()
             launch_params["ignore_https_errors"] = True
-            print(f"🌐 [Sentience] Using proxy: {proxy_config.server}")
+            logger.info(f"Using proxy: {proxy_config.server}")
 
         # Add video recording if configured
         if self.record_video_dir:
@@ -774,9 +858,8 @@ class AsyncSentienceBrowser:
             video_dir.mkdir(parents=True, exist_ok=True)
             launch_params["record_video_dir"] = str(video_dir)
             launch_params["record_video_size"] = self.record_video_size
-            print(f"🎥 [Sentience] Recording video to: {video_dir}")
-            print(
-                f"   Resolution: {self.record_video_size['width']}x{self.record_video_size['height']}"
+            logger.info(
+                f"Recording video to: {video_dir} (Resolution: {self.record_video_size['width']}x{self.record_video_size['height']})"
             )
 
         # Launch persistent context
@@ -867,7 +950,7 @@ class AsyncSentienceBrowser:
                 playwright_cookies.append(playwright_cookie)
 
             await self.context.add_cookies(playwright_cookies)
-            print(f"✅ [Sentience] Injected {len(state.cookies)} cookie(s)")
+            logger.debug(f"Injected {len(state.cookies)} cookie(s)")
 
         # Inject LocalStorage
         if state.origins:
@@ -891,11 +974,11 @@ class AsyncSentienceBrowser:
                             }""",
                             localStorage_dict,
                         )
-                        print(
-                            f"✅ [Sentience] Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
+                        logger.debug(
+                            f"Injected {len(origin_data.localStorage)} localStorage item(s) for {origin}"
                         )
                 except Exception as e:
-                    print(f"⚠️  [Sentience] Failed to inject localStorage for {origin}: {e}")
+                    logger.warning(f"Failed to inject localStorage for {origin}: {e}")
 
     async def _wait_for_extension(self, timeout_sec: float = 5.0) -> bool:
         """Poll for window.sentience to be available (async)"""
@@ -933,7 +1016,7 @@ class AsyncSentienceBrowser:
 
         return False
 
-    async def close(self, output_path: str | Path | None = None) -> str | None:
+    async def close(self, output_path: str | Path | None = None) -> tuple[str | None, bool]:
         """
         Close browser and cleanup (async)
 
@@ -941,29 +1024,88 @@ class AsyncSentienceBrowser:
             output_path: Optional path to rename the video file to
 
         Returns:
-            Path to video file if recording was enabled, None otherwise
-        """
-        temp_video_path = None
+            Tuple of (video_path, shutdown_clean)
+            - video_path: Path to video file if recording was enabled, None otherwise
+            - shutdown_clean: True if shutdown completed without errors, False if there were issues
 
+        Note: Video path is resolved AFTER context close to avoid touching video
+        subsystem during teardown, which can cause crashes on macOS.
+        """
+        # CRITICAL: Don't access page.video.path() BEFORE closing context
+        # This can poke the video subsystem at an awkward time and cause crashes
+        # Instead, we'll locate the video file after context closes
+
+        # CRITICAL: Wait before closing to ensure all operations are complete
+        # This is especially important for video recording - we need to ensure
+        # all frames are written and the encoder is ready to finalize
+        if platform.system() == "Darwin":  # macOS
+            # On macOS, give extra time for video encoder to finish writing frames
+            # 4K video recording needs more time to flush buffers
+            logger.debug("Waiting for video recording to stabilize before closing (macOS)...")
+            await asyncio.sleep(2.0)
+        else:
+            await asyncio.sleep(1.0)
+
+        # Graceful shutdown: close context first, then playwright
+        # Use longer timeouts on macOS where video finalization can take longer
+        context_close_success = True
+        if self.context:
+            try:
+                # Give context time to close gracefully (especially for video finalization)
+                # Increased timeout for macOS where 4K video finalization can take longer
+                await asyncio.wait_for(self.context.close(), timeout=30.0)
+                logger.debug("Context closed successfully")
+            except TimeoutError:
+                logger.warning("Context close timed out, continuing with cleanup...")
+                context_close_success = False
+            except Exception as e:
+                logger.warning(f"Error closing context: {e}")
+                context_close_success = False
+            finally:
+                self.context = None
+
+        # Give Chrome a moment to fully flush video + release resources
+        # This avoids stopping the driver while the browser is still finishing the .webm write/encoder shutdown
+        # Increased grace period on macOS to allow more time for process cleanup
+        grace_period = 2.0 if platform.system() == "Darwin" else 1.0
+        await asyncio.sleep(grace_period)
+
+        playwright_stop_success = True
+        if self.playwright:
+            try:
+                # Give playwright time to stop gracefully
+                # Increased timeout to match context close timeout
+                await asyncio.wait_for(self.playwright.stop(), timeout=15.0)
+                logger.debug("Playwright stopped successfully")
+            except TimeoutError:
+                logger.warning("Playwright stop timed out, continuing with cleanup...")
+                playwright_stop_success = False
+            except Exception as e:
+                logger.warning(f"Error stopping playwright: {e}")
+                playwright_stop_success = False
+            finally:
+                self.playwright = None
+
+        # Additional cleanup: On macOS, wait a bit more to ensure all browser processes are terminated
+        # This helps prevent crash dialogs from appearing
+        if platform.system() == "Darwin":
+            await asyncio.sleep(0.5)
+
+        # NOW resolve video path after context is closed and video is finalized
+        temp_video_path = None
         if self.record_video_dir:
             try:
-                if self.page and self.page.video:
-                    temp_video_path = await self.page.video.path()
-                elif self.context:
-                    for page in self.context.pages:
-                        if page.video:
-                            temp_video_path = await page.video.path()
-                            break
-            except Exception:
-                pass
-
-        if self.context:
-            await self.context.close()
-            self.context = None
-
-        if self.playwright:
-            await self.playwright.stop()
-            self.playwright = None
+                # Locate the newest .webm file in record_video_dir
+                # This avoids touching page.video during teardown
+                video_dir = Path(self.record_video_dir)
+                if video_dir.exists():
+                    webm_files = list(video_dir.glob("*.webm"))
+                    if webm_files:
+                        # Get the most recently modified file
+                        temp_video_path = max(webm_files, key=lambda p: p.stat().st_mtime)
+                        logger.debug(f"Found video file: {temp_video_path}")
+            except Exception as e:
+                logger.warning(f"Could not locate video file: {e}")
 
         if self._extension_path and os.path.exists(self._extension_path):
             shutil.rmtree(self._extension_path)
@@ -984,7 +1126,19 @@ class AsyncSentienceBrowser:
                 warnings.warn(f"Failed to rename video file: {e}")
                 final_path = temp_video_path
 
-        return final_path
+        # Log shutdown status (useful for detecting crashes in headless mode)
+        shutdown_clean = context_close_success and playwright_stop_success
+        if not shutdown_clean:
+            logger.warning(
+                f"Browser shutdown had issues - may indicate a crash "
+                f"(context_close: {context_close_success}, playwright_stop: {playwright_stop_success})"
+            )
+        else:
+            logger.debug("Browser shutdown completed cleanly")
+
+        # Return tuple: (video_path, shutdown_clean)
+        # This allows callers to detect crashes even in headless mode
+        return (final_path, shutdown_clean)
 
     async def __aenter__(self):
         """Async context manager entry"""
@@ -993,6 +1147,7 @@ class AsyncSentienceBrowser:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit"""
+        # Ignore return value in context manager exit
         await self.close()
 
     @classmethod
