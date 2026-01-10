@@ -509,7 +509,7 @@ class SentienceBrowser:
                 logger.warning(f"Could not locate video file: {e}")
 
         # Rename/move video if output_path is specified
-        final_path = temp_video_path
+        final_path = str(temp_video_path) if temp_video_path else None
         if temp_video_path and output_path and os.path.exists(temp_video_path):
             try:
                 output_path = str(output_path)
@@ -522,7 +522,7 @@ class SentienceBrowser:
 
                 warnings.warn(f"Failed to rename video file: {e}")
                 # Return original path if rename fails
-                final_path = temp_video_path
+                final_path = str(temp_video_path)
 
         return final_path
 
