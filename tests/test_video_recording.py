@@ -22,9 +22,10 @@ def test_video_recording_basic():
         try:
             browser.page.goto("https://example.com")
             browser.page.wait_for_load_state("domcontentloaded")
-            
+
             # Small delay to ensure page is fully loaded and video recording is stable
             import time
+
             time.sleep(0.5)
 
             video_path = browser.close()

@@ -132,6 +132,8 @@ def _merge_api_result_with_local(
         "screenshot": raw_result.get("screenshot"),  # Keep local screenshot
         "screenshot_format": raw_result.get("screenshot_format"),
         "error": api_result.get("error"),
+        # Phase 2: Ordinal support - dominant group key from Gateway
+        "dominant_group_key": api_result.get("dominant_group_key"),
     }
 
 
