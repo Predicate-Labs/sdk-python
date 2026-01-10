@@ -54,6 +54,21 @@ class Element(BaseModel):
     # Diff status for frontend Diff Overlay feature
     diff_status: Literal["ADDED", "REMOVED", "MODIFIED", "MOVED"] | None = None
 
+    # Phase 1: Ordinal support fields for position-based selection
+    center_x: float | None = None  # X coordinate of element center (viewport coords)
+    center_y: float | None = None  # Y coordinate of element center (viewport coords)
+    doc_y: float | None = None  # Y coordinate in document (center_y + scroll_y)
+    group_key: str | None = None  # Geometric bucket key for ordinal grouping
+    group_index: int | None = None  # Position within group (0-indexed, sorted by doc_y)
+
+    # Hyperlink URL (for link elements)
+    href: str | None = None
+
+    # Phase 3.2: Pre-computed dominant group membership (uses fuzzy matching)
+    # This field is computed by the gateway so downstream consumers don't need to
+    # implement fuzzy matching logic themselves.
+    in_dominant_group: bool | None = None
+
 
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
@@ -67,6 +82,8 @@ class Snapshot(BaseModel):
     screenshot_format: Literal["png", "jpeg"] | None = None
     error: str | None = None
     requires_license: bool | None = None
+    # Phase 2: Dominant group key for ordinal selection
+    dominant_group_key: str | None = None  # The most common group_key (main content group)
 
     def save(self, filepath: str) -> None:
         """Save snapshot as JSON file"""
