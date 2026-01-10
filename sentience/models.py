@@ -61,6 +61,9 @@ class Element(BaseModel):
     group_key: str | None = None  # Geometric bucket key for ordinal grouping
     group_index: int | None = None  # Position within group (0-indexed, sorted by doc_y)
 
+    # Hyperlink URL (for link elements)
+    href: str | None = None
+
 
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
