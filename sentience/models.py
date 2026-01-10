@@ -74,6 +74,8 @@ class Snapshot(BaseModel):
     screenshot_format: Literal["png", "jpeg"] | None = None
     error: str | None = None
     requires_license: bool | None = None
+    # Phase 2: Dominant group key for ordinal selection
+    dominant_group_key: str | None = None  # The most common group_key (main content group)
 
     def save(self, filepath: str) -> None:
         """Save snapshot as JSON file"""
