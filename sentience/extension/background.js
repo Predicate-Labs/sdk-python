@@ -1,6 +1,4 @@
-// Sentience Chrome Extension - Background Service Worker
-// Auto-generated from modular source
-import init, { analyze_page_with_options, analyze_page, prune_for_api } from '../pkg/sentience_core.js';
+import init, { analyze_page_with_options, analyze_page, prune_for_api } from "../pkg/sentience_core.js";
 
 // background.js - Service Worker with WASM (CSP-Immune!)
 // This runs in an isolated environment, completely immune to page CSP policies
