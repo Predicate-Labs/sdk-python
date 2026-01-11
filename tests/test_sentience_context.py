@@ -108,11 +108,17 @@ class TestFormatSnapshotForLLM:
 
     def test_basic_formatting(self) -> None:
         """Test basic element formatting."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=10, from_dominant_group=5, by_position=5))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=10, from_dominant_group=5, by_position=5
+            )
+        )
 
         elements = [
             make_element(id=1, role="button", text="Click me", importance=80),
-            make_element(id=2, role="link", text="Go home", importance=60, href="https://example.com"),
+            make_element(
+                id=2, role="link", text="Go home", importance=60, href="https://example.com"
+            ),
         ]
         snap = make_snapshot(elements)
 
@@ -130,7 +136,11 @@ class TestFormatSnapshotForLLM:
 
     def test_is_primary_flag(self) -> None:
         """Test is_primary flag is correctly extracted from visual_cues."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=10, from_dominant_group=5, by_position=5))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=10, from_dominant_group=5, by_position=5
+            )
+        )
 
         elements = [
             make_element(
@@ -166,7 +176,13 @@ class TestFormatSnapshotForLLM:
         ctx = SentienceContext()
 
         elements = [
-            make_element(id=1, role="button", text="Button with href", importance=80, href="https://example.com"),
+            make_element(
+                id=1,
+                role="button",
+                text="Button with href",
+                importance=80,
+                href="https://example.com",
+            ),
         ]
         snap = make_snapshot(elements)
 
@@ -225,11 +241,15 @@ class TestFormatSnapshotForLLM:
 
     def test_dominant_group_flag(self) -> None:
         """Test DG flag is set correctly for dominant group elements."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=10, from_dominant_group=5))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(by_importance=10, from_dominant_group=5)
+        )
 
         elements = [
             make_element(id=1, role="link", text="In DG", importance=80, in_dominant_group=True),
-            make_element(id=2, role="link", text="Not in DG", importance=70, in_dominant_group=False),
+            make_element(
+                id=2, role="link", text="Not in DG", importance=70, in_dominant_group=False
+            ),
         ]
         snap = make_snapshot(elements)
 
@@ -250,10 +270,23 @@ class TestFormatSnapshotForLLM:
         )
 
         elements = [
-            make_element(id=1, role="link", text="Third", importance=70, doc_y=300.0, in_dominant_group=True),
-            make_element(id=2, role="link", text="First", importance=80, doc_y=100.0, in_dominant_group=True),
-            make_element(id=3, role="link", text="Second", importance=90, doc_y=200.0, in_dominant_group=True),
-            make_element(id=4, role="button", text="Not in DG", importance=95, doc_y=50.0, in_dominant_group=False),
+            make_element(
+                id=1, role="link", text="Third", importance=70, doc_y=300.0, in_dominant_group=True
+            ),
+            make_element(
+                id=2, role="link", text="First", importance=80, doc_y=100.0, in_dominant_group=True
+            ),
+            make_element(
+                id=3, role="link", text="Second", importance=90, doc_y=200.0, in_dominant_group=True
+            ),
+            make_element(
+                id=4,
+                role="button",
+                text="Not in DG",
+                importance=95,
+                doc_y=50.0,
+                in_dominant_group=False,
+            ),
         ]
         snap = make_snapshot(elements)
 
@@ -284,7 +317,9 @@ class TestFormatSnapshotForLLM:
         ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=10))
 
         elements = [
-            make_element(id=1, role="link", text="GitHub", importance=80, href="https://github.com/user/repo"),
+            make_element(
+                id=1, role="link", text="GitHub", importance=80, href="https://github.com/user/repo"
+            ),
             make_element(id=2, role="link", text="Local", importance=70, href="/api/items/123"),
         ]
         snap = make_snapshot(elements)
@@ -308,7 +343,9 @@ class TestCompressHref:
         ctx = SentienceContext()
 
         # Note: _compress_href truncates to 10 chars
-        assert ctx._compress_href("https://news.ycombinator.com/item?id=123") == "ycombinato"  # truncated
+        assert (
+            ctx._compress_href("https://news.ycombinator.com/item?id=123") == "ycombinato"
+        )  # truncated
         assert ctx._compress_href("https://github.com/user/repo") == "github"
         assert ctx._compress_href("https://www.example.com/page") == "example"
 
@@ -339,7 +376,11 @@ class TestElementSelection:
 
     def test_top_by_importance(self) -> None:
         """Test elements are selected by importance."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=2, from_dominant_group=0, by_position=0))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=2, from_dominant_group=0, by_position=0
+            )
+        )
 
         elements = [
             make_element(id=1, role="button", importance=50),
@@ -362,7 +403,11 @@ class TestElementSelection:
 
     def test_top_from_dominant_group(self) -> None:
         """Test elements from dominant group are included."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=1, from_dominant_group=2, by_position=0))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=1, from_dominant_group=2, by_position=0
+            )
+        )
 
         elements = [
             make_element(id=1, role="button", importance=100),  # Top by importance
@@ -386,7 +431,11 @@ class TestElementSelection:
 
     def test_top_by_position(self) -> None:
         """Test elements at top of page (lowest doc_y) are included."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=0, from_dominant_group=0, by_position=2))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=0, from_dominant_group=0, by_position=2
+            )
+        )
 
         elements = [
             make_element(id=1, role="button", importance=50, doc_y=500.0),
@@ -408,13 +457,26 @@ class TestElementSelection:
 
     def test_deduplication(self) -> None:
         """Test elements are not duplicated when selected by multiple criteria."""
-        ctx = SentienceContext(top_element_selector=TopElementSelector(by_importance=2, from_dominant_group=2, by_position=2))
+        ctx = SentienceContext(
+            top_element_selector=TopElementSelector(
+                by_importance=2, from_dominant_group=2, by_position=2
+            )
+        )
 
         # Element 1 qualifies for all three criteria
         elements = [
-            make_element(id=1, role="button", importance=100, doc_y=50.0, in_dominant_group=True, group_index=0),
+            make_element(
+                id=1,
+                role="button",
+                importance=100,
+                doc_y=50.0,
+                in_dominant_group=True,
+                group_index=0,
+            ),
             make_element(id=2, role="button", importance=80, doc_y=100.0),
-            make_element(id=3, role="link", importance=30, doc_y=200.0, in_dominant_group=True, group_index=1),
+            make_element(
+                id=3, role="link", importance=30, doc_y=200.0, in_dominant_group=True, group_index=1
+            ),
         ]
         snap = make_snapshot(elements)
 
@@ -435,17 +497,22 @@ class TestBuildMethod:
         ctx = SentienceContext()
 
         # Create mock snapshot
-        mock_snap = make_snapshot([
-            make_element(id=1, role="button", text="Click", importance=80),
-        ])
+        mock_snap = make_snapshot(
+            [
+                make_element(id=1, role="button", text="Click", importance=80),
+            ]
+        )
 
         # Mock at the import location within the build() method
         mock_adapter = MagicMock()
         mock_adapter.create_backend = AsyncMock(return_value=MagicMock())
 
-        with patch.object(ctx, "_format_snapshot_for_llm", return_value="1|button|Click|80|0|0|-|0|"):
+        with patch.object(
+            ctx, "_format_snapshot_for_llm", return_value="1|button|Click|80|0|0|-|0|"
+        ):
             # Patch the imports that happen inside build()
             import sentience.backends.sentience_context as ctx_module
+
             original_build = ctx.build
 
             async def patched_build(browser_session, **kwargs):
