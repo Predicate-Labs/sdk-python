@@ -24,13 +24,7 @@ from sentience import get_extension_dir
 from sentience.agent_runtime import AgentRuntime
 from sentience.backends import BrowserUseAdapter
 from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import (
-    all_of,
-    exists,
-    not_exists,
-    url_contains,
-    url_matches,
-)
+from sentience.verification import all_of, exists, not_exists, url_contains, url_matches
 
 # browser-use imports (requires: pip install browser-use)
 try:
