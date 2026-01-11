@@ -14,10 +14,8 @@ from typing import Any, Optional
 import requests
 
 from sentience.cloud_tracing import CloudTraceSink, SentienceLogger
+from sentience.constants import SENTIENCE_API_URL
 from sentience.tracing import JsonlTraceSink, Tracer
-
-# Sentience API base URL (constant)
-SENTIENCE_API_URL = "https://api.sentienceapi.com"
 
 
 def create_tracer(

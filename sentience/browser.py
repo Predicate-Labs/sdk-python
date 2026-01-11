@@ -20,6 +20,7 @@ from playwright.async_api import async_playwright
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from sentience._extension_loader import find_extension_path
+from sentience.constants import SENTIENCE_API_URL
 from sentience.models import ProxyConfig, StorageState, Viewport
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ class SentienceBrowser:
         # Only set api_url if api_key is provided, otherwise None (free tier)
         # Defaults to production API if key is present but url is missing
         if self.api_key and not api_url:
-            self.api_url = "https://api.sentienceapi.com"
+            self.api_url = SENTIENCE_API_URL
         else:
             self.api_url = api_url
 
@@ -675,7 +676,7 @@ class AsyncSentienceBrowser:
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
         if self.api_key and not api_url:
-            self.api_url = "https://api.sentienceapi.com"
+            self.api_url = SENTIENCE_API_URL
         else:
             self.api_url = api_url
 

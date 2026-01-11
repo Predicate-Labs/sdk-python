@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+from ..constants import SENTIENCE_API_URL
 
 if TYPE_CHECKING:
     from ..models import Element, Snapshot
@@ -34,8 +36,31 @@ class SentienceContextState:
     """Sentience context state with snapshot and formatted prompt block."""
 
     url: str
-    snapshot: "Snapshot"
+    snapshot: Snapshot
     prompt_block: str
+
+
+@dataclass
+class TopElementSelector:
+    """
+    Configuration for element selection strategy.
+
+    The selector uses a 3-way merge to pick elements for the LLM context:
+    1. Top N by importance score (most actionable elements)
+    2. Top N from dominant group (for ordinal tasks like "click 3rd item")
+    3. Top N by position (elements at top of page, lowest doc_y)
+
+    Elements are deduplicated across all three sources.
+    """
+
+    by_importance: int = 60
+    """Number of top elements to select by importance score (descending)."""
+
+    from_dominant_group: int = 15
+    """Number of top elements to select from the dominant group (for ordinal tasks)."""
+
+    by_position: int = 10
+    """Number of top elements to select by position (lowest doc_y = top of page)."""
 
 
 class SentienceContext:
@@ -55,47 +80,33 @@ class SentienceContext:
             agent.add_context(state.prompt_block)
     """
 
+    # Sentience API endpoint
+    API_URL = SENTIENCE_API_URL
+
     def __init__(
         self,
         *,
-        api_key: str | None = None,
-        api_url: str | None = None,
+        sentience_api_key: str | None = None,
         use_api: bool | None = None,
-        limit: int = 60,
+        max_elements: int = 60,
         show_overlay: bool = False,
-        top_by_importance: int = 60,
-        top_from_dominant_group: int = 15,
-        top_by_position: int = 10,
-        role_link_when_href: bool = True,
-        include_rank_in_group: bool = True,
-        env_api_key: str = "SENTIENCE_API_KEY",
+        top_element_selector: TopElementSelector | None = None,
     ) -> None:
         """
         Initialize SentienceContext.
 
         Args:
-            api_key: Sentience API key (defaults from env var if not passed)
-            api_url: Sentience API URL (defaults to production)
+            sentience_api_key: Sentience API key for gateway mode
             use_api: Force API vs extension mode (auto-detected if None)
-            limit: Maximum elements to fetch from snapshot
+            max_elements: Maximum elements to fetch from snapshot
             show_overlay: Show visual overlay highlighting elements in browser
-            top_by_importance: Number of top elements by importance to include
-            top_from_dominant_group: Number of top elements from dominant group
-            top_by_position: Number of top elements by position (lowest doc_y)
-            role_link_when_href: If True, output role="link" for elements with href
-            include_rank_in_group: If True, compute local rank_in_group for ord_val
-            env_api_key: Environment variable name for API key
+            top_element_selector: Configuration for element selection strategy
         """
-        self._api_key = api_key or os.getenv(env_api_key)
-        self._api_url = api_url
+        self._api_key = sentience_api_key
         self._use_api = use_api
-        self._limit = limit
+        self._max_elements = max_elements
         self._show_overlay = show_overlay
-        self._top_by_importance = top_by_importance
-        self._top_from_dominant_group = top_from_dominant_group
-        self._top_by_position = top_by_position
-        self._role_link_when_href = role_link_when_href
-        self._include_rank_in_group = include_rank_in_group
+        self._selector = top_element_selector or TopElementSelector()
 
     async def build(
         self,
@@ -124,20 +135,20 @@ class SentienceContext:
         """
         try:
             # Import here to avoid requiring sentience as a hard dependency
+            from ..models import SnapshotOptions
             from .browser_use_adapter import BrowserUseAdapter
             from .snapshot import snapshot
-            from ..models import SnapshotOptions
 
             # Create adapter and backend
             adapter = BrowserUseAdapter(browser_session)
             backend = await adapter.create_backend()
 
-            # Give extension a moment to inject (especially after navigation)
-            await asyncio.sleep(0.5)
+            # Wait for extension to inject (poll until ready or timeout)
+            await self._wait_for_extension(backend, timeout_ms=wait_for_extension_ms)
 
             # Build snapshot options
             options = SnapshotOptions(
-                limit=self._limit,
+                limit=self._max_elements,
                 show_overlay=self._show_overlay,
                 goal=goal,
             )
@@ -187,7 +198,7 @@ class SentienceContext:
 
             # Build prompt block
             prompt = (
-                "Elements: ID|role|text|imp|docYq|ord|DG|href\n"
+                "Elements: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
                 "Rules: ordinal→DG=1 then ord asc; otherwise imp desc. "
                 "Use click(ID)/input_text(ID,...).\n"
                 f"{formatted}"
@@ -208,7 +219,7 @@ class SentienceContext:
             logger.warning("Sentience snapshot skipped: %s", e)
             return None
 
-    def _format_snapshot_for_llm(self, snapshot: "Snapshot") -> str:
+    def _format_snapshot_for_llm(self, snapshot: Snapshot) -> str:
         """
         Format Sentience snapshot for LLM consumption.
 
@@ -220,7 +231,7 @@ class SentienceContext:
             snapshot: Sentience Snapshot object
 
         Returns:
-            Formatted string with format: ID|role|text|imp|docYq|ord|DG|href
+            Formatted string with format: ID|role|text|imp|is_primary|docYq|ord|DG|href
         """
         # Filter to interactive elements only
         interactive_roles = {
@@ -256,7 +267,7 @@ class SentienceContext:
         selected_ids: set[int] = set()
         selected_elements: list[Element] = []
 
-        for el in interactive_elements[: self._top_by_importance]:
+        for el in interactive_elements[: self._selector.by_importance]:
             if el.id not in selected_ids:
                 selected_ids.add(el.id)
                 selected_elements.append(el)
@@ -276,13 +287,13 @@ class SentienceContext:
         # Sort by group_index for ordinal ordering
         dominant_group_elements.sort(key=lambda el: el.group_index or 999)
 
-        for el in dominant_group_elements[: self._top_from_dominant_group]:
+        for el in dominant_group_elements[: self._selector.from_dominant_group]:
             if el.id not in selected_ids:
                 selected_ids.add(el.id)
                 selected_elements.append(el)
 
         # Get top elements by position (lowest doc_y = top of page)
-        def get_y_position(el: "Element") -> float:
+        def get_y_position(el: Element) -> float:
             if el.doc_y is not None:
                 return el.doc_y
             if el.bbox is not None:
@@ -293,14 +304,14 @@ class SentienceContext:
             interactive_elements, key=lambda el: (get_y_position(el), -(el.importance or 0))
         )
 
-        for el in elements_by_position[: self._top_by_position]:
+        for el in elements_by_position[: self._selector.by_position]:
             if el.id not in selected_ids:
                 selected_ids.add(el.id)
                 selected_elements.append(el)
 
-        # Compute local rank_in_group if enabled
+        # Compute local rank_in_group for dominant group elements
         rank_in_group_map: dict[int, int] = {}
-        if self._include_rank_in_group:
+        if True:  # Always compute rank_in_group
             # Sort dominant group elements by position for rank computation
             dg_elements_for_rank = [
                 el for el in interactive_elements if el.in_dominant_group is True
@@ -311,7 +322,7 @@ class SentienceContext:
                 ]
 
             # Sort by (doc_y, bbox.y, bbox.x, -importance)
-            def rank_sort_key(el: "Element") -> tuple[float, float, float, float]:
+            def rank_sort_key(el: Element) -> tuple[float, float, float, float]:
                 doc_y = el.doc_y if el.doc_y is not None else float("inf")
                 bbox_y = el.bbox.y if el.bbox else float("inf")
                 bbox_x = el.bbox.x if el.bbox else float("inf")
@@ -325,19 +336,30 @@ class SentienceContext:
         # Format lines
         lines: list[str] = []
         for el in selected_elements:
-            # Get role (with link-when-href optimization)
+            # Get role (override to "link" if element has href)
             role = el.role or ""
-            if self._role_link_when_href and el.href:
+            if el.href:
                 role = "link"
+            elif not role:
+                # Generic fallback for interactive elements without explicit role
+                role = "element"
 
-            # Get name/text (truncate aggressively)
-            name = (el.text or "").strip()
+            # Get name/text (truncate aggressively, normalize whitespace)
+            name = el.text or ""
+            # Remove newlines and normalize whitespace
+            name = re.sub(r"\s+", " ", name.strip())
             if len(name) > 30:
                 name = name[:27] + "..."
 
             # Extract fields
             importance = el.importance or 0
             doc_y = el.doc_y or 0
+
+            # is_primary: from visual_cues.is_primary (boolean)
+            is_primary = False
+            if el.visual_cues:
+                is_primary = el.visual_cues.is_primary or False
+            is_primary_flag = "1" if is_primary else "0"
 
             # Pre-encode fields for compactness
             # docYq: bucketed doc_y (round to nearest 200 for smaller numbers)
@@ -349,8 +371,8 @@ class SentienceContext:
                 # Fallback for older gateway versions
                 in_dg = el.group_key == snapshot.dominant_group_key
 
-            # ord_val: rank_in_group if in dominant group (and include_rank_in_group enabled)
-            if in_dg and self._include_rank_in_group and el.id in rank_in_group_map:
+            # ord_val: rank_in_group if in dominant group
+            if in_dg and el.id in rank_in_group_map:
                 ord_val: str | int = rank_in_group_map[el.id]
             else:
                 ord_val = "-"
@@ -361,19 +383,58 @@ class SentienceContext:
             # href: short token (domain or last path segment, or blank)
             href = self._compress_href(el.href)
 
-            # Ultra-compact format: ID|role|text|imp|docYq|ord|DG|href
-            line = f"{el.id}|{role}|{name}|{importance}|{doc_yq}|{ord_val}|{dg_flag}|{href}"
+            # Ultra-compact format: ID|role|text|imp|is_primary|docYq|ord|DG|href
+            line = f"{el.id}|{role}|{name}|{importance}|{is_primary_flag}|{doc_yq}|{ord_val}|{dg_flag}|{href}"
             lines.append(line)
 
         logger.debug(
             "Formatted %d elements (top %d by importance + top %d from dominant group + top %d by position)",
             len(lines),
-            self._top_by_importance,
-            self._top_from_dominant_group,
-            self._top_by_position,
+            self._selector.by_importance,
+            self._selector.from_dominant_group,
+            self._selector.by_position,
         )
 
         return "\n".join(lines)
+
+    async def _wait_for_extension(
+        self,
+        backend: Any,
+        *,
+        timeout_ms: int = 5000,
+        poll_interval_ms: int = 100,
+    ) -> bool:
+        """
+        Wait for Sentience extension to be ready in the browser.
+
+        Polls window.sentience until it's defined or timeout is reached.
+
+        Args:
+            backend: Browser backend with evaluate() method
+            timeout_ms: Maximum time to wait in milliseconds
+            poll_interval_ms: Interval between polls in milliseconds
+
+        Returns:
+            True if extension is ready, False if timeout
+        """
+        elapsed_ms = 0
+        poll_interval_s = poll_interval_ms / 1000
+
+        while elapsed_ms < timeout_ms:
+            try:
+                result = await backend.evaluate("typeof window.sentience !== 'undefined'")
+                if result is True:
+                    logger.debug("Sentience extension ready after %dms", elapsed_ms)
+                    return True
+            except Exception:
+                # Extension not ready yet, continue polling
+                pass
+
+            await asyncio.sleep(poll_interval_s)
+            elapsed_ms += poll_interval_ms
+
+        logger.warning("Sentience extension not ready after %dms timeout", timeout_ms)
+        return False
 
     def _compress_href(self, href: str | None) -> str:
         """

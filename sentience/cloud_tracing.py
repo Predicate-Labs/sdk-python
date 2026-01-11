@@ -16,6 +16,7 @@ from typing import Any, Optional, Protocol, Union
 
 import requests
 
+from sentience.constants import SENTIENCE_API_URL
 from sentience.models import TraceStats
 from sentience.trace_file_manager import TraceFileManager
 from sentience.tracing import TraceSink
@@ -93,7 +94,7 @@ class CloudTraceSink(TraceSink):
         self.upload_url = upload_url
         self.run_id = run_id
         self.api_key = api_key
-        self.api_url = api_url or "https://api.sentienceapi.com"
+        self.api_url = api_url or SENTIENCE_API_URL
         self.logger = logger
 
         # Use persistent cache directory instead of temp file

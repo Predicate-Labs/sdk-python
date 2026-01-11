@@ -24,6 +24,7 @@ Usage with browser-use:
 import time
 from typing import TYPE_CHECKING, Any
 
+from ..constants import SENTIENCE_API_URL
 from ..models import Snapshot, SnapshotOptions
 from ..snapshot import (
     _build_snapshot_payload,
@@ -329,7 +330,7 @@ async def _snapshot_via_api(
 ) -> Snapshot:
     """Take snapshot using server-side API (Pro/Enterprise tier)"""
     # Default API URL (same as main snapshot function)
-    api_url = "https://api.sentienceapi.com"
+    api_url = SENTIENCE_API_URL
 
     # Wait for extension injection (needed even for API mode to collect raw data)
     await _wait_for_extension(backend, timeout_ms=5000)

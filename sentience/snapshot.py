@@ -12,6 +12,7 @@ import requests
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
+from .constants import SENTIENCE_API_URL
 from .models import Snapshot, SnapshotOptions
 from .sentience_methods import SentienceMethod
 
@@ -58,7 +59,7 @@ def _validate_payload_size(payload_json: str) -> None:
 def _post_snapshot_to_gateway_sync(
     payload: dict[str, Any],
     api_key: str,
-    api_url: str = "https://api.sentienceapi.com",
+    api_url: str = SENTIENCE_API_URL,
 ) -> dict[str, Any]:
     """
     Post snapshot payload to gateway (synchronous).
@@ -86,7 +87,7 @@ def _post_snapshot_to_gateway_sync(
 async def _post_snapshot_to_gateway_async(
     payload: dict[str, Any],
     api_key: str,
-    api_url: str = "https://api.sentienceapi.com",
+    api_url: str = SENTIENCE_API_URL,
 ) -> dict[str, Any]:
     """
     Post snapshot payload to gateway (asynchronous).
@@ -279,7 +280,7 @@ def _snapshot_via_api(
         raise RuntimeError("Browser not started. Call browser.start() first.")
 
     # Use browser.api_url if set, otherwise default
-    api_url = browser.api_url or "https://api.sentienceapi.com"
+    api_url = browser.api_url or SENTIENCE_API_URL
 
     # CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
     # Even for API mode, we need the extension to collect raw data locally
@@ -478,7 +479,7 @@ async def _snapshot_via_api_async(
         raise RuntimeError("Browser not started. Call await browser.start() first.")
 
     # Use browser.api_url if set, otherwise default
-    api_url = browser.api_url or "https://api.sentienceapi.com"
+    api_url = browser.api_url or SENTIENCE_API_URL
 
     # Wait for extension injection
     try:
