@@ -1,28 +1,28 @@
 """
-Example: Agent Runtime with Verification Loop
+Example: Agent Runtime with browser-use Integration
 
-Demonstrates how to use AgentRuntime for runtime verification in agent loops.
-The AgentRuntime provides assertion predicates to verify browser state during execution.
+Demonstrates how to use AgentRuntime with browser-use library via BrowserBackendV0 protocol.
+This pattern enables framework-agnostic browser integration for agent verification loops.
 
 Key features:
-- BrowserBackendV0 protocol: Framework-agnostic browser integration
-- Predicate helpers: url_matches, url_contains, exists, not_exists, element_count
-- Combinators: all_of, any_of for complex conditions
-- Task completion: assert_done() for goal verification
-- Trace integration: Assertions emitted to trace for Studio timeline
+- BrowserUseAdapter: Wraps browser-use BrowserSession into CDPBackendV0
+- BrowserBackendV0 protocol: Minimal interface for browser operations
+- Direct AgentRuntime construction: No need for from_sentience_browser factory
 
 Requirements:
-- SENTIENCE_API_KEY (Pro or Enterprise tier) - optional, enables Gateway refinement
+- browser-use library: pip install browser-use
+- SENTIENCE_API_KEY (optional) - enables Pro tier Gateway refinement
 
 Usage:
-    python examples/agent_runtime_verification.py
+    python examples/agent_runtime_browser_use.py
 """
 
 import asyncio
 import os
 
-from sentience import AsyncSentienceBrowser
+from sentience import get_extension_dir
 from sentience.agent_runtime import AgentRuntime
+from sentience.backends import BrowserUseAdapter
 from sentience.tracing import JsonlTraceSink, Tracer
 from sentience.verification import (
     all_of,
@@ -32,45 +32,66 @@ from sentience.verification import (
     url_matches,
 )
 
+# browser-use imports (requires: pip install browser-use)
+try:
+    from browser_use import BrowserProfile, BrowserSession
+except ImportError:
+    print("Error: browser-use library not installed.")
+    print("Install with: pip install browser-use")
+    exit(1)
+
 
 async def main():
     # Get API key from environment (optional - enables Pro tier features)
     sentience_key = os.environ.get("SENTIENCE_API_KEY")
 
-    print("Starting Agent Runtime Verification Demo\n")
+    print("Starting Agent Runtime with browser-use Integration Demo\n")
 
     # 1. Create tracer for verification event emission
-    run_id = "verification-demo"
+    run_id = "browser-use-demo"
     sink = JsonlTraceSink(f"traces/{run_id}.jsonl")
     tracer = Tracer(run_id=run_id, sink=sink)
     print(f"Run ID: {run_id}\n")
 
-    # 2. Create browser using AsyncSentienceBrowser
-    async with AsyncSentienceBrowser(headless=False) as browser:
-        page = await browser.new_page()
+    # 2. Create browser-use session with Sentience extension loaded
+    # The extension is required for snapshot() to work
+    extension_dir = get_extension_dir()
+    profile = BrowserProfile(
+        args=[f"--load-extension={extension_dir}"],
+        headless=False,
+    )
+    session = BrowserSession(browser_profile=profile)
+    await session.start()
 
-        # 3. Create AgentRuntime using from_sentience_browser factory
-        # This wraps the browser/page into the new BrowserBackendV0 architecture
-        runtime = await AgentRuntime.from_sentience_browser(
-            browser=browser,
-            page=page,
+    try:
+        # 3. Create BrowserBackendV0 using BrowserUseAdapter
+        # This wraps the browser-use session into the standard backend protocol
+        adapter = BrowserUseAdapter(session)
+        backend = await adapter.create_backend()
+        print("Created CDPBackendV0 from browser-use session\n")
+
+        # 4. Create AgentRuntime directly with backend
+        # For Pro tier, pass sentience_api_key for Gateway element refinement
+        runtime = AgentRuntime(
+            backend=backend,
             tracer=tracer,
-            sentience_api_key=sentience_key,  # Optional: enables Pro tier Gateway refinement
+            sentience_api_key=sentience_key,  # Optional: enables Pro tier
         )
 
-        # 4. Navigate to a page
+        # 5. Navigate using browser-use
+        page = await session.get_current_page()
         print("Navigating to example.com...\n")
         await page.goto("https://example.com")
         await page.wait_for_load_state("networkidle")
 
-        # 5. Begin a verification step
+        # 6. Begin a verification step
         runtime.begin_step("Verify page loaded correctly")
 
-        # 6. Take a snapshot (required for element assertions)
+        # 7. Take a snapshot (uses Sentience extension via backend.eval())
         snapshot = await runtime.snapshot()
         print(f"Snapshot taken: {len(snapshot.elements)} elements found\n")
 
-        # 7. Run assertions against current state
+        # 8. Run assertions against current state
         print("Running assertions:\n")
 
         # URL assertions
@@ -94,29 +115,33 @@ async def main():
         )
         print(f"  [{'PASS' if page_ready else 'FAIL'}] page_fully_ready")
 
-        # 8. Check if task is done (required assertion)
+        # 9. Check if task is done (required assertion)
         task_complete = runtime.assert_done(
             exists("text~'Example Domain'"),
             "reached_example_page",
         )
         print(f"\n  [{'DONE' if task_complete else 'NOT DONE'}] reached_example_page")
 
-        # 9. Get accumulated assertions for step_end event
+        # 10. Get accumulated assertions for step_end event
         assertions_data = runtime.get_assertions_for_step_end()
         print(f"\nTotal assertions: {len(assertions_data['assertions'])}")
         print(f"Task done: {assertions_data.get('task_done', False)}")
 
-        # 10. Check overall status
+        # 11. Check overall status
         print("\nVerification Summary:")
         print(f"  All passed: {runtime.all_assertions_passed()}")
         print(f"  Required passed: {runtime.required_assertions_passed()}")
         print(f"  Task complete: {runtime.is_task_done}")
 
-    # Close tracer after browser context exits
-    print("\nClosing tracer...")
-    tracer.close()
-    print(f"Trace saved to: traces/{run_id}.jsonl")
-    print("Done!")
+    finally:
+        # Close browser-use session
+        await session.close()
+
+        # Close tracer
+        print("\nClosing tracer...")
+        tracer.close()
+        print(f"Trace saved to: traces/{run_id}.jsonl")
+        print("Done!")
 
 
 if __name__ == "__main__":
