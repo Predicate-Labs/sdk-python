@@ -31,8 +31,17 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -e ".[dev]"
+        pip install --no-cache-dir -e ".[dev]"
         pip install pre-commit mypy types-requests
+
+    - name: Verify source code
+      run: |
+        echo "=== Checking agent_runtime.py line 345 ==="
+        sed -n '340,350p' sentience/agent_runtime.py
+        echo "=== Verifying assert_ method exists ==="
+        grep -n "def assert_" sentience/agent_runtime.py
+        echo "=== Checking for assertTrue (should NOT exist) ==="
+        grep -n "assertTrue" sentience/agent_runtime.py || echo "Good: no assertTrue found"
 
     - name: Lint with pre-commit
       continue-on-error: true
