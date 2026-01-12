@@ -34,6 +34,24 @@ jobs:
         pip install --no-cache-dir -e ".[dev]"
         pip install pre-commit mypy types-requests
 
+    - name: Verify installed package
+      shell: bash
+      run: |
+        echo "=== Installed sentience location ==="
+        python -c "import sentience; print(sentience.__file__)"
+        echo "=== Check assert_done in installed package ==="
+        python -c "
+import inspect
+from sentience.agent_runtime import AgentRuntime
+source = inspect.getsource(AgentRuntime.assert_done)
+print(source)
+if 'assertTrue' in source:
+    print('ERROR: assertTrue found in installed package!')
+    exit(1)
+else:
+    print('Good: assert_ is correctly used')
+"
+
     - name: Verify source code
       shell: bash
       run: |
