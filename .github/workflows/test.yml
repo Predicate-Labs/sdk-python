@@ -51,31 +51,48 @@ jobs:
         git log --oneline -1
         git branch --show-current || echo "Detached HEAD"
         echo ""
-        echo "=== Source file line 345 ==="
+        echo "=== Verify editable install (should point to local source) ==="
+        python -c "import sentience; import os; fpath = sentience.__file__; print(f'Package location: {fpath}'); print(f'Is in current dir: {os.path.abspath(fpath).startswith(os.getcwd())}'); print(f'Points to source: {os.path.exists(fpath)}')"
+        echo ""
+        echo "=== Source file line 345 (from repo) ==="
         sed -n '345p' sentience/agent_runtime.py || python -c "with open('sentience/agent_runtime.py', 'r') as f: lines = f.readlines(); print(lines[344] if len(lines) > 344 else 'NOT FOUND')"
         echo ""
-        echo "=== Installed sentience location ==="
-        python -c "import sentience; print(sentience.__file__)"
-        echo ""
-        echo "=== Check assert_done in installed package ==="
+        echo "=== Installed package assert_done (from imported module) ==="
         python << 'PYEOF'
         import inspect
+        import os
         from sentience.agent_runtime import AgentRuntime
+        
+        # Verify it's using local source
+        import sentience
+        pkg_path = os.path.abspath(sentience.__file__)
+        cwd = os.getcwd()
+        if not pkg_path.startswith(cwd):
+            print(f'WARNING: Package is not from local source!')
+            print(f'  Package path: {pkg_path}')
+            print(f'  Current dir: {cwd}')
+            print(f'  This might be using PyPI package instead of local source!')
+        else:
+            print(f'✓ Package is from local source: {pkg_path}')
+        
         source = inspect.getsource(AgentRuntime.assert_done)
-        print('assert_done method:')
+        print('\nassert_done method source:')
         print(source)
         print('\n=== Analysis ===')
         if 'self.assertTrue(' in source:
             print('✗ ERROR: Found self.assertTrue( in installed package!')
             print('This means the source code on this branch still has the bug.')
+            print('\nProblematic lines:')
             for i, line in enumerate(source.split('\n'), 1):
                 if 'self.assertTrue(' in line:
                     print(f'  Line {i}: {line.strip()}')
+            print('\nThe source file in the repo should be checked and fixed.')
             exit(1)
         elif 'self.assert_(' in source:
             print('✓ OK: assert_done uses self.assert_( correctly')
         else:
             print('? WARNING: Could not find assert_ method call')
+            exit(1)
         PYEOF
 
     - name: Verify source code
@@ -191,7 +208,35 @@ jobs:
       shell: bash
       run: |
         # Final verification before tests - ensure we're using the right code
-        python -c "import sentience.agent_runtime; import inspect; src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done); assert 'self.assert_(' in src, 'assert_done must use self.assert_(), not self.assertTrue()'; print('✓ Verified: assert_done uses self.assert_()')"
+        python << 'PYEOF'
+        import sentience.agent_runtime
+        import inspect
+        
+        print("=== Final Pre-Test Verification ===")
+        src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done)
+        
+        print("assert_done method source:")
+        print(src)
+        print("\n=== Analysis ===")
+        
+        if 'self.assertTrue(' in src:
+            print('✗ ERROR: Found self.assertTrue( in installed package!')
+            print('The source code on this branch still has the bug.')
+            print('\nProblematic lines:')
+            for i, line in enumerate(src.split('\n'), 1):
+                if 'self.assertTrue(' in line:
+                    print(f'  Line {i}: {line.strip()}')
+            print('\nThis branch needs to be updated with the fix.')
+            print('The fix commit is: c7a43a9 or equivalent')
+            print('Fix: Replace self.assertTrue( with self.assert_( in the code above')
+            exit(1)
+        elif 'self.assert_(' in src:
+            print('✓ OK: assert_done uses self.assert_( correctly')
+            print('Tests should pass.')
+        else:
+            print('? WARNING: Could not find assert_ method call in assert_done')
+            exit(1)
+        PYEOF
         pytest tests/ -v
       env:
         CI: true
