@@ -34,25 +34,49 @@ jobs:
       run: |
         pip cache purge || true
         pip uninstall -y sentienceapi || true
-        # Clean any bytecode cache (cross-platform Python approach)
+        # Aggressively clean any bytecode cache (cross-platform Python approach)
         python -c "import pathlib; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]" || true
         python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('.').rglob('__pycache__') if p.is_dir()]" || true
-        pip install --no-cache-dir -e ".[dev]"
+        # Also clean .pyc files in sentience package specifically
+        find sentience -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('sentience').rglob('__pycache__') if p.is_dir()]" || true
+        find sentience -name "*.pyc" -delete 2>/dev/null || python -c "import pathlib; [p.unlink() for p in pathlib.Path('sentience').rglob('*.pyc')]" || true
+        # Force reinstall to ensure latest code
+        pip install --no-cache-dir --force-reinstall -e ".[dev]"
         pip install pre-commit mypy types-requests
 
     - name: Verify installed package
       shell: bash
       run: |
+        echo "=== Git info ==="
+        git log --oneline -1
+        git branch --show-current || echo "Detached HEAD"
+        echo ""
+        echo "=== Source file line 345 ==="
+        sed -n '345p' sentience/agent_runtime.py || python -c "with open('sentience/agent_runtime.py', 'r') as f: lines = f.readlines(); print(lines[344] if len(lines) > 344 else 'NOT FOUND')"
+        echo ""
         echo "=== Installed sentience location ==="
         python -c "import sentience; print(sentience.__file__)"
+        echo ""
         echo "=== Check assert_done in installed package ==="
-        python -c "import inspect; from sentience.agent_runtime import AgentRuntime; source = inspect.getsource(AgentRuntime.assert_done); print('assert_done source:'); print(source); exit(1) if 'assertTrue' in source else print('Good: assert_ is correctly used')" || {
-          echo "WARNING: Installed package has old code. Reinstalling..."
-          pip uninstall -y sentienceapi || true
-          pip install --no-cache-dir -e ".[dev]"
-          echo "Reinstalled. Verifying again..."
-          python -c "import inspect; from sentience.agent_runtime import AgentRuntime; source = inspect.getsource(AgentRuntime.assert_done); exit(1) if 'assertTrue' in source else print('Good: assert_ is correctly used after reinstall')"
-        }
+        python << 'PYEOF'
+        import inspect
+        from sentience.agent_runtime import AgentRuntime
+        source = inspect.getsource(AgentRuntime.assert_done)
+        print('assert_done method:')
+        print(source)
+        print('\n=== Analysis ===')
+        if 'self.assertTrue(' in source:
+            print('✗ ERROR: Found self.assertTrue( in installed package!')
+            print('This means the source code on this branch still has the bug.')
+            for i, line in enumerate(source.split('\n'), 1):
+                if 'self.assertTrue(' in line:
+                    print(f'  Line {i}: {line.strip()}')
+            exit(1)
+        elif 'self.assert_(' in source:
+            print('✓ OK: assert_done uses self.assert_( correctly')
+        else:
+            print('? WARNING: Could not find assert_ method call')
+        PYEOF
 
     - name: Verify source code
       shell: bash
@@ -164,7 +188,10 @@ jobs:
         EOF
 
     - name: Run tests
+      shell: bash
       run: |
+        # Final verification before tests - ensure we're using the right code
+        python -c "import sentience.agent_runtime; import inspect; src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done); assert 'self.assert_(' in src, 'assert_done must use self.assert_(), not self.assertTrue()'; print('✓ Verified: assert_done uses self.assert_()')"
         pytest tests/ -v
       env:
         CI: true
