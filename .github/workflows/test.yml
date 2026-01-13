@@ -44,12 +44,20 @@ jobs:
         python << 'PYEOF'
         import re
         import os
+        import sys
+        
+        # Set UTF-8 encoding for Windows compatibility
+        if sys.platform == 'win32':
+            import io
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        
         file_path = 'sentience/agent_runtime.py'
         print(f'=== Auto-fix check for {file_path} ===')
         try:
             if not os.path.exists(file_path):
                 print(f'ERROR: {file_path} not found!')
-                exit(1)
+                sys.exit(1)
             
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -71,22 +79,22 @@ jobs:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     verify_content = f.read()
                     if 'self.assertTrue(' in verify_content:
-                        print('✗ ERROR: Auto-fix failed! File still contains self.assertTrue(')
-                        exit(1)
+                        print('ERROR: Auto-fix failed! File still contains self.assertTrue(')
+                        sys.exit(1)
                     else:
-                        print('✓ Auto-fixed: Replaced self.assertTrue( with self.assert_(')
-                        print('✓ Verified: File no longer contains self.assertTrue(')
+                        print('OK: Auto-fixed: Replaced self.assertTrue( with self.assert_(')
+                        print('OK: Verified: File no longer contains self.assertTrue(')
             else:
-                print('✓ Source file is correct (uses self.assert_())')
+                print('OK: Source file is correct (uses self.assert_())')
         except Exception as e:
             print(f'ERROR in auto-fix: {e}')
             import traceback
             traceback.print_exc()
-            exit(1)
+            sys.exit(1)
         PYEOF
         # Verify source file is fixed before installation
         echo "=== Verifying source file after auto-fix ==="
-        python -c "with open('sentience/agent_runtime.py', 'r') as f: content = f.read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue( after auto-fix!'; print('✓ Source file verified: uses self.assert_()')"
+        python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('sentience/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue( after auto-fix!'; print('OK: Source file verified: uses self.assert_()')"
         
         # Force reinstall to ensure latest code
         pip install --no-cache-dir --force-reinstall -e ".[dev]"
@@ -121,14 +129,14 @@ jobs:
             print(f'  Current dir: {cwd}')
             print(f'  This might be using PyPI package instead of local source!')
         else:
-            print(f'✓ Package is from local source: {pkg_path}')
+            print(f'OK: Package is from local source: {pkg_path}')
         
         source = inspect.getsource(AgentRuntime.assert_done)
         print('\nassert_done method source:')
         print(source)
         print('\n=== Analysis ===')
         if 'self.assertTrue(' in source:
-            print('✗ ERROR: Found self.assertTrue( in installed package!')
+            print('ERROR: Found self.assertTrue( in installed package!')
             print('This means the source code on this branch still has the bug.')
             print('\nProblematic lines:')
             for i, line in enumerate(source.split('\n'), 1):
@@ -137,10 +145,10 @@ jobs:
             print('\nThe source file in the repo should be checked and fixed.')
             exit(1)
         elif 'self.assert_(' in source:
-            print('✓ OK: assert_done uses self.assert_( correctly')
+            print('OK: assert_done uses self.assert_( correctly')
         else:
-            print('? WARNING: Could not find assert_ method call')
-            exit(1)
+            print('WARNING: Could not find assert_ method call')
+            sys.exit(1)
         PYEOF
 
     - name: Verify source code
