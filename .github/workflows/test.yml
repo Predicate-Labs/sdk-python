@@ -140,7 +140,10 @@ jobs:
             print(f'\nFound {len(problematic_lines)} problematic line(s):')
             for line_num, line_content in problematic_lines:
                 print(f'Line {line_num}: {line_content}')
-            print('\nTo fix: Replace self.assertTrue( with self.assert_( in the code above')
+            print('\nTo fix:')
+            print('1. Replace self.assertTrue( with self.assert_( in the code above')
+            print('2. If this is a PR, merge or rebase with the latest main branch')
+            print('   (main branch already has this fix in commit c7a43a9)')
             exit(1)
         
         # Verify that self.assert_( is used (positive check)
