@@ -3,7 +3,7 @@ Pydantic models for Sentience SDK - matches spec/snapshot.schema.json
 """
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -69,6 +69,56 @@ class Element(BaseModel):
     # implement fuzzy matching logic themselves.
     in_dominant_group: bool | None = None
 
+    # Layout-derived metadata (internal-only in v0, not exposed in API responses)
+    # Per ChatGPT feedback: explicitly optional to prevent users assuming layout is always present
+    # Note: This field is marked with skip_serializing_if in Rust, so it won't appear in API responses
+    layout: "LayoutHints | None" = None
+
+
+class GridPosition(BaseModel):
+    """Grid position within a detected grid/list"""
+
+    row_index: int  # 0-based row index
+    col_index: int  # 0-based column index
+    cluster_id: int  # ID of the row cluster (for distinguishing separate grids)
+
+
+class LayoutHints(BaseModel):
+    """Layout-derived metadata for an element (internal-only in v0)"""
+
+    # Grid ID (maps to GridInfo.grid_id) - distinguishes multiple grids on same page
+    # Per feedback: Add grid_id to distinguish main feed + sidebar lists + nav links
+    grid_id: int | None = None
+    # Grid position within the grid (row_index, col_index)
+    grid_pos: GridPosition | None = None
+    # Inferred parent index in elements array
+    parent_index: int | None = None
+    # Indices of child elements (optional to avoid payload bloat - container elements can have hundreds)
+    # Per feedback: Make optional/capped to prevent serializing large arrays
+    children_indices: list[int] | None = None
+    # Confidence score for grid position assignment (0.0-1.0)
+    grid_confidence: float = 0.0
+    # Confidence score for parent-child containment (0.0-1.0)
+    parent_confidence: float = 0.0
+    # Optional: Page region (header/nav/main/aside/footer) - killer signal for ordinality + dominant group
+    # Per feedback: Optional but very useful for region detection
+    region: Literal["header", "nav", "main", "aside", "footer"] | None = None
+    region_confidence: float = 0.0  # Confidence score for region assignment (0.0-1.0)
+
+
+class GridInfo(BaseModel):
+    """Grid bounding box and metadata for a detected grid"""
+
+    grid_id: int  # The grid ID (matches grid_id in LayoutHints)
+    bbox: BBox  # Bounding box: x, y, width, height (document coordinates)
+    row_count: int  # Number of rows in the grid
+    col_count: int  # Number of columns in the grid
+    item_count: int  # Total number of items in the grid
+    confidence: float = 1.0  # Confidence score (currently 1.0)
+    label: str | None = (
+        None  # Optional inferred label (e.g., "product_grid", "search_results", "navigation")
+    )
+
 
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
@@ -89,8 +139,259 @@ class Snapshot(BaseModel):
         """Save snapshot as JSON file"""
         import json
 
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.model_dump(), f, indent=2)
+
+    def get_grid_bounds(self, grid_id: int | None = None) -> list[GridInfo]:
+        """
+        Get grid coordinates (bounding boxes) for detected grids.
+
+        Groups elements by grid_id and computes the overall bounding box,
+        row/column counts, and item count for each grid.
+
+        Args:
+            grid_id: Optional grid ID to filter by. If None, returns all grids.
+
+        Returns:
+            List of GridInfo objects, one per detected grid, sorted by grid_id.
+            Each GridInfo contains:
+            - grid_id: The grid identifier
+            - bbox: Bounding box (x, y, width, height) in document coordinates
+            - row_count: Number of rows in the grid
+            - col_count: Number of columns in the grid
+            - item_count: Total number of items in the grid
+            - confidence: Confidence score (currently 1.0)
+            - label: Optional inferred label (e.g., "product_grid", "search_results", "navigation")
+              Note: Label inference is best-effort and may not always be accurate
+
+        Example:
+            >>> snapshot = browser.snapshot()
+            >>> # Get all grids
+            >>> all_grids = snapshot.get_grid_bounds()
+            >>> # Get specific grid
+            >>> main_grid = snapshot.get_grid_bounds(grid_id=0)
+            >>>             if main_grid:
+            ...     print(f"Grid 0: {main_grid[0].item_count} items at ({main_grid[0].bbox.x}, {main_grid[0].bbox.y})")
+        """
+        from collections import defaultdict
+
+        # Group elements by grid_id
+        grid_elements: dict[int, list[Element]] = defaultdict(list)
+
+        for elem in self.elements:
+            if elem.layout and elem.layout.grid_id is not None:
+                grid_elements[elem.layout.grid_id].append(elem)
+
+        # Filter by grid_id if specified
+        if grid_id is not None:
+            if grid_id not in grid_elements:
+                return []
+            grid_elements = {grid_id: grid_elements[grid_id]}
+
+        grid_infos = []
+
+        for gid, elements_in_grid in sorted(grid_elements.items()):
+            if not elements_in_grid:
+                continue
+
+            # Compute bounding box
+            min_x = min(elem.bbox.x for elem in elements_in_grid)
+            min_y = min(elem.bbox.y for elem in elements_in_grid)
+            max_x = max(elem.bbox.x + elem.bbox.width for elem in elements_in_grid)
+            max_y = max(elem.bbox.y + elem.bbox.height for elem in elements_in_grid)
+
+            # Count rows and columns
+            row_indices = set()
+            col_indices = set()
+
+            for elem in elements_in_grid:
+                if elem.layout and elem.layout.grid_pos:
+                    row_indices.add(elem.layout.grid_pos.row_index)
+                    col_indices.add(elem.layout.grid_pos.col_index)
+
+            # Infer grid label from element patterns (best-effort heuristic)
+            label = Snapshot._infer_grid_label(elements_in_grid)
+
+            grid_infos.append(
+                GridInfo(
+                    grid_id=gid,
+                    bbox=BBox(
+                        x=min_x,
+                        y=min_y,
+                        width=max_x - min_x,
+                        height=max_y - min_y,
+                    ),
+                    row_count=len(row_indices) if row_indices else 0,
+                    col_count=len(col_indices) if col_indices else 0,
+                    item_count=len(elements_in_grid),
+                    confidence=1.0,
+                    label=label,
+                )
+            )
+
+        return grid_infos
+
+    @staticmethod
+    def _infer_grid_label(elements: list["Element"]) -> str | None:
+        """
+        Infer grid label from element patterns using text fingerprinting (best-effort heuristic).
+
+        Uses patterns similar to dominant_group.rs content filtering logic, inverted to detect
+        semantic grid types. Analyzes first 5 items as a "bag of features".
+
+        Returns None if label cannot be reliably determined.
+        This is a simple heuristic and may not always be accurate.
+        """
+        import re
+
+        if not elements:
+            return None
+
+        # Sample first 5 items for fingerprinting (as suggested in feedback)
+        sample_elements = elements[:5]
+        element_texts = [(elem.text or "").strip() for elem in sample_elements if elem.text]
+
+        if not element_texts:
+            return None
+
+        # Collect text patterns
+        all_text = " ".join(text.lower() for text in element_texts)
+        hrefs = [elem.href or "" for elem in sample_elements if elem.href]
+
+        # =========================================================================
+        # 1. PRODUCT GRID: Currency symbols, action verbs, ratings
+        # =========================================================================
+        # Currency patterns: $, €, £, or price patterns like "19.99", "$50", "€30"
+        currency_pattern = re.search(r"[\$€£¥]\s*\d+|\d+\.\d{2}", all_text)
+        product_action_verbs = [
+            "add to cart",
+            "buy now",
+            "shop now",
+            "purchase",
+            "out of stock",
+            "in stock",
+        ]
+        has_product_actions = any(verb in all_text for verb in product_action_verbs)
+
+        # Ratings pattern: "4.5 stars", "(120 reviews)", "4.5/5"
+        rating_pattern = re.search(r"\d+\.?\d*\s*(stars?|reviews?|/5|/10)", all_text, re.IGNORECASE)
+
+        # Product URL patterns
+        product_url_patterns = ["/product/", "/item/", "/dp/", "/p/", "/products/"]
+        has_product_urls = any(
+            pattern in href.lower() for href in hrefs for pattern in product_url_patterns
+        )
+
+        if (currency_pattern or has_product_actions or rating_pattern) and (
+            has_product_urls
+            or len(
+                [
+                    t
+                    for t in element_texts
+                    if currency_pattern and currency_pattern.group() in t.lower()
+                ]
+            )
+            >= 2
+        ):
+            return "product_grid"
+
+        # =========================================================================
+        # 2. ARTICLE/NEWS FEED: Timestamps, bylines, reading time
+        # =========================================================================
+        # Timestamp patterns (reusing logic from dominant_group.rs)
+        # "2 hours ago", "3 days ago", "5 minutes ago", "1 second ago", "2 ago"
+        timestamp_patterns = [
+            r"\d+\s+(hour|day|minute|second)s?\s+ago",
+            r"\d+\s+ago",  # Short form: "2 ago"
+            r"\d{1,2}\s+(hour|day|minute|second)\s+ago",  # Singular
+        ]
+        has_timestamps = any(
+            re.search(pattern, all_text, re.IGNORECASE) for pattern in timestamp_patterns
+        )
+
+        # Date patterns: "Aug 21, 2024", "2024-01-13", "Jan 15"
+        date_patterns = [
+            r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}",
+            r"\d{4}-\d{2}-\d{2}",
+            r"\d{1,2}/\d{1,2}/\d{4}",
+        ]
+        has_dates = any(re.search(pattern, all_text, re.IGNORECASE) for pattern in date_patterns)
+
+        # Bylines: "By [Name]", "Author:", "Written by"
+        byline_patterns = ["by ", "author:", "written by", "posted by"]
+        has_bylines = any(pattern in all_text for pattern in byline_patterns)
+
+        # Reading time: "5 min read", "10 min", "read more"
+        reading_time_pattern = re.search(r"\d+\s*(min|minute)s?\s*(read)?", all_text, re.IGNORECASE)
+
+        if has_timestamps or (has_dates and has_bylines) or reading_time_pattern:
+            return "article_feed"
+
+        # =========================================================================
+        # 3. SEARCH RESULTS: Snippets, metadata, ellipses
+        # =========================================================================
+        search_keywords = ["result", "search", "found", "showing", "results 1-", "sponsored"]
+        has_search_metadata = any(keyword in all_text for keyword in search_keywords)
+
+        # Snippet indicators: ellipses, "match found", truncated text
+        has_ellipses = "..." in all_text or any(
+            len(text) > 100 and "..." in text for text in element_texts
+        )
+
+        # Check if many elements are links (typical for search results)
+        link_count = sum(1 for elem in sample_elements if elem.role == "link" or elem.href)
+        is_mostly_links = link_count >= len(sample_elements) * 0.7  # 70%+ are links
+
+        if (has_search_metadata or has_ellipses) and is_mostly_links:
+            return "search_results"
+
+        # =========================================================================
+        # 4. NAVIGATION: Short length, homogeneity, common nav terms
+        # =========================================================================
+        # Calculate average text length and variance
+        text_lengths = [len(text) for text in element_texts]
+        if text_lengths:
+            avg_length = sum(text_lengths) / len(text_lengths)
+            # Low variance = homogeneous (typical of navigation)
+            variance = (
+                sum((l - avg_length) ** 2 for l in text_lengths) / len(text_lengths)
+                if len(text_lengths) > 1
+                else 0
+            )
+
+            nav_keywords = [
+                "home",
+                "about",
+                "contact",
+                "menu",
+                "login",
+                "sign in",
+                "profile",
+                "settings",
+            ]
+            has_nav_keywords = any(keyword in all_text for keyword in nav_keywords)
+
+            # Navigation: short average length (< 15 chars) AND low variance OR nav keywords
+            if avg_length < 15 and (variance < 20 or has_nav_keywords):
+                # Also check if all are links
+                if all(elem.role == "link" or elem.href for elem in sample_elements):
+                    return "navigation"
+
+        # =========================================================================
+        # 5. BUTTON GRID: All buttons
+        # =========================================================================
+        if all(elem.role == "button" for elem in sample_elements):
+            return "button_grid"
+
+        # =========================================================================
+        # 6. LINK LIST: Mostly links but not navigation
+        # =========================================================================
+        link_count = sum(1 for elem in sample_elements if elem.role == "link" or elem.href)
+        if link_count >= len(sample_elements) * 0.8:  # 80%+ are links
+            return "link_list"
+
+        # Unknown/unclear
+        return None
 
 
 class ActionResult(BaseModel):

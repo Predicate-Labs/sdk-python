@@ -45,36 +45,36 @@ jobs:
         import re
         import os
         import sys
-        
+
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
             import io
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-        
+
         file_path = 'sentience/agent_runtime.py'
         print(f'=== Auto-fix check for {file_path} ===')
         try:
             if not os.path.exists(file_path):
                 print(f'ERROR: {file_path} not found!')
                 sys.exit(1)
-            
+
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             if 'self.assertTrue(' in content:
                 print('WARNING: Found self.assertTrue( in source file! Auto-fixing...')
                 # Count occurrences
                 count = len(re.findall(r'self\.assertTrue\s*\(', content))
                 print(f'Found {count} occurrence(s) of self.assertTrue(')
-                
+
                 # Replace all occurrences
                 new_content = re.sub(r'self\.assertTrue\s*\(', 'self.assert_(', content)
-                
+
                 # Write back
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(new_content)
-                
+
                 # Verify the fix
                 with open(file_path, 'r', encoding='utf-8') as f:
                     verify_content = f.read()
@@ -95,7 +95,7 @@ jobs:
         # Verify source file is fixed before installation
         echo "=== Verifying source file after auto-fix ==="
         python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('sentience/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue( after auto-fix!'; print('OK: Source file verified: uses self.assert_()')"
-        
+
         # Force reinstall to ensure latest code
         pip install --no-cache-dir --force-reinstall -e ".[dev]"
         pip install pre-commit mypy types-requests
@@ -118,15 +118,15 @@ jobs:
         import sys
         import inspect
         import os
-        
+
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
             import io
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-        
+
         from sentience.agent_runtime import AgentRuntime
-        
+
         # Verify it's using local source
         import sentience
         pkg_path = os.path.abspath(sentience.__file__)
@@ -138,7 +138,7 @@ jobs:
             print(f'  This might be using PyPI package instead of local source!')
         else:
             print(f'OK: Package is from local source: {pkg_path}')
-        
+
         source = inspect.getsource(AgentRuntime.assert_done)
         print('\nassert_done method source:')
         print(source)
@@ -164,19 +164,19 @@ jobs:
       run: |
         python << 'EOF'
         import sys
-        
+
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
             import io
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-        
+
         # Check agent_runtime.py line 345
         print("=== Checking agent_runtime.py line 345 ===")
         with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
             lines = f.readlines()
             print(''.join(lines[339:350]))
-        
+
         # Verify assert_ method exists
         print("\n=== Verifying assert_ method exists ===")
         with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
@@ -184,7 +184,7 @@ jobs:
             for i, line in enumerate(lines, 1):
                 if 'def assert_' in line:
                     print(f'{i}:{line}', end='')
-        
+
         # Check for problematic assertTrue patterns (should NOT exist)
         print("\n=== Checking for assertTrue patterns (should NOT exist) ===")
         import re
@@ -237,30 +237,30 @@ jobs:
         import sys
         import re
         import os
-        
+
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
             import io
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-        
+
         # Check the source file directly (not the installed package)
         file_path = 'sentience/agent_runtime.py'
         if not os.path.exists(file_path):
             print(f'WARNING: {file_path} not found!')
             sys.exit(0)  # Don't fail if file doesn't exist
-        
+
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
             lines = content.split('\n')
-        
+
         # Check for the problematic pattern: self.assertTrue(
         # This is the bug we're checking for - it should be self.assert_( instead
         problematic_lines = []
         for i, line in enumerate(lines, 1):
             if re.search(r'self\.assertTrue\s*\(', line):
                 problematic_lines.append((i, line.strip()))
-        
+
         if problematic_lines:
             print('WARNING: Found self.assertTrue( in agent_runtime.py')
             print('This should be self.assert_( instead!')
@@ -290,22 +290,22 @@ jobs:
         python << 'PYEOF'
         import sys
         import inspect
-        
+
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
             import io
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-        
+
         import sentience.agent_runtime
-        
+
         print("=== Final Pre-Test Verification ===")
         src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done)
-        
+
         print("assert_done method source:")
         print(src)
         print("\n=== Analysis ===")
-        
+
         if 'self.assertTrue(' in src:
             print('ERROR: Found self.assertTrue( in installed package!')
             print('The source code on this branch still has the bug.')
