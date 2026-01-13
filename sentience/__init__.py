@@ -121,7 +121,7 @@ from .verification import (
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for
 
-__version__ = "0.94.0"
+__version__ = "0.94.1"
 
 __all__ = [
     # Extension helpers (for browser-use integration)
