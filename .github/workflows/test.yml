@@ -66,15 +66,20 @@ jobs:
                 if 'def assert_' in line:
                     print(f'{i}:{line}', end='')
         
-        # Check for assertTrue (should NOT exist)
-        print("\n=== Checking for assertTrue (should NOT exist) ===")
+        # Check for problematic assertTrue patterns (should NOT exist)
+        print("\n=== Checking for assertTrue patterns (should NOT exist) ===")
+        import re
         with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
             content = f.read()
-            if 'assertTrue' in content:
-                print('ERROR: Found assertTrue - this should have been removed!')
+            # Check for self.assertTrue( - this is the bug
+            if re.search(r'self\.assertTrue\s*\(', content):
+                print('ERROR: Found self.assertTrue( - should be self.assert_( instead!')
                 exit(1)
-            else:
-                print('Good: no assertTrue found')
+            # Check for assertTrue( without self. - unittest style (also wrong)
+            if re.search(r'(?<!self\.)assertTrue\s*\(', content):
+                print('ERROR: Found assertTrue( without self. - should use self.assert_( instead!')
+                exit(1)
+            print('Good: no problematic assertTrue patterns found')
         EOF
 
     - name: Lint with pre-commit
@@ -108,7 +113,34 @@ jobs:
       shell: bash
       run: |
         echo "=== Final check before tests ==="
-        python -c "from sentience.agent_runtime import AgentRuntime; import inspect; source = inspect.getsource(AgentRuntime.assert_done); print('assert_done source:'); print(source); exit(1) if 'assertTrue' in source else print('OK: assert_ is used correctly')"
+        python << 'EOF'
+        from sentience.agent_runtime import AgentRuntime
+        import inspect
+        
+        source = inspect.getsource(AgentRuntime.assert_done)
+        print('assert_done source:')
+        print(source)
+        
+        # Check for problematic patterns: self.assertTrue( or assertTrue( without self.
+        # But allow self.assertTrue as a method name if it exists
+        import re
+        
+        # Pattern 1: self.assertTrue( - this is the bug we're checking for
+        if re.search(r'self\.assertTrue\s*\(', source):
+            print('ERROR: Found self.assertTrue( - should be self.assert_( instead!')
+            exit(1)
+        
+        # Pattern 2: assertTrue( without self. - unittest style (also wrong)
+        if re.search(r'(?<!self\.)assertTrue\s*\(', source):
+            print('ERROR: Found assertTrue( without self. - should use self.assert_( instead!')
+            exit(1)
+        
+        # Pattern 3: Check that assert_ is used correctly
+        if 'self.assert_(' in source:
+            print('OK: self.assert_ is used correctly')
+        else:
+            print('WARNING: self.assert_( not found in assert_done')
+        EOF
 
     - name: Run tests
       run: |
