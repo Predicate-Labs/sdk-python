@@ -46,7 +46,13 @@ jobs:
         echo "=== Installed sentience location ==="
         python -c "import sentience; print(sentience.__file__)"
         echo "=== Check assert_done in installed package ==="
-        python -c "import inspect; from sentience.agent_runtime import AgentRuntime; source = inspect.getsource(AgentRuntime.assert_done); print(source); exit(1) if 'assertTrue' in source else print('Good: assert_ is correctly used')"
+        python -c "import inspect; from sentience.agent_runtime import AgentRuntime; source = inspect.getsource(AgentRuntime.assert_done); print('assert_done source:'); print(source); exit(1) if 'assertTrue' in source else print('Good: assert_ is correctly used')" || {
+          echo "WARNING: Installed package has old code. Reinstalling..."
+          pip uninstall -y sentienceapi || true
+          pip install --no-cache-dir -e ".[dev]"
+          echo "Reinstalled. Verifying again..."
+          python -c "import inspect; from sentience.agent_runtime import AgentRuntime; source = inspect.getsource(AgentRuntime.assert_done); exit(1) if 'assertTrue' in source else print('Good: assert_ is correctly used after reinstall')"
+        }
 
     - name: Verify source code
       shell: bash
