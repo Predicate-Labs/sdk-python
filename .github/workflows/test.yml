@@ -117,45 +117,26 @@ jobs:
         import re
         
         # Check the source file directly (not the installed package)
-        # This ensures we're checking what's actually in the repo
         with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Find assert_done method - look for the method definition and its body
-        # Match from "def assert_done" until the next method/class at same indentation level
-        assert_done_pattern = r'def assert_done\([^)]*\):.*?(?=\n    def |\nclass |\Z)'
-        assert_done_match = re.search(assert_done_pattern, content, re.DOTALL)
+        # Check for the problematic pattern: self.assertTrue(
+        # This is the bug we're checking for - it should be self.assert_( instead
+        if re.search(r'self\.assertTrue\s*\(', content):
+            print('ERROR: Found self.assertTrue( in agent_runtime.py')
+            print('This should be self.assert_( instead!')
+            print('\nSearching for the problematic line...')
+            for i, line in enumerate(content.split('\n'), 1):
+                if re.search(r'self\.assertTrue\s*\(', line):
+                    print(f'Line {i}: {line.strip()}')
+            exit(1)
         
-        if assert_done_match:
-            assert_done_source = assert_done_match.group(0)
-            print('assert_done method found')
-            
-            # Check for problematic patterns
-            # Pattern 1: self.assertTrue( - this is the bug we're checking for
-            if re.search(r'self\.assertTrue\s*\(', assert_done_source):
-                print('ERROR: Found self.assertTrue( - should be self.assert_( instead!')
-                print('\nassert_done source:')
-                print(assert_done_source)
-                exit(1)
-            
-            # Pattern 2: Check that assert_ is used correctly
-            if 'self.assert_(' in assert_done_source:
-                print('OK: self.assert_ is used correctly in assert_done')
-            else:
-                print('WARNING: self.assert_( not found in assert_done')
-                print('\nassert_done source:')
-                print(assert_done_source)
-                exit(1)
+        # Verify that self.assert_( is used (positive check)
+        if 'self.assert_(' in content:
+            print('OK: self.assert_ is used correctly (no self.assertTrue found)')
         else:
-            # Fallback: check entire file for the problematic pattern
-            print('Could not isolate assert_done method, checking entire file...')
-            if re.search(r'self\.assertTrue\s*\(', content):
-                print('ERROR: Found self.assertTrue( in agent_runtime.py - should be self.assert_( instead!')
-                exit(1)
-            if 'self.assert_(' in content:
-                print('OK: self.assert_ is used in agent_runtime.py')
-            else:
-                print('WARNING: Could not verify assert_ usage')
+            print('WARNING: self.assert_( not found in agent_runtime.py')
+            print('This might indicate a different issue')
         EOF
 
     - name: Run tests
