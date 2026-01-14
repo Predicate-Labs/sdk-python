@@ -343,7 +343,6 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         ok = self.assert_(predicate, label=label, required=True)
-
         if ok:
             self._task_done = True
             self._task_done_label = label
