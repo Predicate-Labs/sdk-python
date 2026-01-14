@@ -118,6 +118,7 @@ class GridInfo(BaseModel):
     label: str | None = (
         None  # Optional inferred label (e.g., "product_grid", "search_results", "navigation")
     )
+    is_dominant: bool = False  # Whether this grid is the dominant group (main content area)
 
 
 class Snapshot(BaseModel):
@@ -190,9 +191,15 @@ class Snapshot(BaseModel):
 
         grid_infos = []
 
+        # First pass: compute all grid infos and count dominant group elements
+        grid_dominant_counts = {}
         for gid, elements_in_grid in sorted(grid_elements.items()):
             if not elements_in_grid:
                 continue
+
+            # Count dominant group elements in this grid
+            dominant_count = sum(1 for elem in elements_in_grid if elem.in_dominant_group is True)
+            grid_dominant_counts[gid] = (dominant_count, len(elements_in_grid))
 
             # Compute bounding box
             min_x = min(elem.bbox.x for elem in elements_in_grid)
@@ -226,8 +233,41 @@ class Snapshot(BaseModel):
                     item_count=len(elements_in_grid),
                     confidence=1.0,
                     label=label,
+                    is_dominant=False,  # Will be set below
                 )
             )
+
+        # Second pass: identify dominant grid
+        # The grid with the highest count (or highest percentage >= 50%) of dominant group elements
+        if grid_dominant_counts:
+            # Find grid with highest absolute count
+            max_dominant_count = max(count for count, _ in grid_dominant_counts.values())
+            if max_dominant_count > 0:
+                # Find grid(s) with highest count
+                dominant_grids = [
+                    gid
+                    for gid, (count, total) in grid_dominant_counts.items()
+                    if count == max_dominant_count
+                ]
+                # If multiple grids tie, prefer the one with highest percentage
+                if len(dominant_grids) > 1:
+                    dominant_grids.sort(
+                        key=lambda gid: (
+                            grid_dominant_counts[gid][0] / grid_dominant_counts[gid][1]
+                            if grid_dominant_counts[gid][1] > 0
+                            else 0
+                        ),
+                        reverse=True,
+                    )
+                # Mark the dominant grid
+                dominant_gid = dominant_grids[0]
+                # Only mark as dominant if it has >= 50% dominant group elements or >= 3 elements
+                dominant_count, total_count = grid_dominant_counts[dominant_gid]
+                if dominant_count >= 3 or (total_count > 0 and dominant_count / total_count >= 0.5):
+                    for grid_info in grid_infos:
+                        if grid_info.grid_id == dominant_gid:
+                            grid_info.is_dominant = True
+                            break
 
         return grid_infos
 
@@ -456,6 +496,10 @@ class SnapshotOptions(BaseModel):
     trace_path: str | None = None  # Path to save trace (default: "trace_{timestamp}.json")
     goal: str | None = None  # Optional goal/task description for the snapshot
     show_overlay: bool = False  # Show visual overlay highlighting elements in browser
+    show_grid: bool = False  # Show visual overlay highlighting detected grids
+    grid_id: int | None = (
+        None  # Optional grid ID to show specific grid (only used if show_grid=True)
+    )
 
     # API credentials (for browser-use integration without SentienceBrowser)
     sentience_api_key: str | None = None  # Sentience API key for Pro/Enterprise features

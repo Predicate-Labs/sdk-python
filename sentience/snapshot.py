@@ -250,6 +250,9 @@ def _snapshot_via_extension(
     if options.save_trace:
         _save_trace_to_file(result.get("raw_elements", []), options.trace_path)
 
+    # Validate and parse with Pydantic
+    snapshot_obj = Snapshot(**result)
+
     # Show visual overlay if requested
     if options.show_overlay:
         raw_elements = result.get("raw_elements", [])
@@ -265,8 +268,29 @@ def _snapshot_via_extension(
                 raw_elements,
             )
 
-    # Validate and parse with Pydantic
-    snapshot_obj = Snapshot(**result)
+    # Show grid overlay if requested
+    if options.show_grid:
+        # Get all grids (don't filter by grid_id here - we want to show all but highlight the target)
+        grids = snapshot_obj.get_grid_bounds(grid_id=None)
+        if grids:
+            # Convert GridInfo to dict for JavaScript
+            grid_dicts = [grid.model_dump() for grid in grids]
+            # Pass grid_id as targetGridId to highlight it in red
+            target_grid_id = options.grid_id if options.grid_id is not None else None
+            browser.page.evaluate(
+                """
+                (grids, targetGridId) => {
+                    if (window.sentience && window.sentience.showGrid) {
+                        window.sentience.showGrid(grids, targetGridId);
+                    } else {
+                        console.warn('[SDK] showGrid not available in extension');
+                    }
+                }
+                """,
+                grid_dicts,
+                target_grid_id,
+            )
+
     return snapshot_obj
 
 
@@ -308,6 +332,9 @@ def _snapshot_via_api(
         # Merge API result with local data (screenshot, etc.)
         snapshot_data = _merge_api_result_with_local(api_result, raw_result)
 
+        # Create snapshot object
+        snapshot_obj = Snapshot(**snapshot_data)
+
         # Show visual overlay if requested (use API-ranked elements)
         if options.show_overlay:
             elements = api_result.get("elements", [])
@@ -323,7 +350,29 @@ def _snapshot_via_api(
                     elements,
                 )
 
-        return Snapshot(**snapshot_data)
+        # Show grid overlay if requested
+        if options.show_grid:
+            # Get all grids (don't filter by grid_id here - we want to show all but highlight the target)
+            grids = snapshot_obj.get_grid_bounds(grid_id=None)
+            if grids:
+                grid_dicts = [grid.model_dump() for grid in grids]
+                # Pass grid_id as targetGridId to highlight it in red
+                target_grid_id = options.grid_id if options.grid_id is not None else None
+                browser.page.evaluate(
+                    """
+                    (grids, targetGridId) => {
+                        if (window.sentience && window.sentience.showGrid) {
+                            window.sentience.showGrid(grids, targetGridId);
+                        } else {
+                            console.warn('[SDK] showGrid not available in extension');
+                        }
+                    }
+                    """,
+                    grid_dicts,
+                    target_grid_id,
+                )
+
+        return snapshot_obj
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"API request failed: {e}") from e
 
@@ -440,6 +489,18 @@ async def _snapshot_via_extension_async(
     if options.save_trace:
         _save_trace_to_file(result.get("raw_elements", []), options.trace_path)
 
+    # Extract screenshot_format from data URL if not provided by extension
+    if result.get("screenshot") and not result.get("screenshot_format"):
+        screenshot_data_url = result.get("screenshot", "")
+        if screenshot_data_url.startswith("data:image/"):
+            # Extract format from "data:image/jpeg;base64,..." or "data:image/png;base64,..."
+            format_match = screenshot_data_url.split(";")[0].split("/")[-1]
+            if format_match in ["jpeg", "jpg", "png"]:
+                result["screenshot_format"] = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
+
+    # Validate and parse with Pydantic
+    snapshot_obj = Snapshot(**result)
+
     # Show visual overlay if requested
     if options.show_overlay:
         raw_elements = result.get("raw_elements", [])
@@ -455,17 +516,28 @@ async def _snapshot_via_extension_async(
                 raw_elements,
             )
 
-    # Extract screenshot_format from data URL if not provided by extension
-    if result.get("screenshot") and not result.get("screenshot_format"):
-        screenshot_data_url = result.get("screenshot", "")
-        if screenshot_data_url.startswith("data:image/"):
-            # Extract format from "data:image/jpeg;base64,..." or "data:image/png;base64,..."
-            format_match = screenshot_data_url.split(";")[0].split("/")[-1]
-            if format_match in ["jpeg", "jpg", "png"]:
-                result["screenshot_format"] = "jpeg" if format_match in ["jpeg", "jpg"] else "png"
+    # Show grid overlay if requested
+    if options.show_grid:
+        # Get all grids (don't filter by grid_id here - we want to show all but highlight the target)
+        grids = snapshot_obj.get_grid_bounds(grid_id=None)
+        if grids:
+            grid_dicts = [grid.model_dump() for grid in grids]
+            # Pass grid_id as targetGridId to highlight it in red
+            target_grid_id = options.grid_id if options.grid_id is not None else None
+            await browser.page.evaluate(
+                """
+                (grids, targetGridId) => {
+                    if (window.sentience && window.sentience.showGrid) {
+                        window.sentience.showGrid(grids, targetGridId);
+                    } else {
+                        console.warn('[SDK] showGrid not available in extension');
+                    }
+                }
+                """,
+                grid_dicts,
+                target_grid_id,
+            )
 
-    # Validate and parse with Pydantic
-    snapshot_obj = Snapshot(**result)
     return snapshot_obj
 
 
@@ -584,6 +656,9 @@ async def _snapshot_via_api_async(
             "error": api_result.get("error"),
         }
 
+        # Create snapshot object
+        snapshot_obj = Snapshot(**snapshot_data)
+
         # Show visual overlay if requested
         if options.show_overlay:
             elements = api_result.get("elements", [])
@@ -599,7 +674,29 @@ async def _snapshot_via_api_async(
                     elements,
                 )
 
-        return Snapshot(**snapshot_data)
+        # Show grid overlay if requested
+        if options.show_grid:
+            # Get all grids (don't filter by grid_id here - we want to show all but highlight the target)
+            grids = snapshot_obj.get_grid_bounds(grid_id=None)
+            if grids:
+                grid_dicts = [grid.model_dump() for grid in grids]
+                # Pass grid_id as targetGridId to highlight it in red
+                target_grid_id = options.grid_id if options.grid_id is not None else None
+                await browser.page.evaluate(
+                    """
+                    (grids, targetGridId) => {
+                        if (window.sentience && window.sentience.showGrid) {
+                            window.sentience.showGrid(grids, targetGridId);
+                        } else {
+                            console.warn('[SDK] showGrid not available in extension');
+                        }
+                    }
+                    """,
+                    grid_dicts,
+                    target_grid_id,
+                )
+
+        return snapshot_obj
     except ImportError:
         # Fallback to requests if httpx not available (shouldn't happen in async context)
         raise RuntimeError(

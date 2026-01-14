@@ -221,19 +221,40 @@ class TestGetGridBounds:
         """Test that product grids get labeled correctly"""
         elements = [
             create_test_element(
-                1, 10, 20, 100, 50, grid_id=0, row_index=0, col_index=0,
+                1,
+                10,
+                20,
+                100,
+                50,
+                grid_id=0,
+                row_index=0,
+                col_index=0,
                 text="Wireless Headphones $50",
-                href="https://example.com/product/headphones"
+                href="https://example.com/product/headphones",
             ),
             create_test_element(
-                2, 120, 20, 100, 50, grid_id=0, row_index=0, col_index=1,
+                2,
+                120,
+                20,
+                100,
+                50,
+                grid_id=0,
+                row_index=0,
+                col_index=1,
                 text="Bluetooth Speaker $30",
-                href="https://example.com/product/speaker"
+                href="https://example.com/product/speaker",
             ),
             create_test_element(
-                3, 10, 80, 100, 50, grid_id=0, row_index=1, col_index=0,
+                3,
+                10,
+                80,
+                100,
+                50,
+                grid_id=0,
+                row_index=1,
+                col_index=0,
                 text="USB-C Cable $10",
-                href="https://example.com/product/cable"
+                href="https://example.com/product/cable",
             ),
         ]
 
@@ -251,12 +272,26 @@ class TestGetGridBounds:
         """Test that article feeds get labeled correctly"""
         elements = [
             create_test_element(
-                1, 10, 20, 100, 50, grid_id=0, row_index=0, col_index=0,
-                text="Breaking News 2 hours ago"
+                1,
+                10,
+                20,
+                100,
+                50,
+                grid_id=0,
+                row_index=0,
+                col_index=0,
+                text="Breaking News 2 hours ago",
             ),
             create_test_element(
-                2, 10, 80, 100, 50, grid_id=0, row_index=1, col_index=0,
-                text="Tech Update 3 days ago"
+                2,
+                10,
+                80,
+                100,
+                50,
+                grid_id=0,
+                row_index=1,
+                col_index=0,
+                text="Tech Update 3 days ago",
             ),
         ]
 
@@ -273,9 +308,15 @@ class TestGetGridBounds:
     def test_label_inference_navigation(self):
         """Test that navigation grids get labeled correctly"""
         elements = [
-            create_test_element(1, 10, 20, 80, 30, grid_id=0, row_index=0, col_index=0, text="Home"),
-            create_test_element(2, 100, 20, 80, 30, grid_id=0, row_index=0, col_index=1, text="About"),
-            create_test_element(3, 190, 20, 80, 30, grid_id=0, row_index=0, col_index=2, text="Contact"),
+            create_test_element(
+                1, 10, 20, 80, 30, grid_id=0, row_index=0, col_index=0, text="Home"
+            ),
+            create_test_element(
+                2, 100, 20, 80, 30, grid_id=0, row_index=0, col_index=1, text="About"
+            ),
+            create_test_element(
+                3, 190, 20, 80, 30, grid_id=0, row_index=0, col_index=2, text="Contact"
+            ),
         ]
 
         snapshot = Snapshot(
