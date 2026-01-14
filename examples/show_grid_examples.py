@@ -15,18 +15,22 @@ from sentience.models import SnapshotOptions
 def main():
     # Get API key from environment variable (optional - uses free tier if not set)
     api_key = os.environ.get("SENTIENCE_API_KEY")
+    
+    # Use VPS IP directly if domain is not configured
+    # Replace with your actual domain once DNS is set up: api_url="https://api.sentienceapi.com"
+    api_url = os.environ.get("SENTIENCE_API_URL", "http://15.204.243.91:9000")
 
     try:
-        with SentienceBrowser(api_key=api_key, headless=False) as browser:
+        with SentienceBrowser(api_key=api_key, api_url=api_url, headless=False) as browser:
             # Navigate to a page with grid layouts (e.g., product listings, article feeds)
-            browser.page.goto("https://example.com/products", wait_until="domcontentloaded")
+            browser.page.goto("https://example.com", wait_until="domcontentloaded")
             time.sleep(2)  # Wait for page to fully load
 
             print("=" * 60)
             print("Example 1: Show all detected grids")
             print("=" * 60)
             # Show all grids (all in purple)
-            snap = snapshot(browser, SnapshotOptions(show_grid=True))
+            snap = snapshot(browser, SnapshotOptions(show_grid=True, use_api=True))
             print(f"✅ Found {len(snap.elements)} elements")
             print("   Purple borders appear around all detected grids for 5 seconds")
             time.sleep(6)  # Wait to see the overlay
