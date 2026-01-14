@@ -290,6 +290,7 @@ jobs:
         python << 'PYEOF'
         import sys
         import inspect
+        import os
 
         # Set UTF-8 encoding for Windows compatibility
         if sys.platform == 'win32':
@@ -297,9 +298,43 @@ jobs:
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-        import sentience.agent_runtime
-
         print("=== Final Pre-Test Verification ===")
+        
+        # First, verify the source file directly
+        source_file = 'sentience/agent_runtime.py'
+        print(f"=== Checking source file: {source_file} ===")
+        if not os.path.exists(source_file):
+            print(f"ERROR: Source file {source_file} not found!")
+            sys.exit(1)
+        
+        with open(source_file, 'r', encoding='utf-8') as f:
+            source_content = f.read()
+        
+        if 'self.assertTrue(' in source_content:
+            print('ERROR: Source file still contains self.assertTrue(!')
+            print('This should have been fixed by the auto-fix step above.')
+            sys.exit(1)
+        elif 'self.assert_(' in source_content:
+            print('OK: Source file uses self.assert_( correctly')
+        else:
+            print('WARNING: Could not find assert_ method in source file')
+        
+        # Now check the installed package
+        print("\n=== Checking installed package ===")
+        import sentience.agent_runtime
+        
+        # Verify it's using local source (editable install)
+        import sentience
+        pkg_path = os.path.abspath(sentience.__file__)
+        cwd = os.getcwd()
+        if not pkg_path.startswith(cwd):
+            print(f'WARNING: Package is not from local source!')
+            print(f'  Package path: {pkg_path}')
+            print(f'  Current dir: {cwd}')
+            print(f'  This might be using PyPI package instead of local source!')
+        else:
+            print(f'OK: Package is from local source: {pkg_path}')
+        
         src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done)
 
         print("assert_done method source:")
