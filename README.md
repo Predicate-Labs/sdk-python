@@ -1,6 +1,6 @@
 # Sentience Python SDK
 
-**Semantic geometry grounding for deterministic, debuggable AI web agents with time-travel traces.**
+**Semantic snapshots and Jest-style assertions for reliable AI web agents with time-travel traces**
 
 ## 📦 Installation
 
@@ -21,6 +21,55 @@ pip install transformers torch  # For local LLMs
 ```bash
 pip install -e .
 ```
+
+## Jest for AI Web Agent
+
+### Semantic snapshots and assertions that let agents act, verify, and know when they're done.
+
+Use `AgentRuntime` to add Jest-style assertions to your agent loops. Verify browser state, check task completion, and get clear feedback on what's working:
+
+```python
+import asyncio
+from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience.verification import url_contains, exists, all_of
+from sentience.tracing import Tracer, JsonlTraceSink
+
+async def main():
+    # Create tracer
+    tracer = Tracer(run_id="my-run", sink=JsonlTraceSink("trace.jsonl"))
+    
+    # Create browser and runtime
+    async with AsyncSentienceBrowser() as browser:
+        page = await browser.new_page()
+        runtime = await AgentRuntime.from_sentience_browser(
+            browser=browser,
+            page=page,
+            tracer=tracer
+        )
+        
+        # Navigate and take snapshot
+        await page.goto("https://example.com")
+        runtime.begin_step("Verify page loaded")
+        await runtime.snapshot()
+        
+        # Run assertions (Jest-style)
+        runtime.assert_(url_contains("example.com"), label="on_correct_domain")
+        runtime.assert_(exists("role=heading"), label="has_heading")
+        runtime.assert_(all_of([
+            exists("role=button"),
+            exists("role=link")
+        ]), label="has_interactive_elements")
+        
+        # Check task completion
+        if runtime.assert_done(exists("text~'Example'"), label="task_complete"):
+            print("✅ Task completed!")
+        
+        print(f"Task done: {runtime.is_task_done}")
+
+asyncio.run(main())
+```
+
+**See example:** [`examples/agent_runtime_verification.py`](examples/agent_runtime_verification.py)
 
 ## 🚀 Quick Start: Choose Your Abstraction Level
 
