@@ -63,7 +63,11 @@ Example usage with AsyncSentienceBrowser (backward compatible):
 
 from __future__ import annotations
 
+import asyncio
+import difflib
+import time
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .models import Snapshot, SnapshotOptions
@@ -298,29 +302,23 @@ class AgentRuntime:
             True if assertion passed, False otherwise
         """
         outcome = predicate(self._ctx())
-
-        record = {
-            "label": label,
-            "passed": outcome.passed,
-            "required": required,
-            "reason": outcome.reason,
-            "details": outcome.details,
-        }
-        self._assertions_this_step.append(record)
-
-        # Emit dedicated verification event (Option B from design doc)
-        # This makes assertions visible in Studio timeline
-        self.tracer.emit(
-            "verification",
-            data={
-                "kind": "assert",
-                "passed": outcome.passed,
-                **record,
-            },
-            step_id=self.step_id,
+        self._record_outcome(
+            outcome=outcome,
+            label=label,
+            required=required,
+            kind="assert",
+            record_in_step=True,
         )
-
         return outcome.passed
+
+    def check(self, predicate: Predicate, label: str, required: bool = False) -> AssertionHandle:
+        """
+        Create an AssertionHandle for fluent `.once()` / `.eventually()` usage.
+
+        This does NOT evaluate the predicate immediately.
+        """
+
+        return AssertionHandle(runtime=self, predicate=predicate, label=label, required=required)
 
     def assert_done(
         self,
@@ -342,6 +340,7 @@ class AgentRuntime:
         Returns:
             True if task is complete (assertion passed), False otherwise
         """
+        # Convenience wrapper for assert_ with required=True
         ok = self.assertTrue(predicate, label=label, required=True)
         if ok:
             self._task_done = True
@@ -359,6 +358,197 @@ class AgentRuntime:
             )
 
         return ok
+
+    def _record_outcome(
+        self,
+        *,
+        outcome: Any,
+        label: str,
+        required: bool,
+        kind: str,
+        record_in_step: bool,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Internal helper: emit verification event and optionally accumulate for step_end.
+        """
+        details = dict(outcome.details or {})
+
+        # Failure intelligence: nearest matches for selector-driven assertions
+        if not outcome.passed and self.last_snapshot is not None and "selector" in details:
+            selector = str(details.get("selector") or "")
+            details.setdefault("nearest_matches", self._nearest_matches(selector, limit=3))
+
+        record = {
+            "label": label,
+            "passed": bool(outcome.passed),
+            "required": required,
+            "reason": str(outcome.reason or ""),
+            "details": details,
+        }
+        if extra:
+            record.update(extra)
+
+        if record_in_step:
+            self._assertions_this_step.append(record)
+
+        self.tracer.emit(
+            "verification",
+            data={
+                "kind": kind,
+                "passed": bool(outcome.passed),
+                **record,
+            },
+            step_id=self.step_id,
+        )
+
+    def _nearest_matches(self, selector: str, *, limit: int = 3) -> list[dict[str, Any]]:
+        """
+        Best-effort nearest match suggestions for debugging failed selector assertions.
+        """
+        if self.last_snapshot is None:
+            return []
+
+        s = selector.lower().strip()
+        if not s:
+            return []
+
+        scored: list[tuple[float, Any]] = []
+        for el in self.last_snapshot.elements:
+            hay = (getattr(el, "name", None) or getattr(el, "text", None) or "").strip()
+            if not hay:
+                continue
+            score = difflib.SequenceMatcher(None, s, hay.lower()).ratio()
+            scored.append((score, el))
+
+        scored.sort(key=lambda t: t[0], reverse=True)
+        out: list[dict[str, Any]] = []
+        for score, el in scored[:limit]:
+            out.append(
+                {
+                    "id": getattr(el, "id", None),
+                    "role": getattr(el, "role", None),
+                    "text": (getattr(el, "text", "") or "")[:80],
+                    "name": (getattr(el, "name", "") or "")[:80],
+                    "score": round(float(score), 4),
+                }
+            )
+        return out
+
+    def get_assertions_for_step_end(self) -> dict[str, Any]:
+        """
+        Get assertions data for inclusion in step_end.data.verify.signals.
+
+        Returns:
+            Dictionary with 'assertions', 'task_done', 'task_done_label' keys
+        """
+        result: dict[str, Any] = {
+            "assertions": self._assertions_this_step.copy(),
+        }
+
+        if self._task_done:
+            result["task_done"] = True
+            result["task_done_label"] = self._task_done_label
+
+        return result
+
+    def flush_assertions(self) -> list[dict[str, Any]]:
+        """
+        Get and clear assertions for current step.
+        """
+        assertions = self._assertions_this_step.copy()
+        self._assertions_this_step = []
+        return assertions
+
+    @property
+    def is_task_done(self) -> bool:
+        """Check if task has been marked as done via assert_done()."""
+        return self._task_done
+
+    def reset_task_done(self) -> None:
+        """Reset task_done state (for multi-task runs)."""
+        self._task_done = False
+        self._task_done_label = None
+
+    def all_assertions_passed(self) -> bool:
+        """Return True if all assertions in current step passed (or none)."""
+        return all(a["passed"] for a in self._assertions_this_step)
+
+    def required_assertions_passed(self) -> bool:
+        """Return True if all required assertions in current step passed (or none)."""
+        required = [a for a in self._assertions_this_step if a.get("required")]
+        return all(a["passed"] for a in required)
+
+
+@dataclass
+class AssertionHandle:
+    runtime: AgentRuntime
+    predicate: Predicate
+    label: str
+    required: bool = False
+
+    def once(self) -> bool:
+        """Evaluate once (same behavior as runtime.assert_)."""
+        return self.runtime.assert_(self.predicate, label=self.label, required=self.required)
+
+    async def eventually(
+        self,
+        *,
+        timeout_s: float = 10.0,
+        poll_s: float = 0.25,
+        snapshot_kwargs: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Retry until the predicate passes or timeout is reached.
+
+        Intermediate attempts emit verification events but do NOT accumulate in step_end assertions.
+        Final result is accumulated once.
+        """
+        deadline = time.monotonic() + timeout_s
+        attempt = 0
+        last_outcome = None
+
+        while True:
+            attempt += 1
+            await self.runtime.snapshot(**(snapshot_kwargs or {}))
+
+            last_outcome = self.predicate(self.runtime._ctx())
+
+            # Emit attempt event (not recorded in step_end)
+            self.runtime._record_outcome(
+                outcome=last_outcome,
+                label=self.label,
+                required=self.required,
+                kind="assert",
+                record_in_step=False,
+                extra={"eventually": True, "attempt": attempt},
+            )
+
+            if last_outcome.passed:
+                # Record final success once
+                self.runtime._record_outcome(
+                    outcome=last_outcome,
+                    label=self.label,
+                    required=self.required,
+                    kind="assert",
+                    record_in_step=True,
+                    extra={"eventually": True, "attempt": attempt, "final": True},
+                )
+                return True
+
+            if time.monotonic() >= deadline:
+                # Record final failure once
+                self.runtime._record_outcome(
+                    outcome=last_outcome,
+                    label=self.label,
+                    required=self.required,
+                    kind="assert",
+                    record_in_step=True,
+                    extra={"eventually": True, "attempt": attempt, "final": True, "timeout": True},
+                )
+                return False
+
+            await asyncio.sleep(poll_s)
 
     def get_assertions_for_step_end(self) -> dict[str, Any]:
         """

@@ -283,6 +283,48 @@ class TestAgentRuntimeAssertions:
         assert result is False
         assert runtime.is_task_done is False
 
+    @pytest.mark.asyncio
+    async def test_check_eventually_records_final_only(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+        runtime.begin_step(goal="Test")
+
+        # Two failing snapshots, then success
+        snaps = [
+            MagicMock(url="https://example.com", elements=[]),
+            MagicMock(url="https://example.com", elements=[]),
+            MagicMock(url="https://example.com/done", elements=[]),
+        ]
+
+        async def fake_snapshot(**_kwargs):
+            runtime.last_snapshot = snaps.pop(0)
+            return runtime.last_snapshot
+
+        runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+        def pred(ctx: AssertContext) -> AssertOutcome:
+            ok = (ctx.url or "").endswith("/done")
+            return AssertOutcome(
+                passed=ok,
+                reason="" if ok else "not done",
+                details={"selector": "text~'Done'", "reason_code": "ok" if ok else "no_match"},
+            )
+
+        handle = runtime.check(pred, label="eventually_done")
+        ok = await handle.eventually(timeout_s=2.0, poll_s=0.0)
+        assert ok is True
+
+        # Only the final record is accumulated for step_end
+        assert len(runtime._assertions_this_step) == 1
+        assert runtime._assertions_this_step[0]["label"] == "eventually_done"
+        assert runtime._assertions_this_step[0]["passed"] is True
+        assert runtime._assertions_this_step[0].get("final") is True
+
+        # But attempts emitted multiple verification events
+        assert len(tracer.events) >= 3
+        assert all(e["type"] == "verification" for e in tracer.events)
+
 
 class TestAgentRuntimeAssertionHelpers:
     """Tests for assertion helper methods."""

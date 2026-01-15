@@ -157,7 +157,7 @@ def exists(selector: str) -> Predicate:
             return AssertOutcome(
                 passed=False,
                 reason="no snapshot available",
-                details={"selector": selector},
+                details={"selector": selector, "reason_code": "no_snapshot"},
             )
 
         # Import here to avoid circular imports
@@ -168,7 +168,11 @@ def exists(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no elements matched selector: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "no_match",
+            },
         )
 
     return _pred
@@ -197,7 +201,7 @@ def not_exists(selector: str) -> Predicate:
             return AssertOutcome(
                 passed=False,
                 reason="no snapshot available",
-                details={"selector": selector},
+                details={"selector": selector, "reason_code": "no_snapshot"},
             )
 
         from .query import query
@@ -207,7 +211,11 @@ def not_exists(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"found {len(matches)} elements matching: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "unexpected_match",
+            },
         )
 
     return _pred
@@ -402,14 +410,18 @@ def is_enabled(selector: str) -> Predicate:
             return AssertOutcome(
                 passed=False,
                 reason=f"no elements matched selector: {selector}",
-                details={"selector": selector, "matched": 0},
+                details={"selector": selector, "matched": 0, "reason_code": "no_match"},
             )
 
         ok = any(m.disabled is not True for m in matches)
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"all matched elements are disabled: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -432,7 +444,11 @@ def is_disabled(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no matched elements are disabled: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -455,7 +471,11 @@ def is_checked(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no matched elements are checked: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -478,7 +498,11 @@ def is_unchecked(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"all matched elements are checked: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -501,7 +525,12 @@ def value_equals(selector: str, expected: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no matched elements had value == '{expected}'",
-            details={"selector": selector, "expected": expected, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "expected": expected,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -524,7 +553,12 @@ def value_contains(selector: str, substring: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no matched elements had value containing '{substring}'",
-            details={"selector": selector, "substring": substring, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "substring": substring,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -547,7 +581,11 @@ def is_expanded(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"no matched elements are expanded: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred
@@ -570,7 +608,11 @@ def is_collapsed(selector: str) -> Predicate:
         return AssertOutcome(
             passed=ok,
             reason="" if ok else f"all matched elements are expanded: {selector}",
-            details={"selector": selector, "matched": len(matches)},
+            details={
+                "selector": selector,
+                "matched": len(matches),
+                "reason_code": "ok" if ok else "state_mismatch",
+            },
         )
 
     return _pred

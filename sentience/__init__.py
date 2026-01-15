@@ -14,7 +14,7 @@ from ._extension_loader import (
 from .actions import click, click_rect, press, scroll_to, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
-from .agent_runtime import AgentRuntime
+from .agent_runtime import AgentRuntime, AssertionHandle
 
 # Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
