@@ -283,6 +283,130 @@ class TestAgentRuntimeAssertions:
         assert result is False
         assert runtime.is_task_done is False
 
+    @pytest.mark.asyncio
+    async def test_check_eventually_records_final_only(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+        runtime.begin_step(goal="Test")
+
+        # Two failing snapshots, then success
+        snaps = [
+            MagicMock(url="https://example.com", elements=[]),
+            MagicMock(url="https://example.com", elements=[]),
+            MagicMock(url="https://example.com/done", elements=[]),
+        ]
+
+        async def fake_snapshot(**_kwargs):
+            runtime.last_snapshot = snaps.pop(0)
+            return runtime.last_snapshot
+
+        runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+        def pred(ctx: AssertContext) -> AssertOutcome:
+            ok = (ctx.url or "").endswith("/done")
+            return AssertOutcome(
+                passed=ok,
+                reason="" if ok else "not done",
+                details={"selector": "text~'Done'", "reason_code": "ok" if ok else "no_match"},
+            )
+
+        handle = runtime.check(pred, label="eventually_done")
+        ok = await handle.eventually(timeout_s=2.0, poll_s=0.0)
+        assert ok is True
+
+        # Only the final record is accumulated for step_end
+        assert len(runtime._assertions_this_step) == 1
+        assert runtime._assertions_this_step[0]["label"] == "eventually_done"
+        assert runtime._assertions_this_step[0]["passed"] is True
+        assert runtime._assertions_this_step[0].get("final") is True
+
+        # But attempts emitted multiple verification events
+        assert len(tracer.events) >= 3
+        assert all(e["type"] == "verification" for e in tracer.events)
+
+    @pytest.mark.asyncio
+    async def test_check_eventually_snapshot_exhausted_min_confidence(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+        runtime.begin_step(goal="Test")
+
+        low_diag = MagicMock()
+        low_diag.confidence = 0.1
+        low_diag.model_dump = lambda: {"confidence": 0.1}
+
+        snaps = [
+            MagicMock(url="https://example.com", elements=[], diagnostics=low_diag),
+            MagicMock(url="https://example.com", elements=[], diagnostics=low_diag),
+        ]
+
+        async def fake_snapshot(**_kwargs):
+            runtime.last_snapshot = snaps.pop(0)
+            return runtime.last_snapshot
+
+        runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+        def pred(_ctx: AssertContext) -> AssertOutcome:
+            return AssertOutcome(passed=True, reason="would pass", details={})
+
+        handle = runtime.check(pred, label="min_confidence_gate")
+        ok = await handle.eventually(
+            timeout_s=5.0,
+            poll_s=0.0,
+            min_confidence=0.7,
+            max_snapshot_attempts=2,
+        )
+        assert ok is False
+
+        # Only the final record is accumulated for step_end
+        assert len(runtime._assertions_this_step) == 1
+        details = runtime._assertions_this_step[0]["details"]
+        assert details["reason_code"] == "snapshot_exhausted"
+
+    @pytest.mark.asyncio
+    async def test_check_eventually_vision_fallback_on_exhaustion(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+        runtime.begin_step(goal="Test")
+
+        low_diag = MagicMock()
+        low_diag.confidence = 0.1
+        low_diag.model_dump = lambda: {"confidence": 0.1}
+
+        async def fake_snapshot(**_kwargs):
+            runtime.last_snapshot = MagicMock(
+                url="https://example.com", elements=[], diagnostics=low_diag
+            )
+            return runtime.last_snapshot
+
+        runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+        class VisionProviderStub:
+            def supports_vision(self) -> bool:
+                return True
+
+            def generate_with_image(self, *_args, **_kwargs):
+                return MagicMock(content="YES")
+
+        def pred(_ctx: AssertContext) -> AssertOutcome:
+            return AssertOutcome(passed=False, reason="should not run", details={})
+
+        handle = runtime.check(pred, label="vision_fallback_check")
+        ok = await handle.eventually(
+            timeout_s=5.0,
+            poll_s=0.0,
+            min_confidence=0.7,
+            max_snapshot_attempts=1,
+            vision_provider=VisionProviderStub(),
+        )
+        assert ok is True
+        assert len(runtime._assertions_this_step) == 1
+        rec = runtime._assertions_this_step[0]
+        assert rec.get("vision_fallback") is True
+        assert rec["details"]["reason_code"] == "vision_fallback_pass"
+
 
 class TestAgentRuntimeAssertionHelpers:
     """Tests for assertion helper methods."""

@@ -29,6 +29,13 @@ def _build_snapshot_payload(
 
     Shared helper used by both sync and async snapshot implementations.
     """
+    diagnostics = raw_result.get("diagnostics") or {}
+    client_metrics = None
+    try:
+        client_metrics = diagnostics.get("metrics")
+    except Exception:
+        client_metrics = None
+
     return {
         "raw_elements": raw_result.get("raw_elements", []),
         "url": raw_result.get("url", ""),
@@ -38,6 +45,7 @@ def _build_snapshot_payload(
             "limit": options.limit,
             "filter": options.filter.model_dump() if options.filter else None,
         },
+        "client_metrics": client_metrics,
     }
 
 
@@ -133,6 +141,8 @@ def _merge_api_result_with_local(
         "screenshot": raw_result.get("screenshot"),  # Keep local screenshot
         "screenshot_format": raw_result.get("screenshot_format"),
         "error": api_result.get("error"),
+        # Phase 2: Runtime stability/debug info
+        "diagnostics": api_result.get("diagnostics", raw_result.get("diagnostics")),
         # Phase 2: Ordinal support - dominant group key from Gateway
         "dominant_group_key": api_result.get("dominant_group_key"),
     }

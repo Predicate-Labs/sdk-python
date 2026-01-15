@@ -14,7 +14,7 @@ from ._extension_loader import (
 from .actions import click, click_rect, press, scroll_to, type_text
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
-from .agent_runtime import AgentRuntime
+from .agent_runtime import AgentRuntime, AssertionHandle
 
 # Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
@@ -114,9 +114,17 @@ from .verification import (
     custom,
     element_count,
     exists,
+    is_checked,
+    is_collapsed,
+    is_disabled,
+    is_enabled,
+    is_expanded,
+    is_unchecked,
     not_exists,
     url_contains,
     url_matches,
+    value_contains,
+    value_equals,
 )
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for

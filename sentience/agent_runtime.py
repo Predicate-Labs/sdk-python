@@ -63,11 +63,15 @@ Example usage with AsyncSentienceBrowser (backward compatible):
 
 from __future__ import annotations
 
+import asyncio
+import difflib
+import time
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .models import Snapshot, SnapshotOptions
-from .verification import AssertContext, Predicate
+from .verification import AssertContext, AssertOutcome, Predicate
 
 if TYPE_CHECKING:
     from playwright.async_api import Page
@@ -298,29 +302,23 @@ class AgentRuntime:
             True if assertion passed, False otherwise
         """
         outcome = predicate(self._ctx())
-
-        record = {
-            "label": label,
-            "passed": outcome.passed,
-            "required": required,
-            "reason": outcome.reason,
-            "details": outcome.details,
-        }
-        self._assertions_this_step.append(record)
-
-        # Emit dedicated verification event (Option B from design doc)
-        # This makes assertions visible in Studio timeline
-        self.tracer.emit(
-            "verification",
-            data={
-                "kind": "assert",
-                "passed": outcome.passed,
-                **record,
-            },
-            step_id=self.step_id,
+        self._record_outcome(
+            outcome=outcome,
+            label=label,
+            required=required,
+            kind="assert",
+            record_in_step=True,
         )
-
         return outcome.passed
+
+    def check(self, predicate: Predicate, label: str, required: bool = False) -> AssertionHandle:
+        """
+        Create an AssertionHandle for fluent `.once()` / `.eventually()` usage.
+
+        This does NOT evaluate the predicate immediately.
+        """
+
+        return AssertionHandle(runtime=self, predicate=predicate, label=label, required=required)
 
     def assert_done(
         self,
@@ -342,7 +340,8 @@ class AgentRuntime:
         Returns:
             True if task is complete (assertion passed), False otherwise
         """
-        ok = self.assert_(predicate, label=label, required=True)
+        # Convenience wrapper for assert_ with required=True
+        ok = self.assertTrue(predicate, label=label, required=True)
         if ok:
             self._task_done = True
             self._task_done_label = label
@@ -360,12 +359,85 @@ class AgentRuntime:
 
         return ok
 
+    def _record_outcome(
+        self,
+        *,
+        outcome: Any,
+        label: str,
+        required: bool,
+        kind: str,
+        record_in_step: bool,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Internal helper: emit verification event and optionally accumulate for step_end.
+        """
+        details = dict(outcome.details or {})
+
+        # Failure intelligence: nearest matches for selector-driven assertions
+        if not outcome.passed and self.last_snapshot is not None and "selector" in details:
+            selector = str(details.get("selector") or "")
+            details.setdefault("nearest_matches", self._nearest_matches(selector, limit=3))
+
+        record = {
+            "label": label,
+            "passed": bool(outcome.passed),
+            "required": required,
+            "reason": str(outcome.reason or ""),
+            "details": details,
+        }
+        if extra:
+            record.update(extra)
+
+        if record_in_step:
+            self._assertions_this_step.append(record)
+
+        self.tracer.emit(
+            "verification",
+            data={
+                "kind": kind,
+                "passed": bool(outcome.passed),
+                **record,
+            },
+            step_id=self.step_id,
+        )
+
+    def _nearest_matches(self, selector: str, *, limit: int = 3) -> list[dict[str, Any]]:
+        """
+        Best-effort nearest match suggestions for debugging failed selector assertions.
+        """
+        if self.last_snapshot is None:
+            return []
+
+        s = selector.lower().strip()
+        if not s:
+            return []
+
+        scored: list[tuple[float, Any]] = []
+        for el in self.last_snapshot.elements:
+            hay = (getattr(el, "name", None) or getattr(el, "text", None) or "").strip()
+            if not hay:
+                continue
+            score = difflib.SequenceMatcher(None, s, hay.lower()).ratio()
+            scored.append((score, el))
+
+        scored.sort(key=lambda t: t[0], reverse=True)
+        out: list[dict[str, Any]] = []
+        for score, el in scored[:limit]:
+            out.append(
+                {
+                    "id": getattr(el, "id", None),
+                    "role": getattr(el, "role", None),
+                    "text": (getattr(el, "text", "") or "")[:80],
+                    "name": (getattr(el, "name", "") or "")[:80],
+                    "score": round(float(score), 4),
+                }
+            )
+        return out
+
     def get_assertions_for_step_end(self) -> dict[str, Any]:
         """
         Get assertions data for inclusion in step_end.data.verify.signals.
-
-        This is called when building the step_end event to include
-        assertion results in the trace.
 
         Returns:
             Dictionary with 'assertions', 'task_done', 'task_done_label' keys
@@ -383,12 +455,6 @@ class AgentRuntime:
     def flush_assertions(self) -> list[dict[str, Any]]:
         """
         Get and clear assertions for current step.
-
-        Call this at step end to get accumulated assertions
-        for the step_end event, then clear for next step.
-
-        Returns:
-            List of assertion records from this step
         """
         assertions = self._assertions_this_step.copy()
         self._assertions_this_step = []
@@ -405,20 +471,240 @@ class AgentRuntime:
         self._task_done_label = None
 
     def all_assertions_passed(self) -> bool:
-        """
-        Check if all assertions in current step passed.
-
-        Returns:
-            True if all assertions passed (or no assertions made)
-        """
+        """Return True if all assertions in current step passed (or none)."""
         return all(a["passed"] for a in self._assertions_this_step)
 
     def required_assertions_passed(self) -> bool:
-        """
-        Check if all required assertions in current step passed.
-
-        Returns:
-            True if all required assertions passed (or no required assertions)
-        """
+        """Return True if all required assertions in current step passed (or none)."""
         required = [a for a in self._assertions_this_step if a.get("required")]
         return all(a["passed"] for a in required)
+
+
+@dataclass
+class AssertionHandle:
+    runtime: AgentRuntime
+    predicate: Predicate
+    label: str
+    required: bool = False
+
+    def once(self) -> bool:
+        """Evaluate once (same behavior as runtime.assert_)."""
+        return self.runtime.assert_(self.predicate, label=self.label, required=self.required)
+
+    async def eventually(
+        self,
+        *,
+        timeout_s: float = 10.0,
+        poll_s: float = 0.25,
+        min_confidence: float | None = None,
+        max_snapshot_attempts: int = 3,
+        snapshot_kwargs: dict[str, Any] | None = None,
+        vision_provider: Any | None = None,
+        vision_system_prompt: str | None = None,
+        vision_user_prompt: str | None = None,
+    ) -> bool:
+        """
+        Retry until the predicate passes or timeout is reached.
+
+        Intermediate attempts emit verification events but do NOT accumulate in step_end assertions.
+        Final result is accumulated once.
+        """
+        deadline = time.monotonic() + timeout_s
+        attempt = 0
+        snapshot_attempt = 0
+        last_outcome = None
+
+        while True:
+            attempt += 1
+            await self.runtime.snapshot(**(snapshot_kwargs or {}))
+            snapshot_attempt += 1
+
+            # Optional: gate predicate evaluation on snapshot confidence.
+            # If diagnostics are missing, we don't block (backward compatible).
+            confidence = None
+            diagnostics = None
+            if self.runtime.last_snapshot is not None:
+                diagnostics = getattr(self.runtime.last_snapshot, "diagnostics", None)
+                if diagnostics is not None:
+                    confidence = getattr(diagnostics, "confidence", None)
+
+            if (
+                min_confidence is not None
+                and confidence is not None
+                and isinstance(confidence, (int, float))
+                and confidence < min_confidence
+            ):
+                last_outcome = AssertOutcome(
+                    passed=False,
+                    reason=f"Snapshot confidence {confidence:.3f} < min_confidence {min_confidence:.3f}",
+                    details={
+                        "reason_code": "snapshot_low_confidence",
+                        "confidence": confidence,
+                        "min_confidence": min_confidence,
+                        "snapshot_attempt": snapshot_attempt,
+                        "diagnostics": (
+                            diagnostics.model_dump()
+                            if hasattr(diagnostics, "model_dump")
+                            else diagnostics
+                        ),
+                    },
+                )
+
+                # Emit attempt event (not recorded in step_end)
+                self.runtime._record_outcome(
+                    outcome=last_outcome,
+                    label=self.label,
+                    required=self.required,
+                    kind="assert",
+                    record_in_step=False,
+                    extra={
+                        "eventually": True,
+                        "attempt": attempt,
+                        "snapshot_attempt": snapshot_attempt,
+                    },
+                )
+
+                if snapshot_attempt >= max_snapshot_attempts:
+                    # Optional: vision fallback as last resort (Phase 2-lite).
+                    # This keeps the assertion surface invariant; only the perception layer changes.
+                    if (
+                        vision_provider is not None
+                        and getattr(vision_provider, "supports_vision", lambda: False)()
+                    ):
+                        try:
+                            import base64
+
+                            png_bytes = await self.runtime.backend.screenshot_png()
+                            image_b64 = base64.b64encode(png_bytes).decode("utf-8")
+
+                            sys_prompt = vision_system_prompt or (
+                                "You are a strict visual verifier. Answer only YES or NO."
+                            )
+                            user_prompt = vision_user_prompt or (
+                                f"Given the screenshot, is the following condition satisfied?\n\n{self.label}\n\nAnswer YES or NO."
+                            )
+
+                            resp = vision_provider.generate_with_image(
+                                sys_prompt,
+                                user_prompt,
+                                image_base64=image_b64,
+                                temperature=0.0,
+                            )
+                            text = (resp.content or "").strip().lower()
+                            passed = text.startswith("yes")
+
+                            final_outcome = AssertOutcome(
+                                passed=passed,
+                                reason="vision_fallback_yes" if passed else "vision_fallback_no",
+                                details={
+                                    "reason_code": (
+                                        "vision_fallback_pass" if passed else "vision_fallback_fail"
+                                    ),
+                                    "vision_response": resp.content,
+                                    "min_confidence": min_confidence,
+                                    "snapshot_attempts": snapshot_attempt,
+                                },
+                            )
+                            self.runtime._record_outcome(
+                                outcome=final_outcome,
+                                label=self.label,
+                                required=self.required,
+                                kind="assert",
+                                record_in_step=True,
+                                extra={
+                                    "eventually": True,
+                                    "attempt": attempt,
+                                    "snapshot_attempt": snapshot_attempt,
+                                    "final": True,
+                                    "vision_fallback": True,
+                                },
+                            )
+                            return passed
+                        except Exception as e:
+                            # If vision fallback fails, fall through to snapshot_exhausted.
+                            last_outcome.details["vision_error"] = str(e)
+
+                    final_outcome = AssertOutcome(
+                        passed=False,
+                        reason=f"Snapshot exhausted after {snapshot_attempt} attempt(s) below min_confidence {min_confidence:.3f}",
+                        details={
+                            "reason_code": "snapshot_exhausted",
+                            "confidence": confidence,
+                            "min_confidence": min_confidence,
+                            "snapshot_attempts": snapshot_attempt,
+                            "diagnostics": last_outcome.details.get("diagnostics"),
+                        },
+                    )
+                    self.runtime._record_outcome(
+                        outcome=final_outcome,
+                        label=self.label,
+                        required=self.required,
+                        kind="assert",
+                        record_in_step=True,
+                        extra={
+                            "eventually": True,
+                            "attempt": attempt,
+                            "snapshot_attempt": snapshot_attempt,
+                            "final": True,
+                            "exhausted": True,
+                        },
+                    )
+                    return False
+
+                if time.monotonic() >= deadline:
+                    self.runtime._record_outcome(
+                        outcome=last_outcome,
+                        label=self.label,
+                        required=self.required,
+                        kind="assert",
+                        record_in_step=True,
+                        extra={
+                            "eventually": True,
+                            "attempt": attempt,
+                            "snapshot_attempt": snapshot_attempt,
+                            "final": True,
+                            "timeout": True,
+                        },
+                    )
+                    return False
+
+                await asyncio.sleep(poll_s)
+                continue
+
+            last_outcome = self.predicate(self.runtime._ctx())
+
+            # Emit attempt event (not recorded in step_end)
+            self.runtime._record_outcome(
+                outcome=last_outcome,
+                label=self.label,
+                required=self.required,
+                kind="assert",
+                record_in_step=False,
+                extra={"eventually": True, "attempt": attempt},
+            )
+
+            if last_outcome.passed:
+                # Record final success once
+                self.runtime._record_outcome(
+                    outcome=last_outcome,
+                    label=self.label,
+                    required=self.required,
+                    kind="assert",
+                    record_in_step=True,
+                    extra={"eventually": True, "attempt": attempt, "final": True},
+                )
+                return True
+
+            if time.monotonic() >= deadline:
+                # Record final failure once
+                self.runtime._record_outcome(
+                    outcome=last_outcome,
+                    label=self.label,
+                    required=self.required,
+                    kind="assert",
+                    record_in_step=True,
+                    extra={"eventually": True, "attempt": attempt, "final": True, "timeout": True},
+                )
+                return False
+
+            await asyncio.sleep(poll_s)

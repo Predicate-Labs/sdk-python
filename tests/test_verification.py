@@ -13,9 +13,17 @@ from sentience.verification import (
     custom,
     element_count,
     exists,
+    is_checked,
+    is_collapsed,
+    is_disabled,
+    is_enabled,
+    is_expanded,
+    is_unchecked,
     not_exists,
     url_contains,
     url_matches,
+    value_contains,
+    value_equals,
 )
 
 
@@ -237,6 +245,46 @@ class TestAnyOf:
         ctx = AssertContext(snapshot=snap, url=snap.url)
         outcome = pred(ctx)
         assert outcome.passed is True
+
+
+class TestStateAwarePredicates:
+    def test_is_enabled_and_disabled(self):
+        el1 = make_element(1, role="button", text="Submit")
+        el2 = make_element(2, role="button", text="Disabled")
+        el2 = el2.model_copy(update={"disabled": True})
+        snap = make_snapshot([el1, el2])
+        ctx = AssertContext(snapshot=snap, url=snap.url)
+
+        assert is_enabled("role=button")(ctx).passed is True
+        assert is_disabled("text~'Disabled'")(ctx).passed is True
+
+    def test_checked_unchecked(self):
+        el1 = make_element(1, role="checkbox", text="Opt in").model_copy(update={"checked": True})
+        el2 = make_element(2, role="checkbox", text="Opt out").model_copy(update={"checked": False})
+        snap = make_snapshot([el1, el2])
+        ctx = AssertContext(snapshot=snap, url=snap.url)
+
+        assert is_checked("text~'Opt in'")(ctx).passed is True
+        assert is_unchecked("text~'Opt out'")(ctx).passed is True
+
+    def test_value_equals_contains(self):
+        el = make_element(1, role="textbox", text=None).model_copy(
+            update={"value": "user@example.com"}
+        )
+        snap = make_snapshot([el])
+        ctx = AssertContext(snapshot=snap, url=snap.url)
+
+        assert value_equals("role=textbox", "user@example.com")(ctx).passed is True
+        assert value_contains("role=textbox", "@example.com")(ctx).passed is True
+
+    def test_expanded_collapsed(self):
+        el1 = make_element(1, role="button", text="Menu").model_copy(update={"expanded": True})
+        el2 = make_element(2, role="button", text="Details").model_copy(update={"expanded": False})
+        snap = make_snapshot([el1, el2])
+        ctx = AssertContext(snapshot=snap, url=snap.url)
+
+        assert is_expanded("text~'Menu'")(ctx).passed is True
+        assert is_collapsed("text~'Details'")(ctx).passed is True
 
     def test_second_passes(self):
         elements = [make_element(1, role="button", text="Complete")]

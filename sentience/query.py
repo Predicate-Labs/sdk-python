@@ -52,16 +52,28 @@ def parse_selector(selector: str) -> dict[str, Any]:  # noqa: C901
                 query["visible"] = False
         elif op == "~":
             # Substring match (case-insensitive)
-            if key == "text" or key == "name":
+            if key == "text":
                 query["text_contains"] = value
+            elif key == "name":
+                query["name_contains"] = value
+            elif key == "value":
+                query["value_contains"] = value
         elif op == "^=":
             # Prefix match
-            if key == "text" or key == "name":
+            if key == "text":
                 query["text_prefix"] = value
+            elif key == "name":
+                query["name_prefix"] = value
+            elif key == "value":
+                query["value_prefix"] = value
         elif op == "$=":
             # Suffix match
-            if key == "text" or key == "name":
+            if key == "text":
                 query["text_suffix"] = value
+            elif key == "name":
+                query["name_suffix"] = value
+            elif key == "value":
+                query["value_suffix"] = value
         elif op == ">":
             # Greater than
             if is_numeric:
@@ -116,8 +128,14 @@ def parse_selector(selector: str) -> dict[str, Any]:  # noqa: C901
                 query["visible"] = value.lower() == "true"
             elif key == "tag":
                 query["tag"] = value
-            elif key == "name" or key == "text":
+            elif key == "text":
                 query["text"] = value
+            elif key == "name":
+                query["name"] = value
+            elif key == "value":
+                query["value"] = value
+            elif key in ("checked", "disabled", "expanded"):
+                query[key] = value.lower() == "true"
             elif key == "importance" and is_numeric:
                 query["importance"] = numeric_value
             elif key.startswith("attr."):
@@ -190,6 +208,50 @@ def match_element(element: Element, query: dict[str, Any]) -> bool:  # noqa: C90
         if not element.text:
             return False
         if not element.text.lower().endswith(query["text_suffix"].lower()):
+            return False
+
+    # Name matching (best-effort; fallback to text for backward compatibility)
+    name_val = element.name or element.text or ""
+    if "name" in query:
+        if not name_val or name_val != query["name"]:
+            return False
+    if "name_contains" in query:
+        if not name_val or query["name_contains"].lower() not in name_val.lower():
+            return False
+    if "name_prefix" in query:
+        if not name_val or not name_val.lower().startswith(query["name_prefix"].lower()):
+            return False
+    if "name_suffix" in query:
+        if not name_val or not name_val.lower().endswith(query["name_suffix"].lower()):
+            return False
+
+    # Value matching (inputs/textarea/select)
+    if "value" in query:
+        if element.value is None or element.value != query["value"]:
+            return False
+    if "value_contains" in query:
+        if element.value is None or query["value_contains"].lower() not in element.value.lower():
+            return False
+    if "value_prefix" in query:
+        if element.value is None or not element.value.lower().startswith(
+            query["value_prefix"].lower()
+        ):
+            return False
+    if "value_suffix" in query:
+        if element.value is None or not element.value.lower().endswith(
+            query["value_suffix"].lower()
+        ):
+            return False
+
+    # State matching (best-effort)
+    if "checked" in query:
+        if (element.checked is True) != query["checked"]:
+            return False
+    if "disabled" in query:
+        if (element.disabled is True) != query["disabled"]:
+            return False
+    if "expanded" in query:
+        if (element.expanded is True) != query["expanded"]:
             return False
 
     # Importance filtering

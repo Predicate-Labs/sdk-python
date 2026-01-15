@@ -17,6 +17,20 @@ def test_parse_selector():
     q = parse_selector("text~'Sign in'")
     assert q["text_contains"] == "Sign in"
 
+    # Name contains (separate from text)
+    q = parse_selector("name~'Email'")
+    assert q["name_contains"] == "Email"
+
+    # Value contains
+    q = parse_selector("value~'@example.com'")
+    assert q["value_contains"] == "@example.com"
+
+    # State booleans
+    q = parse_selector("disabled=true checked=false expanded=true")
+    assert q["disabled"] is True
+    assert q["checked"] is False
+    assert q["expanded"] is True
+
     # Clickable
     q = parse_selector("clickable=true")
     assert q["clickable"] is True
@@ -76,6 +90,11 @@ def test_match_element():
         in_viewport=True,
         is_occluded=False,
         z_index=10,
+        name="Sign In",
+        value=None,
+        disabled=False,
+        checked=None,
+        expanded=None,
     )
 
     # Role match
@@ -93,6 +112,24 @@ def test_match_element():
     # Text suffix
     assert match_element(element, {"text_suffix": "In"}) is True
     assert match_element(element, {"text_suffix": "Out"}) is False
+
+    # Name contains (should match name, fallback to text if name missing)
+    assert match_element(element, {"name_contains": "Sign"}) is True
+    assert match_element(element, {"name_contains": "Logout"}) is False
+
+    # Value matching
+    element_with_value = element.model_copy(update={"value": "user@example.com"})
+    assert match_element(element_with_value, {"value_contains": "@example.com"}) is True
+    assert match_element(element_with_value, {"value": "user@example.com"}) is True
+    assert match_element(element_with_value, {"value": "nope"}) is False
+
+    # State matching (best-effort)
+    element_checked = element.model_copy(update={"checked": True})
+    assert match_element(element_checked, {"checked": True}) is True
+    assert match_element(element_checked, {"checked": False}) is False
+    element_disabled = element.model_copy(update={"disabled": True})
+    assert match_element(element_disabled, {"disabled": True}) is True
+    assert match_element(element_disabled, {"disabled": False}) is False
 
     # Clickable
     assert match_element(element, {"clickable": True}) is True
