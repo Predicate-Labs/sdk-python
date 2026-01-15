@@ -250,7 +250,9 @@ class Snapshot(BaseModel):
             if max_dominant_count > 0:
                 # Find grid(s) with highest count
                 dominant_grids = [
-                    gid for gid, (count, _total) in grid_dominant_counts.items() if count == max_dominant_count
+                    gid
+                    for gid, (count, _total) in grid_dominant_counts.items()
+                    if count == max_dominant_count
                 ]
                 # If multiple grids tie, prefer the one with highest percentage
                 if len(dominant_grids) > 1:

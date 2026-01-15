@@ -10,7 +10,7 @@ This example shows:
 import asyncio
 import os
 
-from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience import AgentRuntime, AsyncSentienceBrowser
 from sentience.tracing import JsonlTraceSink, Tracer
 from sentience.verification import exists
 
@@ -21,7 +21,9 @@ async def main() -> None:
 
     async with AsyncSentienceBrowser(headless=True) as browser:
         page = await browser.new_page()
-        runtime = await AgentRuntime.from_sentience_browser(browser=browser, page=page, tracer=tracer)
+        runtime = await AgentRuntime.from_sentience_browser(
+            browser=browser, page=page, tracer=tracer
+        )
         if sentience_api_key:
             runtime.sentience_api_key = sentience_api_key
 
@@ -46,4 +48,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

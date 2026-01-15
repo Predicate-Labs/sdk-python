@@ -13,14 +13,16 @@ Env vars:
 import asyncio
 import os
 
-from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience import AgentRuntime, AsyncSentienceBrowser
 from sentience.llm_provider import OpenAIProvider
 from sentience.tracing import JsonlTraceSink, Tracer
 from sentience.verification import exists
 
 
 async def main() -> None:
-    tracer = Tracer(run_id="asserts-v2-vision", sink=JsonlTraceSink("trace_asserts_v2_vision.jsonl"))
+    tracer = Tracer(
+        run_id="asserts-v2-vision", sink=JsonlTraceSink("trace_asserts_v2_vision.jsonl")
+    )
     sentience_api_key = os.getenv("SENTIENCE_API_KEY")
 
     # Any provider implementing supports_vision() + generate_with_image() works.
@@ -28,14 +30,18 @@ async def main() -> None:
 
     async with AsyncSentienceBrowser(headless=True) as browser:
         page = await browser.new_page()
-        runtime = await AgentRuntime.from_sentience_browser(browser=browser, page=page, tracer=tracer)
+        runtime = await AgentRuntime.from_sentience_browser(
+            browser=browser, page=page, tracer=tracer
+        )
         if sentience_api_key:
             runtime.sentience_api_key = sentience_api_key
 
         await page.goto("https://example.com")
         runtime.begin_step("Assert v2 vision fallback")
 
-        ok = await runtime.check(exists("text~'Example Domain'"), label="example_domain_text").eventually(
+        ok = await runtime.check(
+            exists("text~'Example Domain'"), label="example_domain_text"
+        ).eventually(
             timeout_s=10.0,
             poll_s=0.25,
             min_confidence=0.7,
@@ -50,4 +56,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

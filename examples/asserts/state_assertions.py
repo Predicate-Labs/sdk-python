@@ -11,7 +11,7 @@ Env vars:
 import asyncio
 import os
 
-from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience import AgentRuntime, AsyncSentienceBrowser
 from sentience.tracing import JsonlTraceSink, Tracer
 from sentience.verification import (
     exists,
@@ -30,7 +30,9 @@ async def main() -> None:
 
     async with AsyncSentienceBrowser(headless=True) as browser:
         page = await browser.new_page()
-        runtime = await AgentRuntime.from_sentience_browser(browser=browser, page=page, tracer=tracer)
+        runtime = await AgentRuntime.from_sentience_browser(
+            browser=browser, page=page, tracer=tracer
+        )
 
         # If you have a Pro/Enterprise key, set it on the runtime so snapshots use the Gateway.
         # (This improves selector quality and unlocks state-aware fields for assertions.)
@@ -44,10 +46,16 @@ async def main() -> None:
         # v1: state-aware assertions (examples)
         runtime.assert_(exists("role=heading"), label="has_heading")
         runtime.assert_(is_enabled("role=link"), label="some_link_enabled")
-        runtime.assert_(is_disabled("role=button text~'continue'"), label="continue_disabled_if_present")
-        runtime.assert_(is_checked("role=checkbox name~'subscribe'"), label="subscribe_checked_if_present")
+        runtime.assert_(
+            is_disabled("role=button text~'continue'"), label="continue_disabled_if_present"
+        )
+        runtime.assert_(
+            is_checked("role=checkbox name~'subscribe'"), label="subscribe_checked_if_present"
+        )
         runtime.assert_(is_expanded("role=button name~'more'"), label="more_is_expanded_if_present")
-        runtime.assert_(value_contains("role=textbox name~'email'", "@"), label="email_has_at_if_present")
+        runtime.assert_(
+            value_contains("role=textbox name~'email'", "@"), label="email_has_at_if_present"
+        )
 
         # Failure intelligence: if something fails you’ll see:
         # - details.reason_code
@@ -58,4 +66,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

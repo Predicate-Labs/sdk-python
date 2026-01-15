@@ -13,4 +13,3 @@ python examples/asserts/v1_state_assertions.py
 python examples/asserts/v2_eventually_min_confidence.py
 python examples/asserts/v2_vision_fallback.py
 ```
-
