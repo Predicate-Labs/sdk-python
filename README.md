@@ -31,7 +31,14 @@ Use `AgentRuntime` to add Jest-style assertions to your agent loops. Verify brow
 ```python
 import asyncio
 from sentience import AsyncSentienceBrowser, AgentRuntime
-from sentience.verification import url_contains, exists, all_of
+from sentience.verification import (
+    url_contains,
+    exists,
+    all_of,
+    is_enabled,
+    is_checked,
+    value_equals,
+)
 from sentience.tracing import Tracer, JsonlTraceSink
 
 async def main():
@@ -52,13 +59,26 @@ async def main():
         runtime.begin_step("Verify page loaded")
         await runtime.snapshot()
 
-        # Run assertions (Jest-style)
+        # v1: deterministic assertions (Jest-style)
         runtime.assert_(url_contains("example.com"), label="on_correct_domain")
         runtime.assert_(exists("role=heading"), label="has_heading")
         runtime.assert_(all_of([
             exists("role=button"),
             exists("role=link")
         ]), label="has_interactive_elements")
+
+        # v1: state-aware assertions (when Gateway refinement is enabled)
+        runtime.assert_(is_enabled("role=button"), label="button_enabled")
+        runtime.assert_(is_checked("role=checkbox name~'subscribe'"), label="subscribe_checked_if_present")
+        runtime.assert_(value_equals("role=textbox name~'email'", "user@example.com"), label="email_value_if_present")
+
+        # v2: retry loop with snapshot confidence gating + exhaustion
+        ok = await runtime.check(
+            exists("role=heading"),
+            label="heading_eventually_visible",
+            required=True,
+        ).eventually(timeout_s=10.0, poll_s=0.25, min_confidence=0.7, max_snapshot_attempts=3)
+        print("eventually() result:", ok)
 
         # Check task completion
         if runtime.assert_done(exists("text~'Example'"), label="task_complete"):
@@ -69,7 +89,7 @@ async def main():
 asyncio.run(main())
 ```
 
-**See example:** [`examples/agent_runtime_verification.py`](examples/agent_runtime_verification.py)
+**See examples:** [`examples/asserts/`](examples/asserts/)
 
 ## 🚀 Quick Start: Choose Your Abstraction Level
 
@@ -183,55 +203,34 @@ scroll_to(browser, button.id, behavior='instant', block='start')
 ---
 
 <details>
-<summary><h2>💼 Real-World Example: Amazon Shopping Bot</h2></summary>
+<summary><h2>💼 Real-World Example: Assertion-driven navigation</h2></summary>
 
-This example demonstrates navigating Amazon, finding products, and adding items to cart:
+This example shows how to use **assertions + `.eventually()`** to make an agent loop resilient:
 
 ```python
-from sentience import SentienceBrowser, snapshot, find, click
-import time
+import asyncio
+import os
+from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience.tracing import Tracer, JsonlTraceSink
+from sentience.verification import url_contains, exists
 
-with SentienceBrowser(headless=False) as browser:
-    # Navigate to Amazon Best Sellers
-    browser.goto("https://www.amazon.com/gp/bestsellers/", wait_until="domcontentloaded")
-    time.sleep(2)  # Wait for dynamic content
+async def main():
+    tracer = Tracer(run_id="verified-run", sink=JsonlTraceSink("trace_verified.jsonl"))
+    async with AsyncSentienceBrowser(headless=True) as browser:
+        page = await browser.new_page()
+        runtime = await AgentRuntime.from_sentience_browser(browser=browser, page=page, tracer=tracer)
+        runtime.sentience_api_key = os.getenv("SENTIENCE_API_KEY")  # optional, enables Gateway diagnostics
 
-    # Take snapshot and find products
-    snap = snapshot(browser)
-    print(f"Found {len(snap.elements)} elements")
+        await page.goto("https://example.com")
+        runtime.begin_step("Verify we're on the right page")
 
-    # Find first product in viewport using spatial filtering
-    products = [
-        el for el in snap.elements
-        if el.role == "link"
-        and el.visual_cues.is_clickable
-        and el.in_viewport
-        and not el.is_occluded
-        and el.bbox.y < 600  # First row
-    ]
+        await runtime.check(url_contains("example.com"), label="on_domain", required=True).eventually(
+            timeout_s=10.0, poll_s=0.25, min_confidence=0.7, max_snapshot_attempts=3
+        )
+        runtime.assert_(exists("role=heading"), label="heading_present")
 
-    if products:
-        # Sort by position (left to right, top to bottom)
-        products.sort(key=lambda e: (e.bbox.y, e.bbox.x))
-        first_product = products[0]
-
-        print(f"Clicking: {first_product.text}")
-        result = click(browser, first_product.id)
-
-        # Wait for product page
-        browser.page.wait_for_load_state("networkidle")
-        time.sleep(2)
-
-        # Find and click "Add to Cart" button
-        product_snap = snapshot(browser)
-        add_to_cart = find(product_snap, "role=button text~'add to cart'")
-
-        if add_to_cart:
-            cart_result = click(browser, add_to_cart.id)
-            print(f"Added to cart: {cart_result.success}")
+asyncio.run(main())
 ```
-
-**📖 See the complete tutorial:** [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)
 
 </details>
 

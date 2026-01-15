@@ -165,6 +165,116 @@ class Snapshot(BaseModel):
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.model_dump(), f, indent=2)
 
+    def get_grid_bounds(self, grid_id: int | None = None) -> list[GridInfo]:
+        """
+        Get grid coordinates (bounding boxes) for detected grids.
+
+        Groups elements by grid_id and computes the overall bounding box,
+        row/column counts, and item count for each grid.
+
+        Args:
+            grid_id: Optional grid ID to filter by. If None, returns all grids.
+
+        Returns:
+            List of GridInfo objects, one per detected grid, sorted by grid_id.
+        """
+        from collections import defaultdict
+
+        # Group elements by grid_id
+        grid_elements: dict[int, list[Element]] = defaultdict(list)
+
+        for elem in self.elements:
+            if elem.layout and elem.layout.grid_id is not None:
+                grid_elements[elem.layout.grid_id].append(elem)
+
+        # Filter by grid_id if specified
+        if grid_id is not None:
+            if grid_id not in grid_elements:
+                return []
+            grid_elements = {grid_id: grid_elements[grid_id]}
+
+        grid_infos: list[GridInfo] = []
+
+        # First pass: compute all grid infos and count dominant group elements
+        grid_dominant_counts: dict[int, tuple[int, int]] = {}
+        for gid, elements_in_grid in sorted(grid_elements.items()):
+            if not elements_in_grid:
+                continue
+
+            # Count dominant group elements in this grid
+            dominant_count = sum(1 for elem in elements_in_grid if elem.in_dominant_group is True)
+            grid_dominant_counts[gid] = (dominant_count, len(elements_in_grid))
+
+            # Compute bounding box
+            min_x = min(elem.bbox.x for elem in elements_in_grid)
+            min_y = min(elem.bbox.y for elem in elements_in_grid)
+            max_x = max(elem.bbox.x + elem.bbox.width for elem in elements_in_grid)
+            max_y = max(elem.bbox.y + elem.bbox.height for elem in elements_in_grid)
+
+            # Count rows and columns
+            row_indices = set()
+            col_indices = set()
+
+            for elem in elements_in_grid:
+                if elem.layout and elem.layout.grid_pos:
+                    row_indices.add(elem.layout.grid_pos.row_index)
+                    col_indices.add(elem.layout.grid_pos.col_index)
+
+            # Infer grid label from element patterns (best-effort heuristic)
+            # Keep the heuristic implementation in one place.
+            label = SnapshotDiagnostics._infer_grid_label(elements_in_grid)
+
+            grid_infos.append(
+                GridInfo(
+                    grid_id=gid,
+                    bbox=BBox(
+                        x=min_x,
+                        y=min_y,
+                        width=max_x - min_x,
+                        height=max_y - min_y,
+                    ),
+                    row_count=len(row_indices) if row_indices else 0,
+                    col_count=len(col_indices) if col_indices else 0,
+                    item_count=len(elements_in_grid),
+                    confidence=1.0,
+                    label=label,
+                    is_dominant=False,  # Will be set below
+                )
+            )
+
+        # Second pass: identify dominant grid
+        # The grid with the highest count (or highest percentage >= 50%) of dominant group elements
+        if grid_dominant_counts:
+            # Find grid with highest absolute count
+            max_dominant_count = max(count for count, _ in grid_dominant_counts.values())
+            if max_dominant_count > 0:
+                # Find grid(s) with highest count
+                dominant_grids = [
+                    gid for gid, (count, _total) in grid_dominant_counts.items() if count == max_dominant_count
+                ]
+                # If multiple grids tie, prefer the one with highest percentage
+                if len(dominant_grids) > 1:
+                    dominant_grids.sort(
+                        key=lambda gid: (
+                            grid_dominant_counts[gid][0] / grid_dominant_counts[gid][1]
+                            if grid_dominant_counts[gid][1] > 0
+                            else 0
+                        ),
+                        reverse=True,
+                    )
+
+                # Mark the dominant grid
+                dominant_gid = dominant_grids[0]
+                # Only mark as dominant if it has >= 50% dominant group elements or >= 3 elements
+                dominant_count, total_count = grid_dominant_counts[dominant_gid]
+                if dominant_count >= 3 or (total_count > 0 and dominant_count / total_count >= 0.5):
+                    for grid_info in grid_infos:
+                        if grid_info.grid_id == dominant_gid:
+                            grid_info.is_dominant = True
+                            break
+
+        return grid_infos
+
 
 class SnapshotDiagnosticsMetrics(BaseModel):
     ready_state: str | None = None
