@@ -1,5 +1,3 @@
-from typing import Optional
-
 """
 LLM Provider abstraction layer for Sentience SDK
 Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider
@@ -743,15 +741,22 @@ class LocalLLMProvider(LLMProvider):
         """
         super().__init__(model_name)  # Initialize base class with model name
 
-        # Import required packages with consistent error handling
+        # Import required packages with consistent error handling.
+        # These are optional dependencies, so keep them out of module import-time.
         try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-        except ImportError:
+            import torch  # type: ignore[import-not-found]
+            from transformers import (  # type: ignore[import-not-found]
+                AutoModelForCausalLM,
+                AutoTokenizer,
+                BitsAndBytesConfig,
+            )
+        except ImportError as exc:
             raise ImportError(
                 "transformers and torch required for local LLM. "
                 "Install with: pip install transformers torch"
-            )
+            ) from exc
+
+        self._torch = torch
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -812,7 +817,7 @@ class LocalLLMProvider(LLMProvider):
         Returns:
             LLMResponse object
         """
-        import torch
+        torch = self._torch
 
         # Auto-determine sampling based on temperature
         do_sample = temperature > 0
@@ -873,3 +878,435 @@ class LocalLLMProvider(LLMProvider):
     @property
     def model_name(self) -> str:
         return self._model_name
+
+
+class LocalVisionLLMProvider(LLMProvider):
+    """
+    Local vision-language LLM provider using HuggingFace Transformers.
+
+    Intended for models like:
+    - Qwen/Qwen3-VL-8B-Instruct
+
+    Notes on Mac (MPS) + quantization:
+    - Transformers BitsAndBytes (4-bit/8-bit) typically requires CUDA and does NOT work on MPS.
+    - If you want quantized local vision on Apple Silicon, you may prefer MLX-based stacks
+      (e.g., mlx-vlm) or llama.cpp/gguf pipelines.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen3-VL-8B-Instruct",
+        device: str = "auto",
+        torch_dtype: str = "auto",
+        load_in_4bit: bool = False,
+        load_in_8bit: bool = False,
+        trust_remote_code: bool = True,
+    ):
+        super().__init__(model_name)
+
+        # Import required packages with consistent error handling
+        try:
+            import torch  # type: ignore[import-not-found]
+            from transformers import AutoProcessor  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise ImportError(
+                "transformers and torch are required for LocalVisionLLMProvider. "
+                "Install with: pip install transformers torch"
+            ) from exc
+
+        self._torch = torch
+
+        # Resolve device
+        if device == "auto":
+            if (
+                getattr(torch.backends, "mps", None) is not None
+                and torch.backends.mps.is_available()
+            ):
+                device = "mps"
+            elif torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
+
+        if device == "mps" and (load_in_4bit or load_in_8bit):
+            raise ValueError(
+                "Quantized (4-bit/8-bit) Transformers loading is typically not supported on Apple MPS. "
+                "Set load_in_4bit/load_in_8bit to False for MPS, or use a different local runtime "
+                "(e.g., MLX/llama.cpp) for quantized vision models."
+            )
+
+        # Determine torch dtype
+        if torch_dtype == "auto":
+            dtype = torch.float16 if device in ("cuda", "mps") else torch.float32
+        else:
+            dtype = getattr(torch, torch_dtype)
+
+        # Load processor
+        self.processor = AutoProcessor.from_pretrained(
+            model_name, trust_remote_code=trust_remote_code
+        )
+
+        # Load model (prefer vision2seq; fall back with guidance)
+        try:
+            import importlib
+
+            transformers = importlib.import_module("transformers")
+            AutoModelForVision2Seq = getattr(transformers, "AutoModelForVision2Seq", None)
+            if AutoModelForVision2Seq is None:
+                raise AttributeError("transformers.AutoModelForVision2Seq is not available")
+
+            self.model = AutoModelForVision2Seq.from_pretrained(
+                model_name,
+                torch_dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                low_cpu_mem_usage=True,
+            )
+        except Exception as exc:
+            # Some transformers versions/models don't expose AutoModelForVision2Seq.
+            # We fail loudly with a helpful message rather than silently doing text-only.
+            raise ImportError(
+                "Failed to load a vision-capable Transformers model. "
+                "Try upgrading transformers (vision models often require newer versions), "
+                "or use a model class supported by your installed transformers build."
+            ) from exc
+
+        # Move to device
+        self.device = device
+        self.model.to(device)
+
+        self.model.eval()
+
+    def supports_json_mode(self) -> bool:
+        return False
+
+    def supports_vision(self) -> bool:
+        return True
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_new_tokens: int = 512,
+        temperature: float = 0.1,
+        top_p: float = 0.9,
+        **kwargs,
+    ) -> LLMResponse:
+        """
+        Text-only generation (no image). Provided for interface completeness.
+        """
+        torch = self._torch
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        if hasattr(self.processor, "apply_chat_template"):
+            prompt = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        else:
+            prompt = (system_prompt + "\n\n" if system_prompt else "") + user_prompt
+
+        inputs = self.processor(text=[prompt], return_tensors="pt")
+        inputs = {
+            k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in inputs.items()
+        }
+
+        do_sample = temperature > 0
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=do_sample,
+                temperature=temperature if do_sample else 1.0,
+                top_p=top_p,
+                **kwargs,
+            )
+
+        # Decode
+        input_len = inputs["input_ids"].shape[1] if "input_ids" in inputs else 0
+        generated = outputs[0][input_len:]
+        if hasattr(self.processor, "batch_decode"):
+            text = self.processor.batch_decode([generated], skip_special_tokens=True)[0].strip()
+        else:
+            text = str(generated)
+
+        return LLMResponseBuilder.from_local_format(
+            content=text,
+            prompt_tokens=int(input_len) if input_len else None,
+            completion_tokens=int(generated.shape[0]) if hasattr(generated, "shape") else None,
+            model_name=self._model_name,
+        )
+
+    def generate_with_image(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_base64: str,
+        max_new_tokens: int = 256,
+        temperature: float = 0.0,
+        top_p: float = 0.9,
+        **kwargs,
+    ) -> LLMResponse:
+        """
+        Vision generation using an image + prompt.
+
+        This is used by vision fallback in assertions and by visual agents.
+        """
+        torch = self._torch
+
+        # Lazy import PIL to avoid adding a hard dependency for text-only users.
+        try:
+            from PIL import Image  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise ImportError(
+                "Pillow is required for LocalVisionLLMProvider image input. Install with: pip install pillow"
+            ) from exc
+
+        import base64
+        import io
+
+        img_bytes = base64.b64decode(image_base64)
+        image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+        # Prefer processor chat template if available (needed by many VL models).
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": user_prompt},
+                ],
+            }
+        )
+
+        if hasattr(self.processor, "apply_chat_template"):
+            prompt = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        else:
+            raise NotImplementedError(
+                "This local vision model/processor does not expose apply_chat_template(). "
+                "Install/upgrade to a Transformers version that supports your model's chat template."
+            )
+
+        inputs = self.processor(text=[prompt], images=[image], return_tensors="pt")
+        inputs = {
+            k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in inputs.items()
+        }
+
+        do_sample = temperature > 0
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=do_sample,
+                temperature=temperature if do_sample else 1.0,
+                top_p=top_p,
+                **kwargs,
+            )
+
+        input_len = inputs["input_ids"].shape[1] if "input_ids" in inputs else 0
+        generated = outputs[0][input_len:]
+
+        if hasattr(self.processor, "batch_decode"):
+            text = self.processor.batch_decode([generated], skip_special_tokens=True)[0].strip()
+        elif hasattr(self.processor, "tokenizer") and hasattr(self.processor.tokenizer, "decode"):
+            text = self.processor.tokenizer.decode(generated, skip_special_tokens=True).strip()
+        else:
+            text = ""
+
+        return LLMResponseBuilder.from_local_format(
+            content=text,
+            prompt_tokens=int(input_len) if input_len else None,
+            completion_tokens=int(generated.shape[0]) if hasattr(generated, "shape") else None,
+            model_name=self._model_name,
+        )
+
+
+class MLXVLMProvider(LLMProvider):
+    """
+    Local vision-language provider using MLX-VLM (Apple Silicon optimized).
+
+    Recommended for running *quantized* vision models on Mac (M1/M2/M3/M4), e.g.:
+    - mlx-community/Qwen3-VL-8B-Instruct-3bit
+
+    Optional dependencies:
+    - mlx-vlm
+    - pillow
+
+    Notes:
+    - MLX-VLM APIs can vary across versions; this provider tries a couple common call shapes.
+    - For best results, use an MLX-converted model repo under `mlx-community/`.
+    """
+
+    def __init__(
+        self,
+        model: str = "mlx-community/Qwen3-VL-8B-Instruct-3bit",
+        *,
+        default_max_tokens: int = 256,
+        default_temperature: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(model)
+        self._default_max_tokens = default_max_tokens
+        self._default_temperature = default_temperature
+        self._default_kwargs = dict(kwargs)
+
+        # Lazy imports to keep base SDK light.
+        try:
+            import importlib
+
+            self._mlx_vlm = importlib.import_module("mlx_vlm")
+        except ImportError as exc:
+            raise ImportError(
+                "mlx-vlm is required for MLXVLMProvider. Install with: pip install mlx-vlm"
+            ) from exc
+
+        try:
+            from PIL import Image  # type: ignore[import-not-found]
+
+            self._PIL_Image = Image
+        except ImportError as exc:
+            raise ImportError(
+                "Pillow is required for MLXVLMProvider. Install with: pip install pillow"
+            ) from exc
+
+        # Some mlx_vlm versions expose load(model_id) -> (model, processor)
+        self._model = None
+        self._processor = None
+        load_fn = getattr(self._mlx_vlm, "load", None)
+        if callable(load_fn):
+            try:
+                loaded = load_fn(model)
+                if isinstance(loaded, tuple) and len(loaded) >= 2:
+                    self._model, self._processor = loaded[0], loaded[1]
+            except Exception:
+                # Keep it lazy; we'll try loading on demand during generate_with_image().
+                self._model, self._processor = None, None
+
+    def supports_json_mode(self) -> bool:
+        return False
+
+    def supports_vision(self) -> bool:
+        return True
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
+        """
+        Text-only generation is not a primary MLX-VLM use-case. We attempt it if the installed
+        mlx_vlm exposes a compatible `generate()` signature; otherwise, raise a clear error.
+        """
+        generate_fn = getattr(self._mlx_vlm, "generate", None)
+        if not callable(generate_fn):
+            raise NotImplementedError("mlx_vlm.generate is not available in your mlx-vlm install.")
+
+        prompt = (system_prompt + "\n\n" if system_prompt else "") + user_prompt
+        max_tokens = kwargs.pop("max_tokens", self._default_max_tokens)
+        temperature = kwargs.pop("temperature", self._default_temperature)
+        merged_kwargs = {**self._default_kwargs, **kwargs}
+
+        try:
+            out = generate_fn(
+                self._model_name,
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **merged_kwargs,
+            )
+        except TypeError as exc:
+            if self._model is None or self._processor is None:
+                raise NotImplementedError(
+                    "Text-only generation is not supported by this mlx-vlm version without a loaded model."
+                ) from exc
+            out = generate_fn(
+                self._model,
+                self._processor,
+                prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **merged_kwargs,
+            )
+
+        text = getattr(out, "text", None) or getattr(out, "output", None) or str(out)
+        return LLMResponseBuilder.from_local_format(
+            content=str(text).strip(),
+            prompt_tokens=None,
+            completion_tokens=None,
+            model_name=self._model_name,
+        )
+
+    def generate_with_image(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_base64: str,
+        **kwargs,
+    ) -> LLMResponse:
+        import base64
+        import io
+
+        generate_fn = getattr(self._mlx_vlm, "generate", None)
+        if not callable(generate_fn):
+            raise NotImplementedError("mlx_vlm.generate is not available in your mlx-vlm install.")
+
+        img_bytes = base64.b64decode(image_base64)
+        image = self._PIL_Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+        prompt = (system_prompt + "\n\n" if system_prompt else "") + user_prompt
+        max_tokens = kwargs.pop("max_tokens", self._default_max_tokens)
+        temperature = kwargs.pop("temperature", self._default_temperature)
+        merged_kwargs = {**self._default_kwargs, **kwargs}
+
+        # Try a couple common MLX-VLM call shapes.
+        try:
+            # 1) generate(model_id, image=..., prompt=...)
+            out = generate_fn(
+                self._model_name,
+                image=image,
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **merged_kwargs,
+            )
+        except TypeError as exc:
+            # 2) generate(model, processor, prompt, image, ...)
+            if self._model is None or self._processor is None:
+                load_fn = getattr(self._mlx_vlm, "load", None)
+                if callable(load_fn):
+                    loaded = load_fn(self._model_name)
+                    if isinstance(loaded, tuple) and len(loaded) >= 2:
+                        self._model, self._processor = loaded[0], loaded[1]
+            if self._model is None or self._processor is None:
+                raise NotImplementedError(
+                    "Unable to call mlx_vlm.generate with your installed mlx-vlm version. "
+                    "Please upgrade mlx-vlm or use LocalVisionLLMProvider (Transformers backend)."
+                ) from exc
+            out = generate_fn(
+                self._model,
+                self._processor,
+                prompt,
+                image,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **merged_kwargs,
+            )
+
+        text = getattr(out, "text", None) or getattr(out, "output", None) or str(out)
+        return LLMResponseBuilder.from_local_format(
+            content=str(text).strip(),
+            prompt_tokens=None,
+            completion_tokens=None,
+            model_name=self._model_name,
+        )

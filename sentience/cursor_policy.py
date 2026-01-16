@@ -44,7 +44,13 @@ def _ease_in_out(t: float) -> float:
     return t * t * (3 - 2 * t)
 
 
-def _bezier(p0: tuple[float, float], p1: tuple[float, float], p2: tuple[float, float], p3: tuple[float, float], t: float) -> tuple[float, float]:
+def _bezier(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    t: float,
+) -> tuple[float, float]:
     u = 1.0 - t
     tt = t * t
     uu = u * u
@@ -87,7 +93,9 @@ def build_human_cursor_path(
 
     # Defaults based on distance (bounded)
     steps = int(policy.steps if policy.steps is not None else _clamp(10 + dist / 25.0, 12, 40))
-    duration_ms = int(policy.duration_ms if policy.duration_ms is not None else _clamp(120 + dist * 0.9, 120, 700))
+    duration_ms = int(
+        policy.duration_ms if policy.duration_ms is not None else _clamp(120 + dist * 0.9, 120, 700)
+    )
 
     # Control points: offset roughly perpendicular to travel direction
     if dist < 1e-6:
@@ -132,4 +140,3 @@ def build_human_cursor_path(
         # Keep path bounded for trace size
         "path": pts[:64],
     }
-

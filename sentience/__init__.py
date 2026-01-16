@@ -52,6 +52,8 @@ from .llm_provider import (
     LLMProvider,
     LLMResponse,
     LocalLLMProvider,
+    LocalVisionLLMProvider,
+    MLXVLMProvider,
     OpenAIProvider,
 )
 from .models import (  # Agent Layer Models
@@ -202,6 +204,8 @@ __all__ = [
     "OpenAIProvider",
     "AnthropicProvider",
     "LocalLLMProvider",
+    "LocalVisionLLMProvider",
+    "MLXVLMProvider",
     "SentienceAgent",
     "SentienceAgentAsync",
     "SentienceVisualAgent",
