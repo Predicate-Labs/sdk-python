@@ -324,6 +324,14 @@ def _snapshot_via_api(
     raw_options: dict[str, Any] = {}
     if options.screenshot is not False:
         raw_options["screenshot"] = options.screenshot
+    # Important: also pass limit/filter to extension to keep raw_elements payload bounded.
+    # Without this, large pages (e.g. Amazon) can exceed gateway request size limits (HTTP 413).
+    if options.limit != 50:
+        raw_options["limit"] = options.limit
+    if options.filter is not None:
+        raw_options["filter"] = (
+            options.filter.model_dump() if hasattr(options.filter, "model_dump") else options.filter
+        )
 
     raw_result = BrowserEvaluator.invoke(browser.page, SentienceMethod.SNAPSHOT, **raw_options)
 
@@ -583,6 +591,14 @@ async def _snapshot_via_api_async(
             raw_options["screenshot"] = options.screenshot.model_dump()
         else:
             raw_options["screenshot"] = options.screenshot
+    # Important: also pass limit/filter to extension to keep raw_elements payload bounded.
+    # Without this, large pages (e.g. Amazon) can exceed gateway request size limits (HTTP 413).
+    if options.limit != 50:
+        raw_options["limit"] = options.limit
+    if options.filter is not None:
+        raw_options["filter"] = (
+            options.filter.model_dump() if hasattr(options.filter, "model_dump") else options.filter
+        )
 
     raw_result = await browser.page.evaluate(
         """

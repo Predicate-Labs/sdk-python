@@ -43,6 +43,15 @@ sentience = "sentience.cli:main"
 browser-use = [
     "browser-use>=0.1.40",
 ]
+vision-local = [
+    "pillow>=10.0.0",
+    "torch>=2.2.0",
+    "transformers>=4.46.0",
+]
+mlx-vlm = [
+    "pillow>=10.0.0",
+    "mlx-vlm>=0.1.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
