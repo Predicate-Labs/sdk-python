@@ -20,6 +20,78 @@ from .sentience_methods import SentienceMethod
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
+def _is_execution_context_destroyed_error(e: Exception) -> bool:
+    """
+    Playwright can throw while a navigation is in-flight, invalidating the JS execution context.
+
+    Common symptoms:
+    - "Execution context was destroyed, most likely because of a navigation"
+    - "Cannot find context with specified id"
+    """
+    msg = str(e).lower()
+    return (
+        "execution context was destroyed" in msg
+        or "most likely because of a navigation" in msg
+        or "cannot find context with specified id" in msg
+    )
+
+
+async def _page_evaluate_with_nav_retry(
+    page: Any,
+    expression: str,
+    arg: Any = None,
+    *,
+    retries: int = 2,
+    settle_timeout_ms: int = 10000,
+) -> Any:
+    """
+    Evaluate JS with a small retry loop if the page is mid-navigation.
+
+    This prevents flaky crashes when callers snapshot right after triggering a navigation
+    (e.g., pressing Enter on Google).
+    """
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            if arg is None:
+                return await page.evaluate(expression)
+            return await page.evaluate(expression, arg)
+        except Exception as e:
+            last_err = e
+            if not _is_execution_context_destroyed_error(e) or attempt >= retries:
+                raise
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=settle_timeout_ms)
+            except Exception:
+                pass
+            await asyncio.sleep(0.25)
+    raise last_err if last_err else RuntimeError("Page.evaluate failed")
+
+
+async def _wait_for_function_with_nav_retry(
+    page: Any,
+    expression: str,
+    *,
+    timeout_ms: int,
+    retries: int = 2,
+) -> None:
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            await page.wait_for_function(expression, timeout=timeout_ms)
+            return
+        except Exception as e:
+            last_err = e
+            if not _is_execution_context_destroyed_error(e) or attempt >= retries:
+                raise
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+            except Exception:
+                pass
+            await asyncio.sleep(0.25)
+    raise last_err if last_err else RuntimeError("wait_for_function failed")
+
+
 def _build_snapshot_payload(
     raw_result: dict[str, Any],
     options: SnapshotOptions,
@@ -265,8 +337,10 @@ def _snapshot_via_extension(
 
     # Show visual overlay if requested
     if options.show_overlay:
-        raw_elements = result.get("raw_elements", [])
-        if raw_elements:
+        # Prefer processed semantic elements for overlay (have bbox/importance/visual_cues).
+        # raw_elements may not match the overlay renderer's expected shape.
+        elements_for_overlay = result.get("elements") or result.get("raw_elements") or []
+        if elements_for_overlay:
             browser.page.evaluate(
                 """
                 (elements) => {
@@ -275,7 +349,7 @@ def _snapshot_via_extension(
                     }
                 }
                 """,
-                raw_elements,
+                elements_for_overlay,
             )
 
     # Show grid overlay if requested
@@ -455,18 +529,20 @@ async def _snapshot_via_extension_async(
 
     # Wait for extension injection to complete
     try:
-        await browser.page.wait_for_function(
+        await _wait_for_function_with_nav_retry(
+            browser.page,
             "typeof window.sentience !== 'undefined'",
-            timeout=5000,
+            timeout_ms=5000,
         )
     except Exception as e:
         try:
-            diag = await browser.page.evaluate(
+            diag = await _page_evaluate_with_nav_retry(
+                browser.page,
                 """() => ({
                     sentience_defined: typeof window.sentience !== 'undefined',
                     extension_id: document.documentElement.dataset.sentienceExtensionId || 'not set',
                     url: window.location.href
-                })"""
+                })""",
             )
         except Exception:
             diag = {"error": "Could not gather diagnostics"}
@@ -492,7 +568,8 @@ async def _snapshot_via_extension_async(
         )
 
     # Call extension API
-    result = await browser.page.evaluate(
+    result = await _page_evaluate_with_nav_retry(
+        browser.page,
         """
         (options) => {
             return window.sentience.snapshot(options);
@@ -521,9 +598,12 @@ async def _snapshot_via_extension_async(
 
     # Show visual overlay if requested
     if options.show_overlay:
-        raw_elements = result.get("raw_elements", [])
-        if raw_elements:
-            await browser.page.evaluate(
+        # Prefer processed semantic elements for overlay (have bbox/importance/visual_cues).
+        # raw_elements may not match the overlay renderer's expected shape.
+        elements_for_overlay = result.get("elements") or result.get("raw_elements") or []
+        if elements_for_overlay:
+            await _page_evaluate_with_nav_retry(
+                browser.page,
                 """
                 (elements) => {
                     if (window.sentience && window.sentience.showOverlay) {
@@ -531,7 +611,7 @@ async def _snapshot_via_extension_async(
                     }
                 }
                 """,
-                raw_elements,
+                elements_for_overlay,
             )
 
     # Show grid overlay if requested
@@ -542,9 +622,11 @@ async def _snapshot_via_extension_async(
             grid_dicts = [grid.model_dump() for grid in grids]
             # Pass grid_id as targetGridId to highlight it in red
             target_grid_id = options.grid_id if options.grid_id is not None else None
-            await browser.page.evaluate(
+            await _page_evaluate_with_nav_retry(
+                browser.page,
                 """
-                (grids, targetGridId) => {
+                (args) => {
+                    const [grids, targetGridId] = args;
                     if (window.sentience && window.sentience.showGrid) {
                         window.sentience.showGrid(grids, targetGridId);
                     } else {
@@ -552,8 +634,7 @@ async def _snapshot_via_extension_async(
                     }
                 }
                 """,
-                grid_dicts,
-                target_grid_id,
+                [grid_dicts, target_grid_id],
             )
 
     return snapshot_obj
@@ -573,8 +654,10 @@ async def _snapshot_via_api_async(
 
     # Wait for extension injection
     try:
-        await browser.page.wait_for_function(
-            "typeof window.sentience !== 'undefined'", timeout=5000
+        await _wait_for_function_with_nav_retry(
+            browser.page,
+            "typeof window.sentience !== 'undefined'",
+            timeout_ms=5000,
         )
     except Exception as e:
         raise RuntimeError(
@@ -600,7 +683,8 @@ async def _snapshot_via_api_async(
             options.filter.model_dump() if hasattr(options.filter, "model_dump") else options.filter
         )
 
-    raw_result = await browser.page.evaluate(
+    raw_result = await _page_evaluate_with_nav_retry(
+        browser.page,
         """
         (options) => {
             return window.sentience.snapshot(options);
@@ -689,7 +773,8 @@ async def _snapshot_via_api_async(
         if options.show_overlay:
             elements = api_result.get("elements", [])
             if elements:
-                await browser.page.evaluate(
+                await _page_evaluate_with_nav_retry(
+                    browser.page,
                     """
                     (elements) => {
                         if (window.sentience && window.sentience.showOverlay) {
@@ -708,9 +793,11 @@ async def _snapshot_via_api_async(
                 grid_dicts = [grid.model_dump() for grid in grids]
                 # Pass grid_id as targetGridId to highlight it in red
                 target_grid_id = options.grid_id if options.grid_id is not None else None
-                await browser.page.evaluate(
+                await _page_evaluate_with_nav_retry(
+                    browser.page,
                     """
-                    (grids, targetGridId) => {
+                    (args) => {
+                        const [grids, targetGridId] = args;
                         if (window.sentience && window.sentience.showGrid) {
                             window.sentience.showGrid(grids, targetGridId);
                         } else {
@@ -718,8 +805,7 @@ async def _snapshot_via_api_async(
                         }
                     }
                     """,
-                    grid_dicts,
-                    target_grid_id,
+                    [grid_dicts, target_grid_id],
                 )
 
         return snapshot_obj

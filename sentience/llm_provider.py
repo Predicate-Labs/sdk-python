@@ -5,6 +5,7 @@ Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 from .llm_provider_utils import get_api_key_from_env, handle_provider_error, require_package
 from .llm_response_builder import LLMResponseBuilder
@@ -777,21 +778,44 @@ class LocalLLMProvider(LLMProvider):
         elif load_in_8bit:
             quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 
+        device = (device or "auto").strip().lower()
+
         # Determine torch dtype
         if torch_dtype == "auto":
-            dtype = torch.float16 if device != "cpu" else torch.float32
+            dtype = torch.float16 if device not in {"cpu"} else torch.float32
         else:
             dtype = getattr(torch, torch_dtype)
 
-        # Load model
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=quantization_config,
-            torch_dtype=dtype if quantization_config is None else None,
-            device_map=device,
-            trust_remote_code=True,
-            low_cpu_mem_usage=True,
-        )
+        # device_map is a Transformers concept (not a literal "cpu/mps/cuda" device string).
+        # - "auto" enables Accelerate device mapping.
+        # - Otherwise, we load normally and then move the model to the requested device.
+        device_map: str | None = "auto" if device == "auto" else None
+
+        def _load(*, device_map_override: str | None) -> Any:
+            return AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config=quantization_config,
+                torch_dtype=dtype if quantization_config is None else None,
+                device_map=device_map_override,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+            )
+
+        try:
+            self.model = _load(device_map_override=device_map)
+        except KeyError as e:
+            # Some envs / accelerate versions can crash on auto mapping (e.g. KeyError: 'cpu').
+            # Keep demo ergonomics: default stays "auto", but we gracefully fall back.
+            if device == "auto" and ("cpu" in str(e).lower()):
+                device = "cpu"
+                dtype = torch.float32
+                self.model = _load(device_map_override=None)
+            else:
+                raise
+
+        # If we didn't use device_map, move model explicitly (only safe for non-quantized loads).
+        if device_map is None and quantization_config is None and device in {"cpu", "cuda", "mps"}:
+            self.model = self.model.to(device)
         self.model.eval()
 
     def generate(
