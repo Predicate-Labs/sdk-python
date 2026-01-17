@@ -21,6 +21,7 @@ Usage with browser-use:
     cache.invalidate()  # Force refresh on next get()
 """
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +36,57 @@ from .exceptions import ExtensionDiagnostics, ExtensionNotLoadedError, SnapshotE
 
 if TYPE_CHECKING:
     from .protocol import BrowserBackend
+
+
+def _is_execution_context_destroyed_error(e: Exception) -> bool:
+    """
+    Playwright (and other browser backends) can throw while a navigation is in-flight.
+
+    Common symptoms:
+    - "Execution context was destroyed, most likely because of a navigation"
+    - "Cannot find context with specified id"
+    """
+    msg = str(e).lower()
+    return (
+        "execution context was destroyed" in msg
+        or "most likely because of a navigation" in msg
+        or "cannot find context with specified id" in msg
+    )
+
+
+async def _eval_with_navigation_retry(
+    backend: "BrowserBackend",
+    expression: str,
+    *,
+    retries: int = 10,
+    settle_state: str = "interactive",
+    settle_timeout_ms: int = 10000,
+) -> Any:
+    """
+    Evaluate JS, retrying once/ twice if the page is mid-navigation.
+
+    This makes snapshots resilient to cases like:
+    - press Enter (navigation) → snapshot immediately → context destroyed
+    """
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return await backend.eval(expression)
+        except Exception as e:
+            last_err = e
+            if not _is_execution_context_destroyed_error(e) or attempt >= retries:
+                raise
+            # Navigation is in-flight; wait for new document context then retry.
+            try:
+                await backend.wait_ready_state(state=settle_state, timeout_ms=settle_timeout_ms)  # type: ignore[arg-type]
+            except Exception:
+                # If readyState polling also fails mid-nav, still retry after a short backoff.
+                pass
+            # Exponential-ish backoff (caps quickly), tuned for real navigations.
+            await asyncio.sleep(min(0.25 * (attempt + 1), 1.5))
+
+    # Unreachable in practice, but keeps type-checkers happy.
+    raise last_err if last_err else RuntimeError("eval failed")
 
 
 class CachedSnapshot:
@@ -289,13 +341,14 @@ async def _snapshot_via_extension(
     ext_options = _build_extension_options(options)
 
     # Call extension's snapshot function
-    result = await backend.eval(
+    result = await _eval_with_navigation_retry(
+        backend,
         f"""
         (() => {{
             const options = {_json_serialize(ext_options)};
             return window.sentience.snapshot(options);
         }})()
-    """
+    """,
     )
 
     if result is None:
@@ -310,14 +363,15 @@ async def _snapshot_via_extension(
     if options.show_overlay:
         raw_elements = result.get("raw_elements", [])
         if raw_elements:
-            await backend.eval(
+            await _eval_with_navigation_retry(
+                backend,
                 f"""
                 (() => {{
                     if (window.sentience && window.sentience.showOverlay) {{
                         window.sentience.showOverlay({_json_serialize(raw_elements)}, null);
                     }}
                 }})()
-            """
+            """,
             )
 
     # Build and return Snapshot
@@ -341,13 +395,14 @@ async def _snapshot_via_api(
         raw_options["screenshot"] = options.screenshot
 
     # Call extension to get raw elements
-    raw_result = await backend.eval(
+    raw_result = await _eval_with_navigation_retry(
+        backend,
         f"""
         (() => {{
             const options = {_json_serialize(raw_options)};
             return window.sentience.snapshot(options);
         }})()
-    """
+    """,
     )
 
     if raw_result is None:
@@ -372,14 +427,15 @@ async def _snapshot_via_api(
         if options.show_overlay:
             elements = api_result.get("elements", [])
             if elements:
-                await backend.eval(
+                await _eval_with_navigation_retry(
+                    backend,
                     f"""
                     (() => {{
                         if (window.sentience && window.sentience.showOverlay) {{
                             window.sentience.showOverlay({_json_serialize(elements)}, null);
                         }}
                     }})()
-                """
+                """,
                 )
 
         return Snapshot(**snapshot_data)
