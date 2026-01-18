@@ -4,9 +4,10 @@ import json
 import shutil
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Any, Literal
 
 
 @dataclass
@@ -93,7 +94,20 @@ class FailureArtifactBuffer:
                     pass
         self._frames = keep
 
-    def persist(self, *, reason: str | None, status: Literal["failure", "success"]) -> Path | None:
+    def _write_json_atomic(self, path: Path, data: Any) -> None:
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(json.dumps(data, indent=2))
+        tmp_path.replace(path)
+
+    def persist(
+        self,
+        *,
+        reason: str | None,
+        status: Literal["failure", "success"],
+        snapshot: Any | None = None,
+        diagnostics: Any | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Path | None:
         if self._persisted:
             return None
 
@@ -107,8 +121,23 @@ class FailureArtifactBuffer:
         for frame in self._frames:
             shutil.copy2(frame.path, frames_out / frame.file_name)
 
-        steps_path = run_dir / "steps.json"
-        steps_path.write_text(json.dumps(self._steps, indent=2))
+        self._write_json_atomic(run_dir / "steps.json", self._steps)
+
+        snapshot_payload = None
+        if snapshot is not None:
+            if hasattr(snapshot, "model_dump"):
+                snapshot_payload = snapshot.model_dump()
+            else:
+                snapshot_payload = snapshot
+            self._write_json_atomic(run_dir / "snapshot.json", snapshot_payload)
+
+        diagnostics_payload = None
+        if diagnostics is not None:
+            if hasattr(diagnostics, "model_dump"):
+                diagnostics_payload = diagnostics.model_dump()
+            else:
+                diagnostics_payload = diagnostics
+            self._write_json_atomic(run_dir / "diagnostics.json", diagnostics_payload)
 
         manifest = {
             "run_id": self.run_id,
@@ -117,12 +146,12 @@ class FailureArtifactBuffer:
             "reason": reason,
             "buffer_seconds": self.options.buffer_seconds,
             "frame_count": len(self._frames),
-            "frames": [
-                {"file": frame.file_name, "ts": frame.ts} for frame in self._frames
-            ],
+            "frames": [{"file": frame.file_name, "ts": frame.ts} for frame in self._frames],
+            "snapshot": "snapshot.json" if snapshot_payload is not None else None,
+            "diagnostics": "diagnostics.json" if diagnostics_payload is not None else None,
+            "metadata": metadata or {},
         }
-        manifest_path = run_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2))
+        self._write_json_atomic(run_dir / "manifest.json", manifest)
 
         self._persisted = True
         return run_dir

@@ -326,7 +326,13 @@ class AgentRuntime:
             return
         if success:
             if self._artifact_buffer.options.persist_mode == "always":
-                self._artifact_buffer.persist(reason="success", status="success")
+                self._artifact_buffer.persist(
+                    reason="success",
+                    status="success",
+                    snapshot=self.last_snapshot,
+                    diagnostics=getattr(self.last_snapshot, "diagnostics", None),
+                    metadata=self._artifact_metadata(),
+                )
             self._artifact_buffer.cleanup()
         else:
             self._persist_failure_artifacts(reason="finalize_failure")
@@ -334,10 +340,27 @@ class AgentRuntime:
     def _persist_failure_artifacts(self, *, reason: str) -> None:
         if not self._artifact_buffer:
             return
-        self._artifact_buffer.persist(reason=reason, status="failure")
+        self._artifact_buffer.persist(
+            reason=reason,
+            status="failure",
+            snapshot=self.last_snapshot,
+            diagnostics=getattr(self.last_snapshot, "diagnostics", None),
+            metadata=self._artifact_metadata(),
+        )
         self._artifact_buffer.cleanup()
         if self._artifact_buffer.options.persist_mode == "onFail":
             self.disable_failure_artifacts()
+
+    def _artifact_metadata(self) -> dict[str, Any]:
+        url = None
+        if self.last_snapshot is not None:
+            url = self.last_snapshot.url
+        elif self._cached_url:
+            url = self._cached_url
+        return {
+            "backend": self.backend.__class__.__name__,
+            "url": url,
+        }
 
     def begin_step(self, goal: str, step_index: int | None = None) -> str:
         """
