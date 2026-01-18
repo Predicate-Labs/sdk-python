@@ -173,6 +173,32 @@ async def test_navigate_sets_url_and_returns_success():
 
 
 @pytest.mark.asyncio
+async def test_type_text_passes_delay_ms(monkeypatch):
+    agent = _FakeAgent()
+    tools = register_sentience_tools(agent)
+
+    called = {}
+
+    async def _fake_type_text_async(browser, element_id, text, take_snapshot=False, delay_ms=0):
+        called["element_id"] = element_id
+        called["delay_ms"] = delay_ms
+        return {"success": True}
+
+    monkeypatch.setattr(
+        "sentience.integrations.pydanticai.toolset.type_text_async",
+        _fake_type_text_async,
+    )
+
+    deps = SentiencePydanticDeps(browser=_FakeAsyncBrowser())  # type: ignore[arg-type]
+    ctx = _Ctx(deps)
+
+    out = await tools["type_text"](ctx, element_id=1, text="hello", delay_ms=10)
+    assert out["success"] is True
+    assert called["element_id"] == 1
+    assert called["delay_ms"] == 10
+
+
+@pytest.mark.asyncio
 async def test_click_rect_is_registered(monkeypatch):
     agent = _FakeAgent()
     tools = register_sentience_tools(agent)
@@ -199,3 +225,27 @@ async def test_click_rect_is_registered(monkeypatch):
     assert called["rect"] == {"x": 10, "y": 20, "w": 30, "h": 40}
     assert called["button"] == "left"
     assert called["click_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_tracing_emits_error_on_exception(monkeypatch):
+    agent = _FakeAgent()
+    tools = register_sentience_tools(agent)
+
+    tracer = _FakeTracer()
+    deps = SentiencePydanticDeps(browser=_FakeAsyncBrowser(), tracer=tracer)  # type: ignore[arg-type]
+    ctx = _Ctx(deps)
+
+    async def _boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "sentience.integrations.pydanticai.toolset.read_async",
+        lambda *args, **kwargs: _boom(),
+    )
+
+    with pytest.raises(RuntimeError):
+        await tools["read_page"](ctx, format="text")
+
+    types = [c[0] for c in tracer.calls]
+    assert "error" in types

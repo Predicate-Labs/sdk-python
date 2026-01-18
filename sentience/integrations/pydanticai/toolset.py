@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Field
 
 from sentience.actions import (
     click_async,
@@ -140,7 +142,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def snapshot_state(
         ctx: Any,
-        limit: int = 50,
+        limit: Annotated[int, Field(ge=1, le=500)] = 50,
         include_screenshot: bool = False,
     ) -> BrowserState:
         """
@@ -200,7 +202,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def click(
         ctx: Any,
-        element_id: int,
+        element_id: Annotated[int, Field(ge=0)],
     ):
         """
         Click an element by Sentience element id (from snapshot).
@@ -215,8 +217,9 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def type_text(
         ctx: Any,
-        element_id: int,
+        element_id: Annotated[int, Field(ge=0)],
         text: str,
+        delay_ms: Annotated[float, Field(ge=0, le=250)] = 0,
     ):
         """
         Type text into an element by Sentience element id (from snapshot).
@@ -224,10 +227,15 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
 
         async def _run():
             deps: SentiencePydanticDeps = ctx.deps
-            return await type_text_async(deps.browser, element_id, text)
+            return await type_text_async(deps.browser, element_id, text, delay_ms=delay_ms)
 
         # NOTE: we intentionally don't trace full `text` to avoid accidental PII leakage
-        return await _trace_tool_call(ctx, "type_text", _run, {"element_id": element_id})
+        return await _trace_tool_call(
+            ctx,
+            "type_text",
+            _run,
+            {"element_id": element_id, "delay_ms": delay_ms},
+        )
 
     @agent.tool
     async def press_key(
@@ -247,7 +255,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def scroll_to(
         ctx: Any,
-        element_id: int,
+        element_id: Annotated[int, Field(ge=0)],
         behavior: Literal["smooth", "instant", "auto"] = "smooth",
         block: Literal["start", "center", "end", "nearest"] = "center",
     ):
@@ -269,7 +277,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def navigate(
         ctx: Any,
-        url: str,
+        url: Annotated[str, Field(min_length=1)],
     ) -> dict[str, Any]:
         """
         Navigate to a URL using Playwright page.goto via AsyncSentienceBrowser.
@@ -289,12 +297,12 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     async def click_rect(
         ctx: Any,
         *,
-        x: float,
-        y: float,
-        width: float,
-        height: float,
+        x: Annotated[float, Field()],
+        y: Annotated[float, Field()],
+        width: Annotated[float, Field(gt=0)],
+        height: Annotated[float, Field(gt=0)],
         button: Literal["left", "right", "middle"] = "left",
-        click_count: int = 1,
+        click_count: Annotated[int, Field(ge=1, le=3)] = 1,
     ):
         """
         Click by pixel coordinates (rectangle), useful with `find_text_rect`.
@@ -326,10 +334,10 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def find_text_rect(
         ctx: Any,
-        text: str,
+        text: Annotated[str, Field(min_length=1)],
         case_sensitive: bool = False,
         whole_word: bool = False,
-        max_results: int = 10,
+        max_results: Annotated[int, Field(ge=1, le=100)] = 10,
     ) -> TextRectSearchResult:
         """
         Find text occurrences and return pixel coordinates.
@@ -360,7 +368,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def verify_url_matches(
         ctx: Any,
-        pattern: str,
+        pattern: Annotated[str, Field(min_length=1)],
         flags: int = 0,
     ) -> AssertionResult:
         """
@@ -390,7 +398,7 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def verify_text_present(
         ctx: Any,
-        text: str,
+        text: Annotated[str, Field(min_length=1)],
         *,
         format: Literal["text", "markdown", "raw"] = "text",
         case_sensitive: bool = False,
@@ -426,10 +434,10 @@ def register_sentience_tools(agent: Any) -> dict[str, Any]:
     @agent.tool
     async def assert_eventually_url_matches(
         ctx: Any,
-        pattern: str,
+        pattern: Annotated[str, Field(min_length=1)],
         *,
-        timeout_s: float = 10.0,
-        poll_s: float = 0.25,
+        timeout_s: Annotated[float, Field(gt=0)] = 10.0,
+        poll_s: Annotated[float, Field(gt=0)] = 0.25,
         flags: int = 0,
     ) -> AssertionResult:
         """

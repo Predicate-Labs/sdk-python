@@ -148,40 +148,80 @@ class CloudTraceSink(TraceSink):
 
         self._closed = True
 
-        # Flush and sync file to disk before closing to ensure all data is written
-        # This is critical on CI systems where file system operations may be slower
-        self._trace_file.flush()
-        try:
-            # Force OS to write buffered data to disk
-            os.fsync(self._trace_file.fileno())
-        except (OSError, AttributeError):
-            # Some file handles don't support fsync (e.g., StringIO in tests)
-            # This is fine - flush() is usually sufficient
-            pass
-        self._trace_file.close()
-
-        # Ensure file exists and has content before proceeding
-        if not self._path.exists() or self._path.stat().st_size == 0:
-            # No events were emitted, nothing to upload
-            if self.logger:
-                self.logger.warning("No trace events to upload (file is empty or missing)")
-            return
-
-        # Generate index after closing file
-        self._generate_index()
-
         if not blocking:
-            # Fire-and-forget background upload
+            # Fire-and-forget background finalize+upload.
+            #
+            # IMPORTANT: for truly non-blocking close, we avoid synchronous work here
+            # (flush/fsync/index generation). That work happens in the background thread.
             thread = threading.Thread(
-                target=self._do_upload,
+                target=self._close_and_upload_background,
                 args=(on_progress,),
                 daemon=True,
             )
             thread.start()
             return  # Return immediately
 
-        # Blocking mode
+        # Blocking mode: finalize trace file and upload now.
+        if not self._finalize_trace_file_for_upload():
+            return
         self._do_upload(on_progress)
+
+    def _finalize_trace_file_for_upload(self) -> bool:
+        """
+        Finalize the local trace file so it is ready for upload.
+
+        Returns:
+            True if there is data to upload, False if the trace is empty/missing.
+        """
+        # Flush and sync file to disk before closing to ensure all data is written.
+        # This can be slow on CI file systems; in non-blocking close we do this in background.
+        try:
+            self._trace_file.flush()
+        except Exception:
+            pass
+        try:
+            os.fsync(self._trace_file.fileno())
+        except (OSError, AttributeError):
+            # Some file handles don't support fsync; flush is usually sufficient.
+            pass
+        try:
+            self._trace_file.close()
+        except Exception:
+            pass
+
+        # Ensure file exists and has content before proceeding
+        try:
+            if not self._path.exists() or self._path.stat().st_size == 0:
+                if self.logger:
+                    self.logger.warning("No trace events to upload (file is empty or missing)")
+                return False
+        except Exception:
+            # If we can't stat, don't attempt upload
+            return False
+
+        # Generate index after closing file
+        self._generate_index()
+        return True
+
+    def _close_and_upload_background(
+        self, on_progress: Callable[[int, int], None] | None = None
+    ) -> None:
+        """
+        Background worker for non-blocking close.
+
+        Performs file finalization + index generation + upload.
+        """
+        try:
+            if not self._finalize_trace_file_for_upload():
+                return
+            self._do_upload(on_progress)
+        except Exception as e:
+            # Non-fatal: preserve trace locally
+            self._upload_successful = False
+            print(f"❌ [Sentience] Error uploading trace (background): {e}")
+            print(f"   Local trace preserved at: {self._path}")
+            if self.logger:
+                self.logger.error(f"Error uploading trace (background): {e}")
 
     def _do_upload(self, on_progress: Callable[[int, int], None] | None = None) -> None:
         """
