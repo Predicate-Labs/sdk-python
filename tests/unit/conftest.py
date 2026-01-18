@@ -40,6 +40,7 @@ class _Dummy:
 
 # Minimal symbols imported by `sentience.browser`
 async_api_mod.BrowserContext = _Dummy
+async_api_mod.Browser = _Dummy
 async_api_mod.Page = _Dummy
 async_api_mod.Playwright = _Dummy
 async_api_mod.PlaywrightContextManager = _Dummy
@@ -52,6 +53,7 @@ async def _async_playwright():
 async_api_mod.async_playwright = _async_playwright
 
 sync_api_mod.BrowserContext = _Dummy
+sync_api_mod.Browser = _Dummy
 sync_api_mod.Page = _Dummy
 sync_api_mod.Playwright = _Dummy
 sync_api_mod.PlaywrightContextManager = _Dummy
