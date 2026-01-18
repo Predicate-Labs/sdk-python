@@ -89,6 +89,21 @@ async def main():
 asyncio.run(main())
 ```
 
+### Failure Artifact Buffer (Phase 1)
+
+Capture a short ring buffer of screenshots and persist them when a required assertion fails.
+
+```python
+from sentience.failure_artifacts import FailureArtifactsOptions
+
+await runtime.enable_failure_artifacts(
+    FailureArtifactsOptions(buffer_seconds=15, capture_on_action=True, fps=0.0)
+)
+
+# After each action, record it (best-effort).
+await runtime.record_action("CLICK")
+```
+
 **See examples:** [`examples/asserts/`](examples/asserts/)
 
 ## 🚀 Quick Start: Choose Your Abstraction Level
