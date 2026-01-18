@@ -373,6 +373,15 @@ jobs:
             print('WARNING: Could not find assert_ method call in assert_done')
             sys.exit(1)
         PYEOF
+
+    - name: Phase 0 regression safety net (unit)
+      shell: bash
+      run: |
+        pytest tests/unit/test_agent_runtime_phase0.py -v
+
+    - name: Run full test suite
+      shell: bash
+      run: |
         pytest tests/ -v
       env:
         CI: true
