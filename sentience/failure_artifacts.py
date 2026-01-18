@@ -17,6 +17,27 @@ class FailureArtifactsOptions:
     fps: float = 0.0
     persist_mode: Literal["onFail", "always"] = "onFail"
     output_dir: str = ".sentience/artifacts"
+    on_before_persist: Callable[[RedactionContext], RedactionResult] | None = None
+    redact_snapshot_values: bool = True
+
+
+@dataclass
+class RedactionContext:
+    run_id: str
+    reason: str | None
+    status: Literal["failure", "success"]
+    snapshot: Any | None
+    diagnostics: Any | None
+    frame_paths: list[str]
+    metadata: dict[str, Any]
+
+
+@dataclass
+class RedactionResult:
+    snapshot: Any | None = None
+    diagnostics: Any | None = None
+    frame_paths: list[str] | None = None
+    drop_frames: bool = False
 
 
 @dataclass
@@ -99,6 +120,27 @@ class FailureArtifactBuffer:
         tmp_path.write_text(json.dumps(data, indent=2))
         tmp_path.replace(path)
 
+    def _redact_snapshot_defaults(self, payload: Any) -> Any:
+        if not isinstance(payload, dict):
+            return payload
+        elements = payload.get("elements")
+        if not isinstance(elements, list):
+            return payload
+        redacted = []
+        for el in elements:
+            if not isinstance(el, dict):
+                redacted.append(el)
+                continue
+            input_type = (el.get("input_type") or "").lower()
+            if input_type in {"password", "email", "tel"} and "value" in el:
+                el = dict(el)
+                el["value"] = None
+                el["value_redacted"] = True
+            redacted.append(el)
+        payload = dict(payload)
+        payload["elements"] = redacted
+        return payload
+
     def persist(
         self,
         *,
@@ -118,18 +160,14 @@ class FailureArtifactBuffer:
         frames_out = run_dir / "frames"
         frames_out.mkdir(parents=True, exist_ok=True)
 
-        for frame in self._frames:
-            shutil.copy2(frame.path, frames_out / frame.file_name)
-
-        self._write_json_atomic(run_dir / "steps.json", self._steps)
-
         snapshot_payload = None
         if snapshot is not None:
             if hasattr(snapshot, "model_dump"):
                 snapshot_payload = snapshot.model_dump()
             else:
                 snapshot_payload = snapshot
-            self._write_json_atomic(run_dir / "snapshot.json", snapshot_payload)
+            if self.options.redact_snapshot_values:
+                snapshot_payload = self._redact_snapshot_defaults(snapshot_payload)
 
         diagnostics_payload = None
         if diagnostics is not None:
@@ -137,6 +175,44 @@ class FailureArtifactBuffer:
                 diagnostics_payload = diagnostics.model_dump()
             else:
                 diagnostics_payload = diagnostics
+
+        frame_paths = [str(frame.path) for frame in self._frames]
+        drop_frames = False
+
+        if self.options.on_before_persist is not None:
+            try:
+                result = self.options.on_before_persist(
+                    RedactionContext(
+                        run_id=self.run_id,
+                        reason=reason,
+                        status=status,
+                        snapshot=snapshot_payload,
+                        diagnostics=diagnostics_payload,
+                        frame_paths=frame_paths,
+                        metadata=metadata or {},
+                    )
+                )
+                if result.snapshot is not None:
+                    snapshot_payload = result.snapshot
+                if result.diagnostics is not None:
+                    diagnostics_payload = result.diagnostics
+                if result.frame_paths is not None:
+                    frame_paths = result.frame_paths
+                drop_frames = result.drop_frames
+            except Exception:
+                drop_frames = True
+
+        if not drop_frames:
+            for frame_path in frame_paths:
+                src = Path(frame_path)
+                if not src.exists():
+                    continue
+                shutil.copy2(src, frames_out / src.name)
+
+        self._write_json_atomic(run_dir / "steps.json", self._steps)
+        if snapshot_payload is not None:
+            self._write_json_atomic(run_dir / "snapshot.json", snapshot_payload)
+        if diagnostics_payload is not None:
             self._write_json_atomic(run_dir / "diagnostics.json", diagnostics_payload)
 
         manifest = {
@@ -145,11 +221,15 @@ class FailureArtifactBuffer:
             "status": status,
             "reason": reason,
             "buffer_seconds": self.options.buffer_seconds,
-            "frame_count": len(self._frames),
-            "frames": [{"file": frame.file_name, "ts": frame.ts} for frame in self._frames],
+            "frame_count": 0 if drop_frames else len(frame_paths),
+            "frames": (
+                [] if drop_frames else [{"file": Path(p).name, "ts": None} for p in frame_paths]
+            ),
             "snapshot": "snapshot.json" if snapshot_payload is not None else None,
             "diagnostics": "diagnostics.json" if diagnostics_payload is not None else None,
             "metadata": metadata or {},
+            "frames_redacted": not drop_frames and self.options.on_before_persist is not None,
+            "frames_dropped": drop_frames,
         }
         self._write_json_atomic(run_dir / "manifest.json", manifest)
 

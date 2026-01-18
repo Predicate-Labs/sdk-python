@@ -104,6 +104,22 @@ await runtime.enable_failure_artifacts(
 await runtime.record_action("CLICK")
 ```
 
+### Redaction callback (Phase 3)
+
+Provide a user-defined callback to redact snapshots and decide whether to persist frames. The SDK does not implement image/video redaction.
+
+```python
+from sentience.failure_artifacts import FailureArtifactsOptions, RedactionContext, RedactionResult
+
+def redact(ctx: RedactionContext) -> RedactionResult:
+    # Example: drop frames entirely, keep JSON only.
+    return RedactionResult(drop_frames=True)
+
+await runtime.enable_failure_artifacts(
+    FailureArtifactsOptions(on_before_persist=redact)
+)
+```
+
 **See examples:** [`examples/asserts/`](examples/asserts/)
 
 ## 🚀 Quick Start: Choose Your Abstraction Level
