@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sentience.browser import AsyncSentienceBrowser
+from sentience.tracing import Tracer
 
 
 @dataclass
@@ -16,5 +17,4 @@ class SentiencePydanticDeps:
 
     browser: AsyncSentienceBrowser
     runtime: Any | None = None
-    tracer: Any | None = None
-
+    tracer: Tracer | None = None

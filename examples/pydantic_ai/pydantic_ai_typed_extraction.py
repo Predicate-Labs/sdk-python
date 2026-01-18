@@ -3,7 +3,7 @@ Example: PydanticAI + Sentience typed extraction (Phase 1 integration).
 
 Run:
   pip install sentienceapi[pydanticai]
-  python examples/pydantic_ai_typed_extraction.py
+  python examples/pydantic_ai/pydantic_ai_typed_extraction.py
 """
 
 from __future__ import annotations

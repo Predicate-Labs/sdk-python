@@ -3,7 +3,7 @@ Example: PydanticAI + Sentience self-correcting action loop using URL guards.
 
 Run:
   pip install sentienceapi[pydanticai]
-  python examples/pydantic_ai_self_correcting_click.py
+  python examples/pydantic_ai/pydantic_ai_self_correcting_click.py
 """
 
 from __future__ import annotations
