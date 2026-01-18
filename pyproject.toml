@@ -43,6 +43,15 @@ sentience = "sentience.cli:main"
 browser-use = [
     "browser-use>=0.1.40",
 ]
+pydanticai = [
+    # PydanticAI framework (PyPI: pydantic-ai, import: pydantic_ai)
+    "pydantic-ai",
+]
+langchain = [
+    # LangChain + LangGraph (kept optional to avoid forcing heavyweight deps on core SDK users)
+    "langchain",
+    "langgraph",
+]
 vision-local = [
     "pillow>=10.0.0",
     "torch>=2.2.0",

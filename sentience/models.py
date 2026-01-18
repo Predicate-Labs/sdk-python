@@ -31,6 +31,7 @@ class VisualCues(BaseModel):
 
     is_primary: bool
     background_color_name: str | None = None
+    fallback_background_color_name: str | None = None
     is_clickable: bool
 
 
@@ -65,6 +66,9 @@ class Element(BaseModel):
 
     # Hyperlink URL (for link elements)
     href: str | None = None
+
+    # Nearby static text (best-effort, usually only for top-ranked elements)
+    nearby_text: str | None = None
 
     # ===== v1 state-aware assertion fields (optional) =====
     # Best-effort accessible name/label for controls (distinct from visible text)

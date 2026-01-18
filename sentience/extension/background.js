@@ -28,14 +28,14 @@ async function handleSnapshotProcessing(rawData, options = {}) {
     const startTime = performance.now();
     try {
         if (!Array.isArray(rawData)) throw new Error("rawData must be an array");
-        if (rawData.length > 1e4 && (rawData = rawData.slice(0, 1e4)), await initWASM(), 
+        if (rawData.length > 1e4 && (rawData = rawData.slice(0, 1e4)), await initWASM(),
         !wasmReady) throw new Error("WASM module not initialized");
         let analyzedElements, prunedRawData;
         try {
             const wasmPromise = new Promise((resolve, reject) => {
                 try {
                     let result;
-                    result = options.limit || options.filter ? analyze_page_with_options(rawData, options) : analyze_page(rawData), 
+                    result = options.limit || options.filter ? analyze_page_with_options(rawData, options) : analyze_page(rawData),
                     resolve(result);
                 } catch (e) {
                     reject(e);

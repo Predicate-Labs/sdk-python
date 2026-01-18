@@ -5,6 +5,7 @@ Text search utilities - find text and get pixel coordinates
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
 from .models import TextRectSearchResult
+from .sentience_methods import SentienceMethod
 
 
 def find_text_rect(
