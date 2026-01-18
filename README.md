@@ -89,6 +89,37 @@ async def main():
 asyncio.run(main())
 ```
 
+### Failure Artifact Buffer (Phase 1)
+
+Capture a short ring buffer of screenshots and persist them when a required assertion fails.
+
+```python
+from sentience.failure_artifacts import FailureArtifactsOptions
+
+await runtime.enable_failure_artifacts(
+    FailureArtifactsOptions(buffer_seconds=15, capture_on_action=True, fps=0.0)
+)
+
+# After each action, record it (best-effort).
+await runtime.record_action("CLICK")
+```
+
+### Redaction callback (Phase 3)
+
+Provide a user-defined callback to redact snapshots and decide whether to persist frames. The SDK does not implement image/video redaction.
+
+```python
+from sentience.failure_artifacts import FailureArtifactsOptions, RedactionContext, RedactionResult
+
+def redact(ctx: RedactionContext) -> RedactionResult:
+    # Example: drop frames entirely, keep JSON only.
+    return RedactionResult(drop_frames=True)
+
+await runtime.enable_failure_artifacts(
+    FailureArtifactsOptions(on_before_persist=redact)
+)
+```
+
 **See examples:** [`examples/asserts/`](examples/asserts/)
 
 ## 🚀 Quick Start: Choose Your Abstraction Level
