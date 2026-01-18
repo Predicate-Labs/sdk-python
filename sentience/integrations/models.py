@@ -44,4 +44,3 @@ class AssertionResult(BaseModel):
     passed: bool
     reason: str = ""
     details: dict[str, Any] = {}
-

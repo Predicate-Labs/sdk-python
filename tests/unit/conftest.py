@@ -65,4 +65,3 @@ sync_api_mod.sync_playwright = _sync_playwright
 # Expose submodules on the top-level module for completeness
 playwright_mod.async_api = async_api_mod
 playwright_mod.sync_api = sync_api_mod
-

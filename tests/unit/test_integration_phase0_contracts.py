@@ -1,9 +1,9 @@
 import pytest
 
+from sentience.models import SnapshotOptions
 from sentience.read import read
 from sentience.snapshot import snapshot
 from sentience.text_search import find_text_rect
-from sentience.models import SnapshotOptions
 
 
 class _FakePage:
@@ -95,7 +95,9 @@ def test_read_passes_requested_format():
     result = read(browser, output_format="text", enhance_markdown=False)  # type: ignore[arg-type]
     assert result.format == "text"
 
-    read_calls = [(expr, arg) for (expr, arg) in page.evaluate_calls if "window.sentience.read" in expr]
+    read_calls = [
+        (expr, arg) for (expr, arg) in page.evaluate_calls if "window.sentience.read" in expr
+    ]
     assert len(read_calls) == 1
     _, options = read_calls[0]
     assert options == {"format": "text"}
@@ -117,4 +119,3 @@ def test_find_text_rect_unavailable_raises(monkeypatch):
         find_text_rect(browser, "Sign In")  # type: ignore[arg-type]
 
     assert "window.sentience.findTextRect is not available" in str(e.value)
-
