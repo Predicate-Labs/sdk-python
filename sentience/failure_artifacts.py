@@ -1,13 +1,33 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
+import subprocess
 import tempfile
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ClipOptions:
+    """Options for generating video clips from frames."""
+
+    mode: Literal["off", "auto", "on"] = "auto"
+    """Clip generation mode:
+    - "off": Never generate clips
+    - "auto": Generate only if ffmpeg is available on PATH
+    - "on": Always attempt to generate (will warn if ffmpeg missing)
+    """
+    fps: int = 8
+    """Frames per second for the generated video."""
+    seconds: float | None = None
+    """Duration of clip in seconds. If None, uses buffer_seconds."""
 
 
 @dataclass
@@ -19,6 +39,7 @@ class FailureArtifactsOptions:
     output_dir: str = ".sentience/artifacts"
     on_before_persist: Callable[[RedactionContext], RedactionResult] | None = None
     redact_snapshot_values: bool = True
+    clip: ClipOptions = field(default_factory=ClipOptions)
 
 
 @dataclass
@@ -45,6 +66,123 @@ class _FrameRecord:
     ts: float
     file_name: str
     path: Path
+
+
+def _is_ffmpeg_available() -> bool:
+    """Check if ffmpeg is available on the system PATH."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
+
+
+def _generate_clip_from_frames(
+    frames_dir: Path,
+    output_path: Path,
+    fps: int = 8,
+    frame_pattern: str = "frame_*.png",
+) -> bool:
+    """
+    Generate an MP4 video clip from a directory of frames using ffmpeg.
+
+    Args:
+        frames_dir: Directory containing frame images
+        output_path: Output path for the MP4 file
+        fps: Frames per second for the output video
+        frame_pattern: Glob pattern to match frame files
+
+    Returns:
+        True if clip was generated successfully, False otherwise
+    """
+    # Find all frames and sort by timestamp (extracted from filename)
+    frame_files = sorted(frames_dir.glob(frame_pattern))
+    if not frame_files:
+        # Try jpeg pattern as well
+        frame_files = sorted(frames_dir.glob("frame_*.jpeg"))
+    if not frame_files:
+        frame_files = sorted(frames_dir.glob("frame_*.jpg"))
+    if not frame_files:
+        logger.warning("No frame files found for clip generation")
+        return False
+
+    # Create a temporary file list for ffmpeg concat demuxer
+    # This approach handles arbitrary frame filenames and timing
+    list_file = frames_dir / "frames_list.txt"
+    try:
+        # Calculate frame duration based on FPS
+        frame_duration = 1.0 / fps
+
+        with open(list_file, "w") as f:
+            for frame_path in frame_files:
+                # ffmpeg concat format: file 'path' + duration
+                f.write(f"file '{frame_path.name}'\n")
+                f.write(f"duration {frame_duration}\n")
+            # Add last frame again (ffmpeg concat quirk)
+            if frame_files:
+                f.write(f"file '{frame_files[-1].name}'\n")
+
+        # Run ffmpeg to generate the clip
+        # -y: overwrite output file
+        # -f concat: use concat demuxer
+        # -safe 0: allow unsafe file paths
+        # -i: input file list
+        # -vsync vfr: variable frame rate
+        # -pix_fmt yuv420p: compatibility with most players
+        # -c:v libx264: H.264 codec
+        # -crf 23: quality (lower = better, 23 is default)
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_file),
+            "-vsync",
+            "vfr",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "23",
+            str(output_path),
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=60,  # 1 minute timeout
+            cwd=str(frames_dir),  # Run from frames dir for relative paths
+        )
+
+        if result.returncode != 0:
+            logger.warning(
+                f"ffmpeg failed with return code {result.returncode}: "
+                f"{result.stderr.decode('utf-8', errors='replace')[:500]}"
+            )
+            return False
+
+        return output_path.exists()
+
+    except subprocess.TimeoutExpired:
+        logger.warning("ffmpeg timed out during clip generation")
+        return False
+    except Exception as e:
+        logger.warning(f"Error generating clip: {e}")
+        return False
+    finally:
+        # Clean up the list file
+        try:
+            list_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 class FailureArtifactBuffer:
@@ -215,6 +353,42 @@ class FailureArtifactBuffer:
         if diagnostics_payload is not None:
             self._write_json_atomic(run_dir / "diagnostics.json", diagnostics_payload)
 
+        # Generate video clip from frames (optional, requires ffmpeg)
+        clip_generated = False
+        clip_path: Path | None = None
+        clip_options = self.options.clip
+
+        if not drop_frames and len(frame_paths) > 0 and clip_options.mode != "off":
+            should_generate = False
+
+            if clip_options.mode == "auto":
+                # Only generate if ffmpeg is available
+                should_generate = _is_ffmpeg_available()
+                if not should_generate:
+                    logger.debug("ffmpeg not available, skipping clip generation (mode=auto)")
+            elif clip_options.mode == "on":
+                # Always attempt to generate
+                should_generate = True
+                if not _is_ffmpeg_available():
+                    logger.warning(
+                        "ffmpeg not found on PATH but clip.mode='on'. "
+                        "Install ffmpeg to generate video clips."
+                    )
+                    should_generate = False
+
+            if should_generate:
+                clip_path = run_dir / "failure.mp4"
+                clip_generated = _generate_clip_from_frames(
+                    frames_dir=frames_out,
+                    output_path=clip_path,
+                    fps=clip_options.fps,
+                )
+                if clip_generated:
+                    logger.info(f"Generated failure clip: {clip_path}")
+                else:
+                    logger.warning("Failed to generate video clip")
+                    clip_path = None
+
         manifest = {
             "run_id": self.run_id,
             "created_at_ms": ts,
@@ -227,6 +401,8 @@ class FailureArtifactBuffer:
             ),
             "snapshot": "snapshot.json" if snapshot_payload is not None else None,
             "diagnostics": "diagnostics.json" if diagnostics_payload is not None else None,
+            "clip": "failure.mp4" if clip_generated else None,
+            "clip_fps": clip_options.fps if clip_generated else None,
             "metadata": metadata or {},
             "frames_redacted": not drop_frames and self.options.on_before_persist is not None,
             "frames_dropped": drop_frames,
