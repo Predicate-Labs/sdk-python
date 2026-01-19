@@ -30,7 +30,7 @@ Use `AgentRuntime` to add Jest-style assertions to your agent loops. Verify brow
 
 ```python
 import asyncio
-from sentience import AsyncSentienceBrowser, AgentRuntime
+from sentience import AsyncSentienceBrowser, AgentRuntime, CaptchaOptions, HumanHandoffSolver
 from sentience.verification import (
     url_contains,
     exists,
@@ -80,6 +80,11 @@ async def main():
         ).eventually(timeout_s=10.0, poll_s=0.25, min_confidence=0.7, max_snapshot_attempts=3)
         print("eventually() result:", ok)
 
+        # CAPTCHA handling (detection + handoff + verify)
+        runtime.set_captcha_options(
+            CaptchaOptions(policy="callback", handler=HumanHandoffSolver())
+        )
+
         # Check task completion
         if runtime.assert_done(exists("text~'Example'"), label="task_complete"):
             print("✅ Task completed!")
@@ -87,6 +92,26 @@ async def main():
         print(f"Task done: {runtime.is_task_done}")
 
 asyncio.run(main())
+```
+
+#### CAPTCHA strategies (Batteries Included)
+
+```python
+from sentience import CaptchaOptions, ExternalSolver, HumanHandoffSolver, VisionSolver
+
+# Human-in-loop
+runtime.set_captcha_options(CaptchaOptions(policy="callback", handler=HumanHandoffSolver()))
+
+# Vision verification only
+runtime.set_captcha_options(CaptchaOptions(policy="callback", handler=VisionSolver()))
+
+# External system/webhook
+runtime.set_captcha_options(
+    CaptchaOptions(
+        policy="callback",
+        handler=ExternalSolver(lambda ctx: notify_webhook(ctx)),
+    )
+)
 ```
 
 ### Failure Artifact Buffer (Phase 1)

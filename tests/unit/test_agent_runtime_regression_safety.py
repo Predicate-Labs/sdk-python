@@ -6,7 +6,14 @@ import pytest
 
 from sentience.agent_runtime import AgentRuntime
 from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.verification import AssertContext, AssertOutcome, is_checked, is_disabled, is_enabled, value_contains
+from sentience.verification import (
+    AssertContext,
+    AssertOutcome,
+    is_checked,
+    is_disabled,
+    is_enabled,
+    value_contains,
+)
 
 
 class MockBackend:
