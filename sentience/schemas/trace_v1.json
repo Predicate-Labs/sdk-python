@@ -220,7 +220,7 @@
               "type": "object",
               "required": ["kind"],
               "properties": {
-                "kind": {"type": "string", "enum": ["click", "type", "press", "finish", "navigate"]},
+                "kind": {"type": "string", "enum": ["click", "type", "press", "finish", "navigate", "scroll"]},
                 "element_id": {"type": "integer"},
                 "text": {"type": "string"},
                 "key": {"type": "string"},

@@ -25,7 +25,7 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_bigint_get_as_i64_8fcf4ce7f1ca72a2: function(arg0, arg1) {
             const v = getObject(arg1), ret = "bigint" == typeof v ? v : void 0;
-            getDataViewMemory0().setBigInt64(arg0 + 8, isLikeNone(ret) ? BigInt(0) : ret, !0),
+            getDataViewMemory0().setBigInt64(arg0 + 8, isLikeNone(ret) ? BigInt(0) : ret, !0), 
             getDataViewMemory0().setInt32(arg0 + 0, !isLikeNone(ret), !0);
         },
         __wbg___wbindgen_boolean_get_bbbb1c18aa2f5e25: function(arg0) {
@@ -224,7 +224,7 @@ function getArrayU8FromWasm0(ptr, len) {
 let cachedDataViewMemory0 = null;
 
 function getDataViewMemory0() {
-    return (null === cachedDataViewMemory0 || !0 === cachedDataViewMemory0.buffer.detached || void 0 === cachedDataViewMemory0.buffer.detached && cachedDataViewMemory0.buffer !== wasm.memory.buffer) && (cachedDataViewMemory0 = new DataView(wasm.memory.buffer)),
+    return (null === cachedDataViewMemory0 || !0 === cachedDataViewMemory0.buffer.detached || void 0 === cachedDataViewMemory0.buffer.detached && cachedDataViewMemory0.buffer !== wasm.memory.buffer) && (cachedDataViewMemory0 = new DataView(wasm.memory.buffer)), 
     cachedDataViewMemory0;
 }
 
@@ -235,7 +235,7 @@ function getStringFromWasm0(ptr, len) {
 let cachedUint8ArrayMemory0 = null;
 
 function getUint8ArrayMemory0() {
-    return null !== cachedUint8ArrayMemory0 && 0 !== cachedUint8ArrayMemory0.byteLength || (cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer)),
+    return null !== cachedUint8ArrayMemory0 && 0 !== cachedUint8ArrayMemory0.byteLength || (cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer)), 
     cachedUint8ArrayMemory0;
 }
 
@@ -264,7 +264,7 @@ function isLikeNone(x) {
 function passStringToWasm0(arg, malloc, realloc) {
     if (void 0 === realloc) {
         const buf = cachedTextEncoder.encode(arg), ptr = malloc(buf.length, 1) >>> 0;
-        return getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf), WASM_VECTOR_LEN = buf.length,
+        return getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf), WASM_VECTOR_LEN = buf.length, 
         ptr;
     }
     let len = arg.length, ptr = malloc(len, 1) >>> 0;
@@ -319,7 +319,7 @@ const cachedTextEncoder = new TextEncoder;
 let wasmModule, wasm, WASM_VECTOR_LEN = 0;
 
 function __wbg_finalize_init(instance, module) {
-    return wasm = instance.exports, wasmModule = module, cachedDataViewMemory0 = null,
+    return wasm = instance.exports, wasmModule = module, cachedDataViewMemory0 = null, 
     cachedUint8ArrayMemory0 = null, wasm;
 }
 
@@ -360,7 +360,7 @@ function initSync(module) {
 
 async function __wbg_init(module_or_path) {
     if (void 0 !== wasm) return wasm;
-    void 0 !== module_or_path && Object.getPrototypeOf(module_or_path) === Object.prototype && ({module_or_path: module_or_path} = module_or_path),
+    void 0 !== module_or_path && Object.getPrototypeOf(module_or_path) === Object.prototype && ({module_or_path: module_or_path} = module_or_path), 
     void 0 === module_or_path && (module_or_path = new URL("sentience_core_bg.wasm", import.meta.url));
     const imports = __wbg_get_imports();
     ("string" == typeof module_or_path || "function" == typeof Request && module_or_path instanceof Request || "function" == typeof URL && module_or_path instanceof URL) && (module_or_path = fetch(module_or_path));
