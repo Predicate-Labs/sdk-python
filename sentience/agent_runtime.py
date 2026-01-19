@@ -70,6 +70,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
 from .models import Snapshot, SnapshotOptions
 from .verification import AssertContext, AssertOutcome, Predicate
 
@@ -137,6 +138,10 @@ class AgentRuntime:
 
         # Snapshot state
         self.last_snapshot: Snapshot | None = None
+
+        # Failure artifacts (Phase 1)
+        self._artifact_buffer: FailureArtifactBuffer | None = None
+        self._artifact_timer_task: asyncio.Task | None = None
 
         # Cached URL (updated on snapshot or explicit get_url call)
         self._cached_url: str | None = None
@@ -250,6 +255,113 @@ class AgentRuntime:
         self.last_snapshot = await backend_snapshot(self.backend, options=options)
         return self.last_snapshot
 
+    async def enable_failure_artifacts(
+        self,
+        options: FailureArtifactsOptions | None = None,
+    ) -> None:
+        """
+        Enable failure artifact buffer (Phase 1).
+        """
+        opts = options or FailureArtifactsOptions()
+        self._artifact_buffer = FailureArtifactBuffer(
+            run_id=self.tracer.run_id,
+            options=opts,
+        )
+        if opts.fps > 0:
+            self._artifact_timer_task = asyncio.create_task(self._artifact_timer_loop())
+
+    def disable_failure_artifacts(self) -> None:
+        """
+        Disable failure artifact buffer and stop background capture.
+        """
+        if self._artifact_timer_task:
+            self._artifact_timer_task.cancel()
+            self._artifact_timer_task = None
+
+    async def record_action(
+        self,
+        action: str,
+        *,
+        url: str | None = None,
+    ) -> None:
+        """
+        Record an action in the artifact timeline and capture a frame if enabled.
+        """
+        if not self._artifact_buffer:
+            return
+        self._artifact_buffer.record_step(
+            action=action,
+            step_id=self.step_id,
+            step_index=self.step_index,
+            url=url,
+        )
+        if self._artifact_buffer.options.capture_on_action:
+            await self._capture_artifact_frame()
+
+    async def _capture_artifact_frame(self) -> None:
+        if not self._artifact_buffer:
+            return
+        try:
+            image_bytes = await self.backend.screenshot_png()
+        except Exception:
+            return
+        self._artifact_buffer.add_frame(image_bytes, fmt="png")
+
+    async def _artifact_timer_loop(self) -> None:
+        if not self._artifact_buffer:
+            return
+        interval = 1.0 / max(0.001, self._artifact_buffer.options.fps)
+        try:
+            while True:
+                await self._capture_artifact_frame()
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            return
+
+    def finalize_run(self, *, success: bool) -> None:
+        """
+        Finalize artifact buffer at end of run.
+        """
+        if not self._artifact_buffer:
+            return
+        if success:
+            if self._artifact_buffer.options.persist_mode == "always":
+                self._artifact_buffer.persist(
+                    reason="success",
+                    status="success",
+                    snapshot=self.last_snapshot,
+                    diagnostics=getattr(self.last_snapshot, "diagnostics", None),
+                    metadata=self._artifact_metadata(),
+                )
+            self._artifact_buffer.cleanup()
+        else:
+            self._persist_failure_artifacts(reason="finalize_failure")
+
+    def _persist_failure_artifacts(self, *, reason: str) -> None:
+        if not self._artifact_buffer:
+            return
+        self._artifact_buffer.persist(
+            reason=reason,
+            status="failure",
+            snapshot=self.last_snapshot,
+            diagnostics=getattr(self.last_snapshot, "diagnostics", None),
+            metadata=self._artifact_metadata(),
+        )
+        self._artifact_buffer.cleanup()
+        if self._artifact_buffer.options.persist_mode == "onFail":
+            self.disable_failure_artifacts()
+
+    def _artifact_metadata(self) -> dict[str, Any]:
+        url = None
+        if self.last_snapshot is not None:
+            url = self.last_snapshot.url
+        elif self._cached_url:
+            url = self._cached_url
+        return {
+            "backend": self.backend.__class__.__name__,
+            "url": url,
+        }
+
     def begin_step(self, goal: str, step_index: int | None = None) -> str:
         """
         Begin a new step in the verification loop.
@@ -309,6 +421,8 @@ class AgentRuntime:
             kind="assert",
             record_in_step=True,
         )
+        if required and not outcome.passed:
+            self._persist_failure_artifacts(reason=f"assert_failed:{label}")
         return outcome.passed
 
     def check(self, predicate: Predicate, label: str, required: bool = False) -> AssertionHandle:
@@ -619,6 +733,10 @@ class AssertionHandle:
                                     "vision_fallback": True,
                                 },
                             )
+                            if self.required and not passed:
+                                self.runtime._persist_failure_artifacts(
+                                    reason=f"assert_eventually_failed:{self.label}"
+                                )
                             return passed
                         except Exception as e:
                             # If vision fallback fails, fall through to snapshot_exhausted.
@@ -649,6 +767,10 @@ class AssertionHandle:
                             "exhausted": True,
                         },
                     )
+                    if self.required:
+                        self.runtime._persist_failure_artifacts(
+                            reason=f"assert_eventually_failed:{self.label}"
+                        )
                     return False
 
                 if time.monotonic() >= deadline:
@@ -666,6 +788,10 @@ class AssertionHandle:
                             "timeout": True,
                         },
                     )
+                    if self.required:
+                        self.runtime._persist_failure_artifacts(
+                            reason=f"assert_eventually_timeout:{self.label}"
+                        )
                     return False
 
                 await asyncio.sleep(poll_s)
@@ -705,6 +831,10 @@ class AssertionHandle:
                     record_in_step=True,
                     extra={"eventually": True, "attempt": attempt, "final": True, "timeout": True},
                 )
+                if self.required:
+                    self.runtime._persist_failure_artifacts(
+                        reason=f"assert_eventually_timeout:{self.label}"
+                    )
                 return False
 
             await asyncio.sleep(poll_s)
