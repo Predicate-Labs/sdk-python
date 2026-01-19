@@ -126,6 +126,11 @@ class PlaywrightBackend:
         """Capture viewport screenshot as PNG bytes."""
         return await self._page.screenshot(type="png")
 
+    async def screenshot_jpeg(self, quality: int | None = None) -> bytes:
+        """Capture viewport screenshot as JPEG bytes."""
+        q = 80 if quality is None else max(1, min(int(quality), 100))
+        return await self._page.screenshot(type="jpeg", quality=q)
+
     async def mouse_move(self, x: float, y: float) -> None:
         """Move mouse to viewport coordinates."""
         await self._page.mouse.move(x, y)

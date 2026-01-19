@@ -82,7 +82,7 @@
                 if (!elements || !Array.isArray(elements)) return;
                 removeOverlay();
                 const host = document.createElement("div");
-                host.id = OVERLAY_HOST_ID, host.style.cssText = "\n        position: fixed !important;\n        top: 0 !important;\n        left: 0 !important;\n        width: 100vw !important;\n        height: 100vh !important;\n        pointer-events: none !important;\n        z-index: 2147483647 !important;\n        margin: 0 !important;\n        padding: 0 !important;\n    ", 
+                host.id = OVERLAY_HOST_ID, host.style.cssText = "\n        position: fixed !important;\n        top: 0 !important;\n        left: 0 !important;\n        width: 100vw !important;\n        height: 100vh !important;\n        pointer-events: none !important;\n        z-index: 2147483647 !important;\n        margin: 0 !important;\n        padding: 0 !important;\n    ",
                 document.body.appendChild(host);
                 const shadow = host.attachShadow({
                     mode: "closed"
@@ -94,15 +94,15 @@
                     let color;
                     color = isTarget ? "#FF0000" : isPrimary ? "#0066FF" : "#00FF00";
                     const importanceRatio = maxImportance > 0 ? importance / maxImportance : .5, borderOpacity = isTarget ? 1 : isPrimary ? .9 : Math.max(.4, .5 + .5 * importanceRatio), fillOpacity = .2 * borderOpacity, borderWidth = isTarget ? 2 : isPrimary ? 1.5 : Math.max(.5, Math.round(2 * importanceRatio)), hexOpacity = Math.round(255 * fillOpacity).toString(16).padStart(2, "0"), box = document.createElement("div");
-                    if (box.style.cssText = `\n            position: absolute;\n            left: ${bbox.x}px;\n            top: ${bbox.y}px;\n            width: ${bbox.width}px;\n            height: ${bbox.height}px;\n            border: ${borderWidth}px solid ${color};\n            background-color: ${color}${hexOpacity};\n            box-sizing: border-box;\n            opacity: ${borderOpacity};\n            pointer-events: none;\n        `, 
+                    if (box.style.cssText = `\n            position: absolute;\n            left: ${bbox.x}px;\n            top: ${bbox.y}px;\n            width: ${bbox.width}px;\n            height: ${bbox.height}px;\n            border: ${borderWidth}px solid ${color};\n            background-color: ${color}${hexOpacity};\n            box-sizing: border-box;\n            opacity: ${borderOpacity};\n            pointer-events: none;\n        `,
                     importance > 0 || isPrimary) {
                         const badge = document.createElement("span");
-                        badge.textContent = isPrimary ? `⭐${importance}` : `${importance}`, badge.style.cssText = `\n                position: absolute;\n                top: -18px;\n                left: 0;\n                background: ${color};\n                color: white;\n                font-size: 11px;\n                font-weight: bold;\n                padding: 2px 6px;\n                font-family: Arial, sans-serif;\n                border-radius: 3px;\n                opacity: 0.95;\n                white-space: nowrap;\n                pointer-events: none;\n            `, 
+                        badge.textContent = isPrimary ? `⭐${importance}` : `${importance}`, badge.style.cssText = `\n                position: absolute;\n                top: -18px;\n                left: 0;\n                background: ${color};\n                color: white;\n                font-size: 11px;\n                font-weight: bold;\n                padding: 2px 6px;\n                font-family: Arial, sans-serif;\n                border-radius: 3px;\n                opacity: 0.95;\n                white-space: nowrap;\n                pointer-events: none;\n            `,
                         box.appendChild(badge);
                     }
                     if (isTarget) {
                         const targetIndicator = document.createElement("span");
-                        targetIndicator.textContent = "🎯", targetIndicator.style.cssText = "\n                position: absolute;\n                top: -18px;\n                right: 0;\n                font-size: 16px;\n                pointer-events: none;\n            ", 
+                        targetIndicator.textContent = "🎯", targetIndicator.style.cssText = "\n                position: absolute;\n                top: -18px;\n                right: 0;\n                font-size: 16px;\n                pointer-events: none;\n            ",
                         box.appendChild(targetIndicator);
                     }
                     shadow.appendChild(box);
@@ -122,7 +122,7 @@
                 if (!grids || !Array.isArray(grids)) return;
                 removeOverlay();
                 const host = document.createElement("div");
-                host.id = OVERLAY_HOST_ID, host.style.cssText = "\n        position: fixed !important;\n        top: 0 !important;\n        left: 0 !important;\n        width: 100vw !important;\n        height: 100vh !important;\n        pointer-events: none !important;\n        z-index: 2147483647 !important;\n        margin: 0 !important;\n        padding: 0 !important;\n    ", 
+                host.id = OVERLAY_HOST_ID, host.style.cssText = "\n        position: fixed !important;\n        top: 0 !important;\n        left: 0 !important;\n        width: 100vw !important;\n        height: 100vh !important;\n        pointer-events: none !important;\n        z-index: 2147483647 !important;\n        margin: 0 !important;\n        padding: 0 !important;\n    ",
                 document.body.appendChild(host);
                 const shadow = host.attachShadow({
                     mode: "closed"
@@ -138,10 +138,10 @@
                     let labelText = grid.label ? `Grid ${grid.grid_id}: ${grid.label}` : `Grid ${grid.grid_id}`;
                     grid.is_dominant && (labelText = `⭐ ${labelText} (dominant)`);
                     const badge = document.createElement("span");
-                    if (badge.textContent = labelText, badge.style.cssText = `\n                position: absolute;\n                top: -18px;\n                left: 0;\n                background: ${color};\n                color: white;\n                font-size: 11px;\n                font-weight: bold;\n                padding: 2px 6px;\n                font-family: Arial, sans-serif;\n                border-radius: 3px;\n                opacity: 0.95;\n                white-space: nowrap;\n                pointer-events: none;\n            `, 
+                    if (badge.textContent = labelText, badge.style.cssText = `\n                position: absolute;\n                top: -18px;\n                left: 0;\n                background: ${color};\n                color: white;\n                font-size: 11px;\n                font-weight: bold;\n                padding: 2px 6px;\n                font-family: Arial, sans-serif;\n                border-radius: 3px;\n                opacity: 0.95;\n                white-space: nowrap;\n                pointer-events: none;\n            `,
                     box.appendChild(badge), isTarget) {
                         const targetIndicator = document.createElement("span");
-                        targetIndicator.textContent = "🎯", targetIndicator.style.cssText = "\n                position: absolute;\n                top: -18px;\n                right: 0;\n                font-size: 16px;\n                pointer-events: none;\n            ", 
+                        targetIndicator.textContent = "🎯", targetIndicator.style.cssText = "\n                position: absolute;\n                top: -18px;\n                right: 0;\n                font-size: 16px;\n                pointer-events: none;\n            ",
                         box.appendChild(targetIndicator);
                     }
                     shadow.appendChild(box);
@@ -155,7 +155,7 @@
     let overlayTimeout = null;
     function removeOverlay() {
         const existing = document.getElementById(OVERLAY_HOST_ID);
-        existing && existing.remove(), overlayTimeout && (clearTimeout(overlayTimeout), 
+        existing && existing.remove(), overlayTimeout && (clearTimeout(overlayTimeout),
         overlayTimeout = null);
     }
 }();

@@ -30,18 +30,16 @@ async def main() -> None:
         )
 
         # Option 1: Human-in-loop
-        runtime.set_captcha_options(
-            CaptchaOptions(policy="callback", handler=HumanHandoffSolver())
-        )
+        runtime.set_captcha_options(CaptchaOptions(policy="callback", handler=HumanHandoffSolver()))
 
         # Option 2: Vision-only verification (no actions)
-        runtime.set_captcha_options(
-            CaptchaOptions(policy="callback", handler=VisionSolver())
-        )
+        runtime.set_captcha_options(CaptchaOptions(policy="callback", handler=VisionSolver()))
 
         # Option 3: External resolver orchestration
         runtime.set_captcha_options(
-            CaptchaOptions(policy="callback", handler=ExternalSolver(lambda ctx: notify_webhook(ctx)))
+            CaptchaOptions(
+                policy="callback", handler=ExternalSolver(lambda ctx: notify_webhook(ctx))
+            )
         )
 
         await page.goto(os.environ.get("CAPTCHA_TEST_URL", "https://example.com"))

@@ -426,10 +426,14 @@ class AgentRuntime:
         if not self._artifact_buffer:
             return
         try:
-            image_bytes = await self.backend.screenshot_png()
+            fmt = self._artifact_buffer.options.frame_format
+            if fmt == "jpeg":
+                image_bytes = await self.backend.screenshot_jpeg()
+            else:
+                image_bytes = await self.backend.screenshot_png()
         except Exception:
             return
-        self._artifact_buffer.add_frame(image_bytes, fmt="png")
+        self._artifact_buffer.add_frame(image_bytes, fmt=fmt)
 
     async def _artifact_timer_loop(self) -> None:
         if not self._artifact_buffer:
@@ -579,7 +583,7 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         # Convenience wrapper for assert_ with required=True
-        ok = self.assert_(predicate, label=label, required=True)
+        ok = self.assertTrue(predicate, label=label, required=True)
         if ok:
             self._task_done = True
             self._task_done_label = label
