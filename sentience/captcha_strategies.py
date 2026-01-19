@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Callable
+from collections.abc import Callable
 
 from .captcha import CaptchaContext, CaptchaHandler, CaptchaResolution
 

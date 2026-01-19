@@ -126,6 +126,18 @@ class BrowserBackend(Protocol):
         """
         ...
 
+    async def screenshot_jpeg(self, quality: int | None = None) -> bytes:
+        """
+        Capture viewport screenshot as JPEG bytes.
+
+        Args:
+            quality: Optional JPEG quality (1-100)
+
+        Returns:
+            JPEG image bytes
+        """
+        ...
+
     async def mouse_move(self, x: float, y: float) -> None:
         """
         Move mouse to viewport coordinates.

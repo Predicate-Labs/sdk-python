@@ -426,10 +426,14 @@ class AgentRuntime:
         if not self._artifact_buffer:
             return
         try:
-            image_bytes = await self.backend.screenshot_png()
+            fmt = self._artifact_buffer.options.frame_format
+            if fmt == "jpeg":
+                image_bytes = await self.backend.screenshot_jpeg()
+            else:
+                image_bytes = await self.backend.screenshot_png()
         except Exception:
             return
-        self._artifact_buffer.add_frame(image_bytes, fmt="png")
+        self._artifact_buffer.add_frame(image_bytes, fmt=fmt)
 
     async def _artifact_timer_loop(self) -> None:
         if not self._artifact_buffer:

@@ -256,6 +256,20 @@ class CDPBackendV0:
         data = result.get("data", "")
         return base64.b64decode(data)
 
+    async def screenshot_jpeg(self, quality: int | None = None) -> bytes:
+        """Capture viewport screenshot as JPEG bytes."""
+        q = 80 if quality is None else max(1, min(int(quality), 100))
+        result = await self._transport.send(
+            "Page.captureScreenshot",
+            {
+                "format": "jpeg",
+                "quality": q,
+                "captureBeyondViewport": False,
+            },
+        )
+        data = result.get("data", "")
+        return base64.b64decode(data)
+
     async def mouse_move(self, x: float, y: float) -> None:
         """Move mouse to viewport coordinates."""
         await self._transport.send(

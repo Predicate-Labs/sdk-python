@@ -59,6 +59,7 @@ class FailureArtifactsOptions:
     fps: float = 0.0
     persist_mode: Literal["onFail", "always"] = "onFail"
     output_dir: str = ".sentience/artifacts"
+    frame_format: Literal["png", "jpeg"] = "jpeg"
     on_before_persist: Callable[[RedactionContext], RedactionResult] | None = None
     redact_snapshot_values: bool = True
     clip: ClipOptions = field(default_factory=ClipOptions)
@@ -255,6 +256,8 @@ class FailureArtifactBuffer:
         ts = self._time_fn()
         file_name = f"frame_{int(ts * 1000)}.{fmt}"
         path = self._frames_dir / file_name
+        if not self._frames_dir.exists():
+            self._frames_dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(image_bytes)
         self._frames.append(_FrameRecord(ts=ts, file_name=file_name, path=path))
         self._prune()
@@ -400,10 +403,12 @@ class FailureArtifactBuffer:
 
             if should_generate:
                 clip_path = run_dir / "failure.mp4"
+                frame_pattern = f"frame_*.{self.options.frame_format}"
                 clip_generated = _generate_clip_from_frames(
                     frames_dir=frames_out,
                     output_path=clip_path,
                     fps=clip_options.fps,
+                    frame_pattern=frame_pattern,
                 )
                 if clip_generated:
                     logger.info(f"Generated failure clip: {clip_path}")
