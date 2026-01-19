@@ -103,10 +103,17 @@ def _build_snapshot_payload(
     """
     diagnostics = raw_result.get("diagnostics") or {}
     client_metrics = None
+    client_diagnostics = None
     try:
         client_metrics = diagnostics.get("metrics")
     except Exception:
         client_metrics = None
+    try:
+        captcha = diagnostics.get("captcha")
+        if captcha is not None:
+            client_diagnostics = {"captcha": captcha}
+    except Exception:
+        client_diagnostics = None
 
     return {
         "raw_elements": raw_result.get("raw_elements", []),
@@ -118,6 +125,7 @@ def _build_snapshot_payload(
             "filter": options.filter.model_dump() if options.filter else None,
         },
         "client_metrics": client_metrics,
+        "client_diagnostics": client_diagnostics,
     }
 
 

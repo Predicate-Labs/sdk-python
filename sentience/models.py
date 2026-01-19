@@ -290,12 +290,29 @@ class SnapshotDiagnosticsMetrics(BaseModel):
     raw_elements_count: int | None = None
 
 
+class CaptchaEvidence(BaseModel):
+    text_hits: list[str] = Field(default_factory=list)
+    selector_hits: list[str] = Field(default_factory=list)
+    iframe_src_hits: list[str] = Field(default_factory=list)
+    url_hits: list[str] = Field(default_factory=list)
+
+
+class CaptchaDiagnostics(BaseModel):
+    """Detection-only CAPTCHA signal (no solving/bypass)."""
+
+    detected: bool = False
+    provider_hint: str | None = None
+    confidence: float = 0.0
+    evidence: CaptchaEvidence = Field(default_factory=CaptchaEvidence)
+
+
 class SnapshotDiagnostics(BaseModel):
     """Runtime stability/debug information (reserved for diagnostics, not ML metadata)."""
 
     confidence: float | None = None
-    reasons: list[str] = []
+    reasons: list[str] = Field(default_factory=list)
     metrics: SnapshotDiagnosticsMetrics | None = None
+    captcha: CaptchaDiagnostics | None = None
 
     def get_grid_bounds(self, grid_id: int | None = None) -> list[GridInfo]:
         """

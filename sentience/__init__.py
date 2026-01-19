@@ -39,6 +39,8 @@ from .backends import wait_for_stable as backend_wait_for_stable
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
 from .browser import SentienceBrowser
+from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
+from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 
 # Tracing (v0.12.0+)
 from .cloud_tracing import CloudTraceSink, SentienceLogger

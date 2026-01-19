@@ -70,6 +70,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
 from .models import Snapshot, SnapshotOptions
 from .verification import AssertContext, AssertOutcome, Predicate
@@ -152,6 +153,10 @@ class AgentRuntime:
         # Task completion tracking
         self._task_done: bool = False
         self._task_done_label: str | None = None
+
+        # CAPTCHA handling (optional, disabled by default)
+        self._captcha_options: CaptchaOptions | None = None
+        self._captcha_retry_count: int = 0
 
     @classmethod
     async def from_sentience_browser(
@@ -248,12 +253,131 @@ class AgentRuntime:
         from .backends.snapshot import snapshot as backend_snapshot
 
         # Merge default options with call-specific kwargs
+        skip_captcha_handling = bool(kwargs.pop("_skip_captcha_handling", False))
         options_dict = self._snapshot_options.model_dump(exclude_none=True)
         options_dict.update(kwargs)
         options = SnapshotOptions(**options_dict)
 
         self.last_snapshot = await backend_snapshot(self.backend, options=options)
+        if not skip_captcha_handling:
+            await self._handle_captcha_if_needed(self.last_snapshot, source="gateway")
         return self.last_snapshot
+
+    def set_captcha_options(self, options: CaptchaOptions) -> None:
+        """
+        Configure CAPTCHA handling (disabled by default unless set).
+        """
+        self._captcha_options = options
+        self._captcha_retry_count = 0
+
+    def _is_captcha_detected(self, snapshot: Snapshot) -> bool:
+        if not self._captcha_options:
+            return False
+        captcha = getattr(snapshot.diagnostics, "captcha", None) if snapshot.diagnostics else None
+        if not captcha or not getattr(captcha, "detected", False):
+            return False
+        confidence = getattr(captcha, "confidence", 0.0)
+        return confidence >= self._captcha_options.min_confidence
+
+    def _build_captcha_context(self, snapshot: Snapshot, source: str) -> CaptchaContext:
+        captcha = getattr(snapshot.diagnostics, "captcha", None)
+        return CaptchaContext(
+            run_id=self.tracer.run_id,
+            step_index=self.step_index,
+            url=snapshot.url,
+            source=source,  # type: ignore[arg-type]
+            captcha=captcha,
+        )
+
+    def _emit_captcha_event(self, reason_code: str, details: dict[str, Any] | None = None) -> None:
+        payload = {
+            "kind": "captcha",
+            "passed": False,
+            "label": reason_code,
+            "details": {"reason_code": reason_code, **(details or {})},
+        }
+        self.tracer.emit("verification", data=payload, step_id=self.step_id)
+
+    async def _handle_captcha_if_needed(self, snapshot: Snapshot, source: str) -> None:
+        if not self._captcha_options:
+            return
+        if not self._is_captcha_detected(snapshot):
+            return
+
+        captcha = getattr(snapshot.diagnostics, "captcha", None)
+        self._emit_captcha_event(
+            "captcha_detected",
+            {"captcha": getattr(captcha, "model_dump", lambda: captcha)()},
+        )
+
+        resolution: CaptchaResolution
+        if self._captcha_options.policy == "callback":
+            if not self._captcha_options.handler:
+                self._emit_captcha_event("captcha_handler_error")
+                raise CaptchaHandlingError(
+                    "captcha_handler_error",
+                    'Captcha handler is required for policy="callback".',
+                )
+            try:
+                resolution = await self._captcha_options.handler(
+                    self._build_captcha_context(snapshot, source)
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                self._emit_captcha_event("captcha_handler_error", {"error": str(exc)})
+                raise CaptchaHandlingError(
+                    "captcha_handler_error", "Captcha handler failed."
+                ) from exc
+        else:
+            resolution = CaptchaResolution(action="abort")
+
+        await self._apply_captcha_resolution(resolution, snapshot, source)
+
+    async def _apply_captcha_resolution(
+        self,
+        resolution: CaptchaResolution,
+        snapshot: Snapshot,
+        source: str,
+    ) -> None:
+        if resolution.action == "abort":
+            self._emit_captcha_event("captcha_policy_abort", {"message": resolution.message})
+            raise CaptchaHandlingError(
+                "captcha_policy_abort",
+                resolution.message or "Captcha detected. Aborting per policy.",
+            )
+
+        if resolution.action == "retry_new_session":
+            self._captcha_retry_count += 1
+            self._emit_captcha_event("captcha_retry_new_session")
+            if self._captcha_retry_count > self._captcha_options.max_retries_new_session:
+                self._emit_captcha_event("captcha_retry_exhausted")
+                raise CaptchaHandlingError(
+                    "captcha_retry_exhausted",
+                    "Captcha retry_new_session exhausted.",
+                )
+            if not self._captcha_options.reset_session:
+                raise CaptchaHandlingError(
+                    "captcha_retry_new_session",
+                    "reset_session callback is required for retry_new_session.",
+                )
+            await self._captcha_options.reset_session()
+            return
+
+        if resolution.action == "wait_until_cleared":
+            timeout_ms = resolution.timeout_ms or self._captcha_options.timeout_ms
+            poll_ms = resolution.poll_ms or self._captcha_options.poll_ms
+            await self._wait_until_cleared(timeout_ms=timeout_ms, poll_ms=poll_ms, source=source)
+            self._emit_captcha_event("captcha_resumed")
+
+    async def _wait_until_cleared(self, *, timeout_ms: int, poll_ms: int, source: str) -> None:
+        deadline = time.time() + timeout_ms / 1000.0
+        while time.time() <= deadline:
+            await asyncio.sleep(poll_ms / 1000.0)
+            snap = await self.snapshot(_skip_captcha_handling=True)
+            if not self._is_captcha_detected(snap):
+                self._emit_captcha_event("captcha_cleared", {"source": source})
+                return
+        self._emit_captcha_event("captcha_wait_timeout", {"timeout_ms": timeout_ms})
+        raise CaptchaHandlingError("captcha_wait_timeout", "Captcha wait_until_cleared timed out.")
 
     async def enable_failure_artifacts(
         self,
@@ -455,7 +579,7 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         # Convenience wrapper for assert_ with required=True
-        ok = self.assertTrue(predicate, label=label, required=True)
+        ok = self.assert_(predicate, label=label, required=True)
         if ok:
             self._task_done = True
             self._task_done_label = label

@@ -73,6 +73,46 @@
             "url": {"type": ["string", "null"]},
             "element_count": {"type": "integer"},
             "timestamp": {"type": ["string", "null"]},
+            "diagnostics": {
+              "type": ["object", "null"],
+              "properties": {
+                "confidence": {"type": ["number", "null"]},
+                "reasons": {"type": "array", "items": {"type": "string"}},
+                "metrics": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "ready_state": {"type": ["string", "null"]},
+                    "quiet_ms": {"type": ["number", "null"]},
+                    "node_count": {"type": ["integer", "null"]},
+                    "interactive_count": {"type": ["integer", "null"]},
+                    "raw_elements_count": {"type": ["integer", "null"]}
+                  },
+                  "additionalProperties": true
+                },
+                "captcha": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "detected": {"type": "boolean"},
+                    "provider_hint": {
+                      "type": ["string", "null"],
+                      "enum": ["recaptcha", "hcaptcha", "turnstile", "arkose", "awswaf", "unknown", null]
+                    },
+                    "confidence": {"type": "number"},
+                    "evidence": {
+                      "type": "object",
+                      "properties": {
+                        "text_hits": {"type": "array", "items": {"type": "string"}},
+                        "selector_hits": {"type": "array", "items": {"type": "string"}},
+                        "iframe_src_hits": {"type": "array", "items": {"type": "string"}},
+                        "url_hits": {"type": "array", "items": {"type": "string"}}
+                      }
+                    }
+                  },
+                  "required": ["detected", "confidence", "evidence"]
+                }
+              },
+              "additionalProperties": true
+            },
             "elements": {
               "type": "array",
               "items": {
@@ -180,7 +220,7 @@
               "type": "object",
               "required": ["kind"],
               "properties": {
-                "kind": {"type": "string", "enum": ["click", "type", "press", "finish", "navigate"]},
+                "kind": {"type": "string", "enum": ["click", "type", "press", "finish", "navigate", "scroll"]},
                 "element_id": {"type": "integer"},
                 "text": {"type": "string"},
                 "key": {"type": "string"},
@@ -289,7 +329,7 @@
             "passed": {"type": "boolean"},
             "kind": {
               "type": "string",
-              "enum": ["assert", "task_done"],
+              "enum": ["assert", "task_done", "captcha"],
               "description": "Type of verification event"
             },
             "label": {"type": "string", "description": "Human-readable label for the assertion"},
