@@ -206,10 +206,10 @@ class SentienceAgent(BaseAgent):
             )
 
         # Track data collected during step execution for step_end emission on failure
-        _step_snap_with_diff: Optional[Snapshot] = None
-        _step_pre_url: Optional[str] = None
-        _step_llm_response: Optional[LLMResponse] = None
-        _step_result: Optional[AgentActionResult] = None
+        _step_snap_with_diff: Snapshot | None = None
+        _step_pre_url: str | None = None
+        _step_llm_response: LLMResponse | None = None
+        _step_result: AgentActionResult | None = None
         _step_duration_ms: int = 0
 
         for attempt in range(max_retries + 1):
@@ -564,7 +564,9 @@ class SentienceAgent(BaseAgent):
                         snapshot_digest = f"sha256:{self._compute_hash(f'{_step_pre_url}{_step_snap_with_diff.timestamp}')}"
 
                         # Build pre_elements from snap_with_diff (includes diff_status)
-                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(_step_snap_with_diff)
+                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(
+                            _step_snap_with_diff
+                        )
                         pre_elements = snapshot_event_data.get("elements", [])
 
                         # Build LLM data if available
@@ -847,10 +849,10 @@ class SentienceAgentAsync(BaseAgentAsync):
             )
 
         # Track data collected during step execution for step_end emission on failure
-        _step_snap_with_diff: Optional[Snapshot] = None
-        _step_pre_url: Optional[str] = None
-        _step_llm_response: Optional[LLMResponse] = None
-        _step_result: Optional[AgentActionResult] = None
+        _step_snap_with_diff: Snapshot | None = None
+        _step_pre_url: str | None = None
+        _step_llm_response: LLMResponse | None = None
+        _step_result: AgentActionResult | None = None
         _step_duration_ms: int = 0
 
         for attempt in range(max_retries + 1):
@@ -1204,7 +1206,9 @@ class SentienceAgentAsync(BaseAgentAsync):
                         snapshot_digest = f"sha256:{self._compute_hash(f'{_step_pre_url}{_step_snap_with_diff.timestamp}')}"
 
                         # Build pre_elements from snap_with_diff (includes diff_status)
-                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(_step_snap_with_diff)
+                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(
+                            _step_snap_with_diff
+                        )
                         pre_elements = snapshot_event_data.get("elements", [])
 
                         # Build LLM data if available

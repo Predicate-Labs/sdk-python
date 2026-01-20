@@ -239,9 +239,7 @@ def _generate_clip_from_frames(
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace")[:500]
             stdout = result.stdout.decode("utf-8", errors="replace")[:200]
-            logger.warning(
-                f"ffmpeg failed with return code {result.returncode}: {stderr}"
-            )
+            logger.warning(f"ffmpeg failed with return code {result.returncode}: {stderr}")
             if stdout:
                 logger.debug(f"ffmpeg stdout: {stdout}")
             # Fallback: use glob input (handles non-uniform filenames)
