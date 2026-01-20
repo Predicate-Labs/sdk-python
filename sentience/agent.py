@@ -205,6 +205,13 @@ class SentienceAgent(BaseAgent):
                 pre_url=pre_url,
             )
 
+        # Track data collected during step execution for step_end emission on failure
+        _step_snap_with_diff: Snapshot | None = None
+        _step_pre_url: str | None = None
+        _step_llm_response: LLMResponse | None = None
+        _step_result: AgentActionResult | None = None
+        _step_duration_ms: int = 0
+
         for attempt in range(max_retries + 1):
             try:
                 # 1. OBSERVE: Get refined semantic snapshot
@@ -253,6 +260,10 @@ class SentienceAgent(BaseAgent):
                     screenshot_format=snap.screenshot_format,
                     error=snap.error,
                 )
+
+                # Track for step_end emission on failure
+                _step_snap_with_diff = snap_with_diff
+                _step_pre_url = snap.url
 
                 # Update previous snapshot for next comparison
                 self._previous_snapshot = snap
@@ -311,6 +322,9 @@ class SentienceAgent(BaseAgent):
                 # 3. THINK: Query LLM for next action
                 llm_response = self.llm_handler.query_llm(context, goal)
 
+                # Track for step_end emission on failure
+                _step_llm_response = llm_response
+
                 # Emit LLM query trace event if tracer is enabled
                 if self.tracer:
                     _safe_tracer_call(
@@ -357,6 +371,10 @@ class SentienceAgent(BaseAgent):
                     message=result_dict.get("message"),
                     cursor=result_dict.get("cursor"),
                 )
+
+                # Track for step_end emission on failure
+                _step_result = result
+                _step_duration_ms = duration_ms
 
                 # Emit action execution trace event if tracer is enabled
                 if self.tracer:
@@ -539,6 +557,65 @@ class SentienceAgent(BaseAgent):
                     time.sleep(1.0)  # Brief delay before retry
                     continue
                 else:
+                    # Emit step_end with whatever data we collected before failure
+                    # This ensures diff_status and other fields are preserved in traces
+                    if self.tracer and _step_snap_with_diff is not None:
+                        post_url = self.browser.page.url if self.browser.page else None
+                        snapshot_digest = f"sha256:{self._compute_hash(f'{_step_pre_url}{_step_snap_with_diff.timestamp}')}"
+
+                        # Build pre_elements from snap_with_diff (includes diff_status)
+                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(
+                            _step_snap_with_diff
+                        )
+                        pre_elements = snapshot_event_data.get("elements", [])
+
+                        # Build LLM data if available
+                        llm_data = None
+                        if _step_llm_response:
+                            llm_response_text = _step_llm_response.content
+                            llm_response_hash = f"sha256:{self._compute_hash(llm_response_text)}"
+                            llm_data = {
+                                "response_text": llm_response_text,
+                                "response_hash": llm_response_hash,
+                                "usage": {
+                                    "prompt_tokens": _step_llm_response.prompt_tokens or 0,
+                                    "completion_tokens": _step_llm_response.completion_tokens or 0,
+                                    "total_tokens": _step_llm_response.total_tokens or 0,
+                                },
+                            }
+
+                        # Build exec data (failure state)
+                        exec_data = {
+                            "success": False,
+                            "action": _step_result.action if _step_result else "error",
+                            "outcome": str(e),
+                            "duration_ms": _step_duration_ms,
+                        }
+
+                        # Build step_end event for failed step
+                        step_end_data = TraceEventBuilder.build_step_end_event(
+                            step_id=step_id,
+                            step_index=self._step_count,
+                            goal=goal,
+                            attempt=attempt,
+                            pre_url=_step_pre_url,
+                            post_url=post_url,
+                            snapshot_digest=snapshot_digest,
+                            llm_data=llm_data,
+                            exec_data=exec_data,
+                            verify_data=None,
+                            pre_elements=pre_elements,
+                        )
+
+                        _safe_tracer_call(
+                            self.tracer,
+                            "emit",
+                            self.verbose,
+                            "step_end",
+                            step_end_data,
+                            step_id=step_id,
+                        )
+
                     # Create error result
                     error_result = AgentActionResult(
                         success=False,
@@ -771,6 +848,13 @@ class SentienceAgentAsync(BaseAgentAsync):
                 pre_url=pre_url,
             )
 
+        # Track data collected during step execution for step_end emission on failure
+        _step_snap_with_diff: Snapshot | None = None
+        _step_pre_url: str | None = None
+        _step_llm_response: LLMResponse | None = None
+        _step_result: AgentActionResult | None = None
+        _step_duration_ms: int = 0
+
         for attempt in range(max_retries + 1):
             try:
                 # 1. OBSERVE: Get refined semantic snapshot
@@ -822,6 +906,10 @@ class SentienceAgentAsync(BaseAgentAsync):
                     screenshot_format=snap.screenshot_format,
                     error=snap.error,
                 )
+
+                # Track for step_end emission on failure
+                _step_snap_with_diff = snap_with_diff
+                _step_pre_url = snap.url
 
                 # Update previous snapshot for next comparison
                 self._previous_snapshot = snap
@@ -880,6 +968,9 @@ class SentienceAgentAsync(BaseAgentAsync):
                 # 3. THINK: Query LLM for next action
                 llm_response = self.llm_handler.query_llm(context, goal)
 
+                # Track for step_end emission on failure
+                _step_llm_response = llm_response
+
                 # Emit LLM query trace event if tracer is enabled
                 if self.tracer:
                     _safe_tracer_call(
@@ -925,6 +1016,10 @@ class SentienceAgentAsync(BaseAgentAsync):
                     error=result_dict.get("error"),
                     message=result_dict.get("message"),
                 )
+
+                # Track for step_end emission on failure
+                _step_result = result
+                _step_duration_ms = duration_ms
 
                 # Emit action execution trace event if tracer is enabled
                 if self.tracer:
@@ -1104,6 +1199,65 @@ class SentienceAgentAsync(BaseAgentAsync):
                     await asyncio.sleep(1.0)  # Brief delay before retry
                     continue
                 else:
+                    # Emit step_end with whatever data we collected before failure
+                    # This ensures diff_status and other fields are preserved in traces
+                    if self.tracer and _step_snap_with_diff is not None:
+                        post_url = self.browser.page.url if self.browser.page else None
+                        snapshot_digest = f"sha256:{self._compute_hash(f'{_step_pre_url}{_step_snap_with_diff.timestamp}')}"
+
+                        # Build pre_elements from snap_with_diff (includes diff_status)
+                        snapshot_event_data = TraceEventBuilder.build_snapshot_event(
+                            _step_snap_with_diff
+                        )
+                        pre_elements = snapshot_event_data.get("elements", [])
+
+                        # Build LLM data if available
+                        llm_data = None
+                        if _step_llm_response:
+                            llm_response_text = _step_llm_response.content
+                            llm_response_hash = f"sha256:{self._compute_hash(llm_response_text)}"
+                            llm_data = {
+                                "response_text": llm_response_text,
+                                "response_hash": llm_response_hash,
+                                "usage": {
+                                    "prompt_tokens": _step_llm_response.prompt_tokens or 0,
+                                    "completion_tokens": _step_llm_response.completion_tokens or 0,
+                                    "total_tokens": _step_llm_response.total_tokens or 0,
+                                },
+                            }
+
+                        # Build exec data (failure state)
+                        exec_data = {
+                            "success": False,
+                            "action": _step_result.action if _step_result else "error",
+                            "outcome": str(e),
+                            "duration_ms": _step_duration_ms,
+                        }
+
+                        # Build step_end event for failed step
+                        step_end_data = TraceEventBuilder.build_step_end_event(
+                            step_id=step_id,
+                            step_index=self._step_count,
+                            goal=goal,
+                            attempt=attempt,
+                            pre_url=_step_pre_url,
+                            post_url=post_url,
+                            snapshot_digest=snapshot_digest,
+                            llm_data=llm_data,
+                            exec_data=exec_data,
+                            verify_data=None,
+                            pre_elements=pre_elements,
+                        )
+
+                        _safe_tracer_call(
+                            self.tracer,
+                            "emit",
+                            self.verbose,
+                            "step_end",
+                            step_end_data,
+                            step_id=step_id,
+                        )
+
                     # Create error result
                     error_result = AgentActionResult(
                         success=False,

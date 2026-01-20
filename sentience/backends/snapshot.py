@@ -392,7 +392,10 @@ async def _snapshot_via_api(
     # Step 1: Get raw data from local extension (always happens locally)
     raw_options: dict[str, Any] = {}
     if options.screenshot is not False:
-        raw_options["screenshot"] = options.screenshot
+        if hasattr(options.screenshot, "model_dump"):
+            raw_options["screenshot"] = options.screenshot.model_dump()
+        else:
+            raw_options["screenshot"] = options.screenshot
 
     # Call extension to get raw elements
     raw_result = await _eval_with_navigation_retry(

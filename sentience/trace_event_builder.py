@@ -116,7 +116,8 @@ class TraceEventBuilder:
             pre_data["elements"] = pre_elements
 
         # Build verify data with assertions if provided
-        final_verify_data = verify_data.copy()
+        # Handle None verify_data for failed steps
+        final_verify_data = verify_data.copy() if verify_data else {}
         if assertions:
             # Ensure signals dict exists
             if "signals" not in final_verify_data:
