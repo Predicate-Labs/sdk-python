@@ -42,13 +42,10 @@ class TestScreenshotExtraction:
             }
         )
 
-        # Close to write file
-        sink.close(blocking=False)
-
-        # Wait a bit for file to be written
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously (closes file handle properly)
+        # Using _finalize_trace_file_for_upload instead of close(blocking=False)
+        # to avoid Windows file locking issues in tests
+        sink._finalize_trace_file_for_upload()
 
         # Extract screenshots
         screenshots = sink._extract_screenshots_from_trace()
@@ -59,7 +56,7 @@ class TestScreenshotExtraction:
         assert screenshots[1]["format"] == "png"
         assert screenshots[1]["step_id"] == "step-1"
 
-        # Cleanup
+        # Cleanup - file handle is already closed
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"
         trace_path = cache_dir / f"{run_id}.jsonl"
         if trace_path.exists():
@@ -93,15 +90,15 @@ class TestScreenshotExtraction:
                 }
             )
 
-        sink.close(blocking=False)
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously (closes file handle properly)
+        # Using _finalize_trace_file_for_upload instead of close(blocking=False)
+        # to avoid Windows file locking issues in tests
+        sink._finalize_trace_file_for_upload()
 
         screenshots = sink._extract_screenshots_from_trace()
         assert len(screenshots) == 3
 
-        # Cleanup
+        # Cleanup - file handle is already closed
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"
         trace_path = cache_dir / f"{run_id}.jsonl"
         if trace_path.exists():
@@ -130,15 +127,15 @@ class TestScreenshotExtraction:
             }
         )
 
-        sink.close(blocking=False)
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously (closes file handle properly)
+        # Using _finalize_trace_file_for_upload instead of close(blocking=False)
+        # to avoid Windows file locking issues in tests
+        sink._finalize_trace_file_for_upload()
 
         screenshots = sink._extract_screenshots_from_trace()
         assert len(screenshots) == 0
 
-        # Cleanup
+        # Cleanup - file handle is already closed
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"
         trace_path = cache_dir / f"{run_id}.jsonl"
         if trace_path.exists():
@@ -174,10 +171,8 @@ class TestCleanedTrace:
             }
         )
 
-        sink.close(blocking=False)
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously to avoid Windows file locking issues
+        sink._finalize_trace_file_for_upload()
 
         # Create cleaned trace
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"
@@ -223,10 +218,8 @@ class TestCleanedTrace:
             }
         )
 
-        sink.close(blocking=False)
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously to avoid Windows file locking issues
+        sink._finalize_trace_file_for_upload()
 
         # Create cleaned trace
         cache_dir = Path.home() / ".sentience" / "traces" / "pending"
@@ -436,10 +429,8 @@ class TestScreenshotUpload:
             }
         )
 
-        sink.close(blocking=False)
-        import time
-
-        time.sleep(0.1)
+        # Finalize trace file synchronously to avoid Windows file locking issues
+        sink._finalize_trace_file_for_upload()
 
         # Mock gateway and upload responses
         mock_upload_urls = {
