@@ -186,11 +186,41 @@ def _generate_clip_from_frames(
         )
 
         if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace")[:500]
             logger.warning(
-                f"ffmpeg failed with return code {result.returncode}: "
-                f"{result.stderr.decode('utf-8', errors='replace')[:500]}"
+                f"ffmpeg failed with return code {result.returncode}: {stderr}"
             )
-            return False
+            # Fallback: use glob input (handles non-uniform filenames)
+            fallback_cmd = [
+                "ffmpeg",
+                "-y",
+                "-pattern_type",
+                "glob",
+                "-i",
+                frame_pattern,
+                "-r",
+                str(fps),
+                "-pix_fmt",
+                "yuv420p",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "23",
+                str(output_path),
+            ]
+            fallback = subprocess.run(
+                fallback_cmd,
+                capture_output=True,
+                timeout=60,
+                cwd=str(frames_dir),
+            )
+            if fallback.returncode != 0:
+                fb_stderr = fallback.stderr.decode("utf-8", errors="replace")[:500]
+                logger.warning(
+                    f"ffmpeg fallback failed with return code {fallback.returncode}: {fb_stderr}"
+                )
+                return False
+            return output_path.exists()
 
         return output_path.exists()
 
