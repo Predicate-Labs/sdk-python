@@ -152,7 +152,7 @@ class TestAgentRuntimeBeginStep:
     """Tests for begin_step method."""
 
     def test_begin_step_generates_step_id(self) -> None:
-        """Test begin_step generates a UUID step_id."""
+        """Test begin_step generates a step_id in 'step-N' format."""
         backend = MockBackend()
         tracer = MockTracer()
         runtime = AgentRuntime(backend=backend, tracer=tracer)
@@ -160,7 +160,26 @@ class TestAgentRuntimeBeginStep:
         step_id = runtime.begin_step(goal="Test step")
 
         assert step_id is not None
-        assert len(step_id) == 36  # UUID length with dashes
+        assert step_id == "step-1"  # First step should be step-1
+
+    def test_begin_step_id_matches_index(self) -> None:
+        """Test step_id format matches step_index for Studio compatibility."""
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        step_id_1 = runtime.begin_step(goal="Step 1")
+        assert step_id_1 == "step-1"
+        assert runtime.step_index == 1
+
+        step_id_2 = runtime.begin_step(goal="Step 2")
+        assert step_id_2 == "step-2"
+        assert runtime.step_index == 2
+
+        # With explicit index
+        step_id_10 = runtime.begin_step(goal="Step 10", step_index=10)
+        assert step_id_10 == "step-10"
+        assert runtime.step_index == 10
 
     def test_begin_step_increments_index(self) -> None:
         """Test begin_step auto-increments step_index."""

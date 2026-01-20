@@ -320,3 +320,25 @@ def test_build_step_end_event_with_none_verify_data():
 
     # Verify should be empty dict when verify_data is None
     assert result["verify"] == {}
+
+
+def test_build_snapshot_event_with_step_index():
+    """Test that build_snapshot_event includes step_index when provided.
+
+    This is required for AgentRuntime which uses UUID step_ids that can't be
+    parsed by Studio's trace-parser to extract step_index.
+    """
+    elements = [create_element(1, text="Test element")]
+    snapshot = create_snapshot(elements)
+
+    # Without step_index
+    result_without = TraceEventBuilder.build_snapshot_event(snapshot)
+    assert "step_index" not in result_without
+
+    # With step_index=0
+    result_with_zero = TraceEventBuilder.build_snapshot_event(snapshot, step_index=0)
+    assert result_with_zero["step_index"] == 0
+
+    # With step_index=5
+    result_with_five = TraceEventBuilder.build_snapshot_event(snapshot, step_index=5)
+    assert result_with_five["step_index"] == 5

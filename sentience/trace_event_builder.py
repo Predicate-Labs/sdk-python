@@ -23,6 +23,7 @@ class TraceEventBuilder:
     def build_snapshot_event(
         snapshot: Snapshot,
         include_all_elements: bool = True,
+        step_index: int | None = None,
     ) -> dict[str, Any]:
         """
         Build snapshot_taken trace event data.
@@ -31,6 +32,8 @@ class TraceEventBuilder:
             snapshot: Snapshot to build event from
             include_all_elements: If True, include all elements (for DOM tree display).
                                  If False, use filtered elements only.
+            step_index: Optional step index (0-based) for Studio compatibility.
+                       Required when step_id is not in 'step-N' format (e.g., UUIDs).
 
         Returns:
             Dictionary with snapshot event data
@@ -64,12 +67,18 @@ class TraceEventBuilder:
             el_dict["importance_score"] = importance_score
             elements_data.append(el_dict)
 
-        return {
+        result = {
             "url": snapshot.url,
             "element_count": len(snapshot.elements),
             "timestamp": snapshot.timestamp,
             "elements": elements_data,  # Full element data for DOM tree
         }
+
+        # Include step_index if provided (required for UUID step_ids)
+        if step_index is not None:
+            result["step_index"] = step_index
+
+        return result
 
     @staticmethod
     def build_step_end_event(
