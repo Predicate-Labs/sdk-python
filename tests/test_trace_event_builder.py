@@ -273,3 +273,50 @@ def test_build_step_end_event_empty_elements():
     # Should have elements field but it's empty
     assert "elements" in result["pre"]
     assert len(result["pre"]["elements"]) == 0
+
+
+def test_build_step_end_event_with_none_verify_data():
+    """Test step_end event building when verify_data is None (failed steps).
+
+    This test ensures that failed steps can emit step_end events even when
+    verify_data is None, which happens when a step fails before verification.
+    """
+    llm_data = {
+        "response_text": "click(123)",
+        "response_hash": "sha256:abc123",
+        "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+    }
+
+    exec_data = {
+        "success": False,
+        "action": "error",
+        "outcome": "Element not found",
+        "duration_ms": 500,
+    }
+
+    # verify_data is None for failed steps
+    result = TraceEventBuilder.build_step_end_event(
+        step_id="step-1",
+        step_index=1,
+        goal="Click the button",
+        attempt=2,
+        pre_url="http://example.com/page1",
+        post_url="http://example.com/page1",
+        snapshot_digest="sha256:digest123",
+        llm_data=llm_data,
+        exec_data=exec_data,
+        verify_data=None,  # None for failed steps
+    )
+
+    # Verify basic structure
+    assert result["v"] == 1
+    assert result["step_id"] == "step-1"
+    assert result["step_index"] == 1
+    assert result["attempt"] == 2
+
+    # Verify exec shows failure
+    assert result["exec"]["success"] is False
+    assert result["exec"]["action"] == "error"
+
+    # Verify should be empty dict when verify_data is None
+    assert result["verify"] == {}
