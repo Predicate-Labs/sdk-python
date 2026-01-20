@@ -129,6 +129,8 @@ await runtime.enable_failure_artifacts(
 await runtime.record_action("CLICK")
 ```
 
+**Video clip generation (optional):** To generate MP4 video clips from captured frames, install [ffmpeg](https://ffmpeg.org/) (version 4.0 or later; version 5.1+ recommended for best compatibility). If ffmpeg is not installed, frames are still captured but no video clip is generated.
+
 ### Redaction callback (Phase 3)
 
 Provide a user-defined callback to redact snapshots and decide whether to persist frames. The SDK does not implement image/video redaction.

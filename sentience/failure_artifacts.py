@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -104,6 +105,26 @@ def _is_ffmpeg_available() -> bool:
         return False
 
 
+def _get_ffmpeg_version() -> tuple[int, int] | None:
+    """Get ffmpeg major and minor version. Returns (major, minor) or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"],
+            capture_output=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        output = result.stdout.decode("utf-8", errors="replace")
+        # Parse version from "ffmpeg version X.Y.Z ..."
+        match = re.search(r"ffmpeg version (\d+)\.(\d+)", output)
+        if match:
+            return (int(match.group(1)), int(match.group(2)))
+        return None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
 def _generate_clip_from_frames(
     frames_dir: Path,
     output_path: Path,
@@ -154,10 +175,17 @@ def _generate_clip_from_frames(
         # -f concat: use concat demuxer
         # -safe 0: allow unsafe file paths
         # -i: input file list
-        # -vsync vfr: variable frame rate
+        # -fps_mode vfr or -vsync vfr: variable frame rate
+        #   (-fps_mode replaces deprecated -vsync in ffmpeg 5.1+)
         # -pix_fmt yuv420p: compatibility with most players
         # -c:v libx264: H.264 codec
         # -crf 23: quality (lower = better, 23 is default)
+
+        # Detect ffmpeg version to use correct vsync option
+        # -fps_mode was introduced in ffmpeg 5.1, -vsync deprecated in 7.0
+        ffmpeg_version = _get_ffmpeg_version()
+        use_fps_mode = ffmpeg_version is not None and ffmpeg_version >= (5, 1)
+
         cmd = [
             "ffmpeg",
             "-y",
@@ -166,17 +194,40 @@ def _generate_clip_from_frames(
             "-safe",
             "0",
             "-i",
-            str(list_file),
-            "-vsync",
-            "vfr",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:v",
-            "libx264",
-            "-crf",
-            "23",
-            str(output_path),
+            "frames_list.txt",  # Use relative path since cwd=frames_dir
         ]
+        # Add vsync option based on ffmpeg version
+        if use_fps_mode:
+            cmd.extend(["-fps_mode", "vfr"])
+        else:
+            cmd.extend(["-vsync", "vfr"])
+        cmd.extend(
+            [
+                "-pix_fmt",
+                "yuv420p",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "23",
+                str(output_path),
+            ]
+        )
+
+        # Log the command for debugging
+        logger.debug(f"Running ffmpeg command: {' '.join(cmd)}")
+        logger.debug(f"Working directory: {frames_dir}")
+        logger.debug(f"Frame files found: {len(frame_files)}")
+
+        # Verify files exist before running ffmpeg
+        if not list_file.exists():
+            logger.warning(f"frames_list.txt does not exist: {list_file}")
+            return False
+
+        # Verify all frame files referenced in the list exist
+        for frame_file in frame_files:
+            if not frame_file.exists():
+                logger.warning(f"Frame file does not exist: {frame_file}")
+                return False
 
         result = subprocess.run(
             cmd,
@@ -187,9 +238,12 @@ def _generate_clip_from_frames(
 
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace")[:500]
+            stdout = result.stdout.decode("utf-8", errors="replace")[:200]
             logger.warning(
                 f"ffmpeg failed with return code {result.returncode}: {stderr}"
             )
+            if stdout:
+                logger.debug(f"ffmpeg stdout: {stdout}")
             # Fallback: use glob input (handles non-uniform filenames)
             fallback_cmd = [
                 "ffmpeg",
