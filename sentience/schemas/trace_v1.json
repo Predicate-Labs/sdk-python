@@ -37,8 +37,12 @@
     },
     "step_id": {
       "type": ["string", "null"],
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-      "description": "UUID for the step (present for step-scoped events)"
+      "description": "Step identifier in 'step-N' format where N is the step index (present for step-scoped events)"
+    },
+    "step_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Step index (0-based), present for step-scoped events"
     },
     "data": {
       "type": "object",
@@ -67,6 +71,7 @@
           "description": "snapshot or snapshot_taken data",
           "properties": {
             "step_id": {"type": ["string", "null"]},
+            "step_index": {"type": ["integer", "null"], "minimum": 0, "description": "Step index for Studio compatibility"},
             "snapshot_id": {"type": ["string", "null"]},
             "snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
             "snapshot_digest_loose": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},

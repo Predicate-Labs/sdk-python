@@ -66,7 +66,6 @@ from __future__ import annotations
 import asyncio
 import difflib
 import time
-import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -504,19 +503,19 @@ class AgentRuntime:
             step_index: Optional explicit step index (otherwise auto-increments)
 
         Returns:
-            Generated step_id
+            Generated step_id in format 'step-N' where N is the step index
         """
         # Clear previous step state
         self._assertions_this_step = []
-
-        # Generate new step_id
-        self.step_id = str(uuid.uuid4())
 
         # Update step index
         if step_index is not None:
             self.step_index = step_index
         else:
             self.step_index += 1
+
+        # Generate step_id in 'step-N' format for Studio compatibility
+        self.step_id = f"step-{self.step_index}"
 
         return self.step_id
 
@@ -583,7 +582,7 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         # Convenience wrapper for assert_ with required=True
-        ok = self.assertTrue(predicate, label=label, required=True)
+        ok = self.assert_(predicate, label=label, required=True)
         if ok:
             self._task_done = True
             self._task_done_label = label
