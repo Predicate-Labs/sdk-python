@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-
 VisionActionKind = Literal["click_xy", "click_rect", "press", "type", "finish"]
 
 
@@ -45,7 +44,12 @@ def parse_vision_executor_action(text: str) -> VisionExecutorAction:
     ):
         return VisionExecutorAction(
             "click_rect",
-            {"x": float(m.group(1)), "y": float(m.group(2)), "w": float(m.group(3)), "h": float(m.group(4))},
+            {
+                "x": float(m.group(1)),
+                "y": float(m.group(2)),
+                "w": float(m.group(3)),
+                "h": float(m.group(4)),
+            },
         )
     raise ValueError(f"unrecognized vision action: {t[:200]}")
 
@@ -78,4 +82,3 @@ async def execute_vision_executor_action(
     if action.kind == "finish":
         return
     raise ValueError(f"unknown vision action kind: {action.kind}")
-
