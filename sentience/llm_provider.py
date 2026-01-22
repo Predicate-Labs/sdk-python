@@ -319,6 +319,26 @@ class OpenAIProvider(LLMProvider):
         return self._model_name
 
 
+class DeepInfraProvider(OpenAIProvider):
+    """
+    DeepInfra provider via OpenAI-compatible API.
+
+    Uses DeepInfra's OpenAI-compatible endpoint:
+    https://api.deepinfra.com/v1/openai
+
+    API token is read from DEEPINFRA_TOKEN if not provided.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
+        base_url: str = "https://api.deepinfra.com/v1/openai",
+    ):
+        api_key = get_api_key_from_env(["DEEPINFRA_TOKEN"], api_key)
+        super().__init__(api_key=api_key, model=model, base_url=base_url)
+
+
 class AnthropicProvider(LLMProvider):
     """
     Anthropic provider implementation (Claude 3 Opus, Sonnet, Haiku, etc.)
