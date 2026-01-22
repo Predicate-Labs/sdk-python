@@ -792,7 +792,9 @@
                     }
                 });
             } catch (error) {}
-            const processed = await function(rawData, options) {
+            let processed = null;
+            try {
+                processed = await function(rawData, options) {
                 return new Promise((resolve, reject) => {
                     const requestId = Math.random().toString(36).substring(7);
                     let resolved = !1;
@@ -823,7 +825,82 @@
                     }
                 });
             }(allRawElements, options);
-            if (!processed || !processed.elements) throw new Error("WASM processing returned invalid result");
+            } catch (error) {
+                processed = {
+                    elements: (allRawElements || []).map(r => {
+                        const rect = r && r.rect || {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        }, attrs = r && r.attributes || {}, role = attrs.role || r && (r.inferred_role || r.inferredRole) || ("a" === r.tag ? "link" : "generic");
+                        return {
+                            id: Number(r && r.id || 0),
+                            role: String(role || "generic"),
+                            text: r && (r.text || r.semantic_text || r.semanticText) || null,
+                            importance: 1,
+                            bbox: {
+                                x: Number(rect.x || 0),
+                                y: Number(rect.y || 0),
+                                width: Number(rect.width || 0),
+                                height: Number(rect.height || 0)
+                            },
+                            visual_cues: {
+                                is_primary: !1,
+                                is_clickable: !1
+                            },
+                            in_viewport: !0,
+                            is_occluded: !!(r && (r.occluded || r.is_occluded)),
+                            z_index: 0,
+                            name: attrs.aria_label || attrs.ariaLabel || null,
+                            value: r && r.value || null,
+                            input_type: attrs.type_ || attrs.type || null,
+                            checked: "boolean" == typeof r.checked ? r.checked : null,
+                            disabled: "boolean" == typeof r.disabled ? r.disabled : null,
+                            expanded: "boolean" == typeof r.expanded ? r.expanded : null
+                        };
+                    }),
+                    raw_elements: allRawElements,
+                    duration: null
+                };
+            }
+            if (!processed || !processed.elements) processed = {
+                elements: (allRawElements || []).map(r => {
+                    const rect = r && r.rect || {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0
+                    }, attrs = r && r.attributes || {}, role = attrs.role || r && (r.inferred_role || r.inferredRole) || ("a" === r.tag ? "link" : "generic");
+                    return {
+                        id: Number(r && r.id || 0),
+                        role: String(role || "generic"),
+                        text: r && (r.text || r.semantic_text || r.semanticText) || null,
+                        importance: 1,
+                        bbox: {
+                            x: Number(rect.x || 0),
+                            y: Number(rect.y || 0),
+                            width: Number(rect.width || 0),
+                            height: Number(rect.height || 0)
+                        },
+                        visual_cues: {
+                            is_primary: !1,
+                            is_clickable: !1
+                        },
+                        in_viewport: !0,
+                        is_occluded: !!(r && (r.occluded || r.is_occluded)),
+                        z_index: 0,
+                        name: attrs.aria_label || attrs.ariaLabel || null,
+                        value: r && r.value || null,
+                        input_type: attrs.type_ || attrs.type || null,
+                        checked: "boolean" == typeof r.checked ? r.checked : null,
+                        disabled: "boolean" == typeof r.disabled ? r.disabled : null,
+                        expanded: "boolean" == typeof r.expanded ? r.expanded : null
+                    };
+                }),
+                raw_elements: allRawElements,
+                duration: null
+            };
             let screenshot = null;
             options.screenshot && (screenshot = await function(options) {
                 return new Promise(resolve => {
