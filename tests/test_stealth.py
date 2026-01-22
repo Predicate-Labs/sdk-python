@@ -144,8 +144,8 @@ def test_stealth_features():  # noqa: C901
         print("⚠️  Note: Bot detection is a cat-and-mouse game.")
         print("   No solution is 100% effective against all detection systems.")
         print("=" * 60)
-
-    assert True
+        assert True
+        return True
 
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
