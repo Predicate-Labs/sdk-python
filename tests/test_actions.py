@@ -2,18 +2,22 @@
 Tests for actions (click, type, press, click_rect)
 """
 
-import pytest
-
 from sentience import (
-    BBox,
     SentienceBrowser,
+    back,
+    check,
+    clear,
     click,
     click_rect,
     find,
     press,
     scroll_to,
+    select_option,
     snapshot,
+    submit,
     type_text,
+    uncheck,
+    upload_file,
 )
 
 
@@ -119,13 +123,15 @@ def test_click_rect_invalid_rect():
         result = click_rect(browser, {"x": 100, "y": 100, "w": 0, "h": 30})
         assert result.success is False
         assert result.error is not None
-        assert result.error["code"] == "invalid_rect"
+        assert result.error is not None
+        assert result.error.get("code") == "invalid_rect"
 
         # Invalid: negative height
         result = click_rect(browser, {"x": 100, "y": 100, "w": 50, "h": -10})
         assert result.success is False
         assert result.error is not None
-        assert result.error["code"] == "invalid_rect"
+        assert result.error is not None
+        assert result.error.get("code") == "invalid_rect"
 
 
 def test_click_rect_with_snapshot():
@@ -239,7 +245,101 @@ def test_scroll_to_invalid_element():
         result = scroll_to(browser, 99999)
         assert result.success is False
         assert result.error is not None
-        assert result.error["code"] == "scroll_failed"
+        assert result.error is not None
+        assert result.error.get("code") == "scroll_failed"
+
+
+def _registry_find_id(browser: SentienceBrowser, predicate_js: str) -> int | None:
+    """
+    Find a sentience_registry id by running a predicate(el) in page context.
+    Requires a snapshot() call before this, so registry is populated.
+    """
+    if not browser.page:
+        return None
+    return browser.page.evaluate(
+        f"""
+        () => {{
+            const reg = window.sentience_registry || {{}};
+            for (const [id, el] of Object.entries(reg)) {{
+                try {{
+                    if (({predicate_js})(el)) return Number(id);
+                }} catch {{}}
+            }}
+            return null;
+        }}
+        """
+    )
+
+
+def test_form_crud_helpers(tmp_path):
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.set_content(
+            """
+            <html><body>
+              <input id="t" value="hello" />
+              <input id="cb" type="checkbox" />
+              <select id="sel">
+                <option value="a">Alpha</option>
+                <option value="b">Beta</option>
+              </select>
+              <form id="f">
+                <input id="file" type="file" />
+                <button id="btn" type="submit">Submit</button>
+              </form>
+              <script>
+                window._submitted = false;
+                document.getElementById('f').addEventListener('submit', (e) => {
+                  e.preventDefault();
+                  window._submitted = true;
+                });
+              </script>
+            </body></html>
+            """
+        )
+
+        # Populate registry
+        snapshot(browser)
+
+        tid = _registry_find_id(browser, "(el) => el && el.id === 't'")
+        cbid = _registry_find_id(browser, "(el) => el && el.id === 'cb'")
+        selid = _registry_find_id(browser, "(el) => el && el.id === 'sel'")
+        fileid = _registry_find_id(browser, "(el) => el && el.id === 'file'")
+        btnid = _registry_find_id(browser, "(el) => el && el.id === 'btn'")
+        assert tid and cbid and selid and fileid and btnid
+
+        r1 = clear(browser, tid)
+        assert r1.success is True
+        assert browser.page.evaluate("() => document.getElementById('t').value") == ""
+
+        r2 = check(browser, cbid)
+        assert r2.success is True
+        assert browser.page.evaluate("() => document.getElementById('cb').checked") is True
+
+        r3 = uncheck(browser, cbid)
+        assert r3.success is True
+        assert browser.page.evaluate("() => document.getElementById('cb').checked") is False
+
+        r4 = select_option(browser, selid, "b")
+        assert r4.success is True
+        assert browser.page.evaluate("() => document.getElementById('sel').value") == "b"
+
+        p = tmp_path / "upload.txt"
+        p.write_text("hi")
+        r5 = upload_file(browser, fileid, str(p))
+        assert r5.success is True
+        assert (
+            browser.page.evaluate("() => document.getElementById('file').files[0].name")
+            == "upload.txt"
+        )
+
+        r6 = submit(browser, btnid)
+        assert r6.success is True
+        assert browser.page.evaluate("() => window._submitted") is True
+
+        # back() is best-effort; just ensure it doesn't crash and returns ActionResult
+        r7 = back(browser)
+        assert r7.duration_ms >= 0
 
 
 def test_type_text_with_delay():

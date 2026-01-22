@@ -209,10 +209,14 @@ class AgentRuntime:
         elif self._cached_url:
             url = self._cached_url
 
+        downloads = None
+        try:
+            downloads = getattr(self.backend, "downloads", None)
+        except Exception:
+            downloads = None
+
         return AssertContext(
-            snapshot=self.last_snapshot,
-            url=url,
-            step_id=self.step_id,
+            snapshot=self.last_snapshot, url=url, step_id=self.step_id, downloads=downloads
         )
 
     async def get_url(self) -> str:
@@ -582,7 +586,7 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         # Convenience wrapper for assert_ with required=True
-        ok = self.assert_(predicate, label=label, required=True)
+        ok = self.assertTrue(predicate, label=label, required=True)
         if ok:
             self._task_done = True
             self._task_done_label = label

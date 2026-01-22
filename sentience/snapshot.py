@@ -110,8 +110,16 @@ def _build_snapshot_payload(
         client_metrics = None
     try:
         captcha = diagnostics.get("captcha")
-        if captcha is not None:
-            client_diagnostics = {"captcha": captcha}
+        requires_vision = diagnostics.get("requires_vision")
+        requires_vision_reason = diagnostics.get("requires_vision_reason")
+        if any(x is not None for x in [captcha, requires_vision, requires_vision_reason]):
+            client_diagnostics = {}
+            if captcha is not None:
+                client_diagnostics["captcha"] = captcha
+            if requires_vision is not None:
+                client_diagnostics["requires_vision"] = bool(requires_vision)
+            if requires_vision_reason is not None:
+                client_diagnostics["requires_vision_reason"] = str(requires_vision_reason)
     except Exception:
         client_diagnostics = None
 

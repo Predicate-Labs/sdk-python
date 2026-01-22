@@ -47,7 +47,9 @@ async def main() -> None:
         await page.goto("https://example.com")
         await page.wait_for_load_state("networkidle")
 
-        runtime = await AgentRuntime.from_sentience_browser(browser=browser, page=page, tracer=tracer)
+        runtime = await AgentRuntime.from_sentience_browser(
+            browser=browser, page=page, tracer=tracer
+        )
 
         # Structured executor (for demo, we just return FINISH()).
         executor = FixedActionProvider("FINISH()")
@@ -63,15 +65,29 @@ async def main() -> None:
         def has_example_heading(ctx: AssertContext) -> AssertOutcome:
             # Demonstrates custom predicates (you can also use exists/url_contains helpers).
             snap = ctx.snapshot
-            ok = bool(snap and any((el.role == "heading" and (el.text or "").startswith("Example")) for el in snap.elements))
+            ok = bool(
+                snap
+                and any(
+                    (el.role == "heading" and (el.text or "").startswith("Example"))
+                    for el in snap.elements
+                )
+            )
             return AssertOutcome(passed=ok, reason="" if ok else "missing heading", details={})
 
         step = RuntimeStep(
             goal="Confirm Example Domain page is loaded",
             verifications=[
-                StepVerification(predicate=url_contains("example.com"), label="url_contains_example", required=True),
-                StepVerification(predicate=exists("role=heading"), label="has_heading", required=True),
-                StepVerification(predicate=has_example_heading, label="heading_text_matches", required=False),
+                StepVerification(
+                    predicate=url_contains("example.com"),
+                    label="url_contains_example",
+                    required=True,
+                ),
+                StepVerification(
+                    predicate=exists("role=heading"), label="has_heading", required=True
+                ),
+                StepVerification(
+                    predicate=has_example_heading, label="heading_text_matches", required=False
+                ),
             ],
             max_snapshot_attempts=2,
             snapshot_limit_base=60,
@@ -86,4 +102,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

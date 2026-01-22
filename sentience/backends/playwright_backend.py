@@ -22,8 +22,10 @@ Usage:
 """
 
 import asyncio
-import base64
+import mimetypes
+import os
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from .protocol import BrowserBackend, LayoutMetrics, ViewportInfo
@@ -49,6 +51,49 @@ class PlaywrightBackend:
         """
         self._page = page
         self._cached_viewport: ViewportInfo | None = None
+        self._downloads: list[dict[str, Any]] = []
+
+        # Best-effort download tracking (does not change behavior unless a download occurs).
+        # pylint: disable=broad-exception-caught
+        try:
+            self._page.on("download", lambda d: asyncio.create_task(self._track_download(d)))
+        except Exception:
+            pass
+
+    @property
+    def downloads(self) -> list[dict[str, Any]]:
+        """Best-effort Playwright download records."""
+        return self._downloads
+
+    async def _track_download(self, download: Any) -> None:
+        rec: dict[str, Any] = {
+            "status": "started",
+            "suggested_filename": getattr(download, "suggested_filename", None),
+            "url": getattr(download, "url", None),
+        }
+        self._downloads.append(rec)
+        try:
+            # Wait for completion and capture path if Playwright provides it.
+            p = await download.path()
+            if p:
+                rec["status"] = "completed"
+                rec["path"] = str(p)
+                rec["filename"] = Path(str(p)).name
+                try:
+                    rec["size_bytes"] = int(os.path.getsize(str(p)))
+                except Exception:
+                    pass
+                try:
+                    mt, _enc = mimetypes.guess_type(str(p))
+                    if mt:
+                        rec["mime_type"] = mt
+                except Exception:
+                    pass
+            else:
+                rec["status"] = "completed"
+        except Exception as e:
+            rec["status"] = "failed"
+            rec["error"] = str(e)
 
     @property
     def page(self) -> "AsyncPage":

@@ -313,6 +313,9 @@ class SnapshotDiagnostics(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     metrics: SnapshotDiagnosticsMetrics | None = None
     captcha: CaptchaDiagnostics | None = None
+    # P1-01: forward-compatible vision recommendation signal (optional)
+    requires_vision: bool | None = None
+    requires_vision_reason: str | None = None
 
     def get_grid_bounds(self, grid_id: int | None = None) -> list[GridInfo]:
         """

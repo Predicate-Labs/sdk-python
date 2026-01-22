@@ -11,6 +11,7 @@ from sentience.verification import (
     all_of,
     any_of,
     custom,
+    download_completed,
     element_count,
     exists,
     is_checked,
@@ -25,6 +26,7 @@ from sentience.verification import (
     value_contains,
     value_equals,
 )
+from sentience.vision_executor import parse_vision_executor_action
 
 
 def make_element(
@@ -215,6 +217,43 @@ class TestAllOf:
         outcome = pred(ctx)
         assert outcome.passed is True
         assert outcome.details["failed_count"] == 0
+
+
+class TestDownloadCompleted:
+    def test_no_downloads(self):
+        pred = download_completed()
+        outcome = pred(AssertContext(downloads=[]))
+        assert outcome.passed is False
+
+    def test_completed_download_any(self):
+        pred = download_completed()
+        outcome = pred(
+            AssertContext(
+                downloads=[
+                    {"status": "started", "suggested_filename": "a.txt"},
+                    {"status": "completed", "suggested_filename": "report.pdf"},
+                ]
+            )
+        )
+        assert outcome.passed is True
+
+
+def test_parse_vision_executor_action_click_xy():
+    a = parse_vision_executor_action("CLICK_XY(10, 20)")
+    assert a.kind == "click_xy"
+    assert a.args["x"] == 10.0
+    assert a.args["y"] == 20.0
+
+    def test_completed_download_with_substring(self):
+        pred = download_completed("report")
+        outcome = pred(
+            AssertContext(
+                downloads=[
+                    {"status": "completed", "suggested_filename": "report.pdf"},
+                ]
+            )
+        )
+        assert outcome.passed is True
 
     def test_one_fails(self):
         elements = [make_element(1, role="button")]
