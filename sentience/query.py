@@ -159,8 +159,12 @@ def match_element(element: Element, query: dict[str, Any]) -> bool:  # noqa: C90
 
     # Role exact match
     if "role" in query:
-        if element.role != query["role"]:
-            return False
+        if query["role"] == "link":
+            if element.role != "link" and not element.href:
+                return False
+        else:
+            if element.role != query["role"]:
+                return False
 
     # Role exclusion
     if "role_exclude" in query:
