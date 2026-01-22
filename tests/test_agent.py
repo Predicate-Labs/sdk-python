@@ -206,9 +206,9 @@ def test_agent_execute_click_action():
 
         result = agent.action_executor.execute("CLICK(1)", snap)
 
-        assert result.success is True
-        assert result.action == "click"
-        assert result.element_id == 1
+        assert result["success"] is True
+        assert result["action"] == "click"
+        assert result["element_id"] == 1
         mock_click.assert_called_once_with(browser, 1)
 
 
