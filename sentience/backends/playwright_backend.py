@@ -22,6 +22,7 @@ Usage:
 """
 
 import asyncio
+import inspect
 import mimetypes
 import os
 import time
@@ -56,7 +57,14 @@ class PlaywrightBackend:
         # Best-effort download tracking (does not change behavior unless a download occurs).
         # pylint: disable=broad-exception-caught
         try:
-            self._page.on("download", lambda d: asyncio.create_task(self._track_download(d)))
+            result = self._page.on(
+                "download", lambda d: asyncio.create_task(self._track_download(d))
+            )
+            if inspect.isawaitable(result):
+                try:
+                    asyncio.get_running_loop().create_task(result)
+                except RuntimeError:
+                    pass
         except Exception:
             pass
 

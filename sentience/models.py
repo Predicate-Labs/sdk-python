@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BBox(BaseModel):
@@ -680,8 +680,7 @@ class SnapshotOptions(BaseModel):
     # API credentials (for browser-use integration without SentienceBrowser)
     sentience_api_key: str | None = None  # Sentience API key for Pro/Enterprise features
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AgentActionResult(BaseModel):

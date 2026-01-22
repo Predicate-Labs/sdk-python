@@ -145,7 +145,7 @@ def test_stealth_features():  # noqa: C901
         print("   No solution is 100% effective against all detection systems.")
         print("=" * 60)
 
-        return True
+    assert True
 
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
