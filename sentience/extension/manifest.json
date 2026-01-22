@@ -6,7 +6,7 @@
   "permissions": ["activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "dist/background.js",
     "type": "module"
   },
   "web_accessible_resources": [
@@ -18,13 +18,13 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["dist/content.js"],
       "run_at": "document_start",
       "all_frames": true
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["injected_api.js"],
+      "js": ["dist/injected_api.js"],
       "run_at": "document_idle",
       "world": "MAIN",
       "all_frames": true
