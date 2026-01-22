@@ -89,6 +89,7 @@ from .overlay import clear_overlay, show_overlay
 from .query import find, query
 from .read import read
 from .recorder import Recorder, Trace, TraceStep, record
+from .runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
 from .screenshot import screenshot
 from .sentience_methods import AgentAction, SentienceMethod
 from .snapshot import snapshot
@@ -210,6 +211,9 @@ __all__ = [
     "MLXVLMProvider",
     "SentienceAgent",
     "SentienceAgentAsync",
+    "RuntimeAgent",
+    "RuntimeStep",
+    "StepVerification",
     "SentienceVisualAgent",
     "SentienceVisualAgentAsync",
     "ConversationalAgent",
