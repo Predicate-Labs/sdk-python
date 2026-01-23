@@ -60,3 +60,7 @@ Thumbs.db
 # Temporary directories from sync workflows
 extension-temp/
 playground/
+
+# Allow bundled extension assets under sentience/extension/dist
+!sentience/extension/dist/
+!sentience/extension/dist/**

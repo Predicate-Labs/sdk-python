@@ -94,6 +94,7 @@ class TraceEventBuilder:
         verify_data: dict[str, Any],
         pre_elements: list[dict[str, Any]] | None = None,
         assertions: list[dict[str, Any]] | None = None,
+        post_snapshot_digest: str | None = None,
     ) -> dict[str, Any]:
         """
         Build step_end trace event data.
@@ -106,6 +107,7 @@ class TraceEventBuilder:
             pre_url: URL before action execution
             post_url: URL after action execution
             snapshot_digest: Digest of snapshot before action
+            post_snapshot_digest: Digest of snapshot after action (optional)
             llm_data: LLM interaction data
             exec_data: Action execution data
             verify_data: Verification data
@@ -153,6 +155,7 @@ class TraceEventBuilder:
             "exec": exec_data,
             "post": {
                 "url": post_url,
+                **({"snapshot_digest": post_snapshot_digest} if post_snapshot_digest else {}),
             },
             "verify": final_verify_data,
         }
