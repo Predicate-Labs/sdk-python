@@ -64,6 +64,7 @@ from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
 from .llm_provider import (
     AnthropicProvider,
+    DeepInfraProvider,
     LLMProvider,
     LLMResponse,
     LocalLLMProvider,
@@ -227,6 +228,7 @@ __all__ = [
     "LLMResponse",
     "OpenAIProvider",
     "AnthropicProvider",
+    "DeepInfraProvider",
     "LocalLLMProvider",
     "LocalVisionLLMProvider",
     "MLXVLMProvider",
