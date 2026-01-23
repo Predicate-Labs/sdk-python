@@ -92,15 +92,11 @@ class RuntimeAgent:
             snap = await self._snapshot_with_ramp(step=step)
 
             if await self._should_short_circuit_to_vision(step=step, snap=snap):
-                ok = await self._vision_executor_attempt(
-                    task_goal=task_goal, step=step, snap=snap
-                )
+                ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
                 return ok
 
             # 1) Structured executor attempt.
-            action = self._propose_structured_action(
-                task_goal=task_goal, step=step, snap=snap
-            )
+            action = self._propose_structured_action(task_goal=task_goal, step=step, snap=snap)
             await self._execute_action(action=action, snap=snap)
             ok = await self._apply_verifications(step=step)
             if ok:
@@ -108,9 +104,7 @@ class RuntimeAgent:
 
             # 2) Optional vision executor fallback (bounded).
             if step.vision_executor_enabled and step.max_vision_executor_attempts > 0:
-                ok = await self._vision_executor_attempt(
-                    task_goal=task_goal, step=step, snap=snap
-                )
+                ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
                 return ok
 
             return False

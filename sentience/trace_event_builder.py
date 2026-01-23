@@ -155,11 +155,7 @@ class TraceEventBuilder:
             "exec": exec_data,
             "post": {
                 "url": post_url,
-                **(
-                    {"snapshot_digest": post_snapshot_digest}
-                    if post_snapshot_digest
-                    else {}
-                ),
+                **({"snapshot_digest": post_snapshot_digest} if post_snapshot_digest else {}),
             },
             "verify": final_verify_data,
         }
