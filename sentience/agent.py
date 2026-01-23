@@ -143,6 +143,25 @@ class SentienceAgent(BaseAgent):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+    def _best_effort_post_snapshot_digest(self, goal: str) -> str | None:
+        """
+        Best-effort post-action snapshot digest for tracing.
+        """
+        try:
+            snap_opts = SnapshotOptions(
+                limit=min(10, self.default_snapshot_limit),
+                goal=f"{goal} (post)",
+            )
+            snap_opts.screenshot = False
+            snap_opts.show_overlay = self.config.show_overlay if self.config else None
+            post_snap = snapshot(self.browser, snap_opts)
+            if post_snap.status != "success":
+                return None
+            digest_input = f"{post_snap.url}{post_snap.timestamp}"
+            return f"sha256:{self._compute_hash(digest_input)}"
+        except Exception:
+            return None
+
     def _get_element_bbox(self, element_id: int | None, snap: Snapshot) -> dict[str, float] | None:
         """Get bounding box for an element from snapshot."""
         if element_id is None:
@@ -513,6 +532,10 @@ class SentienceAgent(BaseAgent):
                     snapshot_event_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
                     pre_elements = snapshot_event_data.get("elements", [])
 
+                    post_snapshot_digest = (
+                        self._best_effort_post_snapshot_digest(goal) if self.tracer else None
+                    )
+
                     # Build complete step_end event
                     step_end_data = TraceEventBuilder.build_step_end_event(
                         step_id=step_id,
@@ -522,6 +545,7 @@ class SentienceAgent(BaseAgent):
                         pre_url=pre_url,
                         post_url=post_url,
                         snapshot_digest=snapshot_digest,
+                        post_snapshot_digest=post_snapshot_digest,
                         llm_data=llm_data,
                         exec_data=exec_data,
                         verify_data=verify_data,
@@ -601,6 +625,7 @@ class SentienceAgent(BaseAgent):
                             pre_url=_step_pre_url,
                             post_url=post_url,
                             snapshot_digest=snapshot_digest,
+                            post_snapshot_digest=None,
                             llm_data=llm_data,
                             exec_data=exec_data,
                             verify_data=None,
@@ -1155,6 +1180,10 @@ class SentienceAgentAsync(BaseAgentAsync):
                     snapshot_event_data = TraceEventBuilder.build_snapshot_event(snap_with_diff)
                     pre_elements = snapshot_event_data.get("elements", [])
 
+                    post_snapshot_digest = (
+                        self._best_effort_post_snapshot_digest(goal) if self.tracer else None
+                    )
+
                     # Build complete step_end event
                     step_end_data = TraceEventBuilder.build_step_end_event(
                         step_id=step_id,
@@ -1164,6 +1193,7 @@ class SentienceAgentAsync(BaseAgentAsync):
                         pre_url=pre_url,
                         post_url=post_url,
                         snapshot_digest=snapshot_digest,
+                        post_snapshot_digest=post_snapshot_digest,
                         llm_data=llm_data,
                         exec_data=exec_data,
                         verify_data=verify_data,
@@ -1243,6 +1273,7 @@ class SentienceAgentAsync(BaseAgentAsync):
                             pre_url=_step_pre_url,
                             post_url=post_url,
                             snapshot_digest=snapshot_digest,
+                            post_snapshot_digest=None,
                             llm_data=llm_data,
                             exec_data=exec_data,
                             verify_data=None,
