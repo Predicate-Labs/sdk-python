@@ -135,7 +135,9 @@ class RuntimeAgent:
             raise RuntimeError("snapshot() returned None repeatedly")
         return last
 
-    def _propose_structured_action(self, *, task_goal: str, step: RuntimeStep, snap: Snapshot) -> str:
+    def _propose_structured_action(
+        self, *, task_goal: str, step: RuntimeStep, snap: Snapshot
+    ) -> str:
         dom_context = self._structured_llm.build_context(snap, step.goal)
         combined_goal = f"{task_goal}\n\nSTEP: {step.goal}"
         resp = self._structured_llm.query_llm(dom_context, combined_goal)
@@ -182,7 +184,9 @@ class RuntimeAgent:
         all_ok = True
         for v in step.verifications:
             if v.eventually:
-                ok = await self.runtime.check(v.predicate, label=v.label, required=v.required).eventually(
+                ok = await self.runtime.check(
+                    v.predicate, label=v.label, required=v.required
+                ).eventually(
                     timeout_s=v.timeout_s,
                     poll_s=v.poll_s,
                     max_snapshot_attempts=v.max_snapshot_attempts,
@@ -280,17 +284,28 @@ class RuntimeAgent:
         except Exception:
             return getattr(self.runtime.last_snapshot, "url", None)
 
-    async def _should_short_circuit_to_vision(self, *, step: RuntimeStep, snap: Snapshot | None) -> bool:
-        if not (step.vision_executor_enabled and self.vision_executor and self.vision_executor.supports_vision()):
+    async def _should_short_circuit_to_vision(
+        self, *, step: RuntimeStep, snap: Snapshot | None
+    ) -> bool:
+        if not (
+            step.vision_executor_enabled
+            and self.vision_executor
+            and self.vision_executor.supports_vision()
+        ):
             return False
 
         if snap is None:
             return True
 
-        if step.min_actionables is not None and self._count_actionables(snap) < step.min_actionables:
+        if (
+            step.min_actionables is not None
+            and self._count_actionables(snap) < step.min_actionables
+        ):
             if self.short_circuit_canvas:
                 try:
-                    n_canvas = await self.runtime.backend.eval("document.querySelectorAll('canvas').length")
+                    n_canvas = await self.runtime.backend.eval(
+                        "document.querySelectorAll('canvas').length"
+                    )
                     if isinstance(n_canvas, (int, float)) and n_canvas > 0:
                         return True
                 except Exception:
@@ -374,7 +389,9 @@ No explanations, no markdown.
     def _parse_action(
         self,
         action: str,
-    ) -> tuple[Literal["click", "type", "press", "finish", "click_xy", "click_rect"], dict[str, Any]]:
+    ) -> tuple[
+        Literal["click", "type", "press", "finish", "click_xy", "click_rect"], dict[str, Any]
+    ]:
         action = action.strip()
 
         if re.match(r"FINISH\s*\(\s*\)\s*$", action, re.IGNORECASE):
@@ -420,4 +437,3 @@ No explanations, no markdown.
         pat = r'(CLICK_XY\s*\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|CLICK_RECT\s*\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|CLICK\s*\(\s*\d+\s*\)|TYPE\s*\(\s*\d+\s*,\s*["\'].*?["\']\s*\)|PRESS\s*\(\s*["\'].*?["\']\s*\)|FINISH\s*\(\s*\))'
         m = re.search(pat, text, re.IGNORECASE)
         return m.group(1) if m else text
-

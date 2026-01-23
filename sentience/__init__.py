@@ -11,7 +11,20 @@ from ._extension_loader import (
     verify_extension_version,
     verify_extension_version_async,
 )
-from .actions import click, click_rect, press, scroll_to, type_text
+from .actions import (
+    back,
+    check,
+    clear,
+    click,
+    click_rect,
+    press,
+    scroll_to,
+    select_option,
+    submit,
+    type_text,
+    uncheck,
+    upload_file,
+)
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime, AssertionHandle
@@ -118,6 +131,7 @@ from .verification import (
     all_of,
     any_of,
     custom,
+    download_completed,
     element_count,
     exists,
     is_checked,
@@ -131,6 +145,13 @@ from .verification import (
     url_matches,
     value_contains,
     value_equals,
+)
+
+# Vision executor primitives (shared parsing/execution helpers)
+from .vision_executor import (
+    VisionExecutorAction,
+    execute_vision_executor_action,
+    parse_vision_executor_action,
 )
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for

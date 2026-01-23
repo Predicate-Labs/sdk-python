@@ -96,15 +96,24 @@ class VisionProviderStub(ProviderStub):
     def supports_vision(self) -> bool:
         return True
 
-    def generate_with_image(self, system_prompt: str, user_prompt: str, image_base64: str, **kwargs):
+    def generate_with_image(
+        self, system_prompt: str, user_prompt: str, image_base64: str, **kwargs
+    ):
         self.calls.append(
-            {"system": system_prompt, "user": user_prompt, "image_base64": image_base64, "kwargs": kwargs}
+            {
+                "system": system_prompt,
+                "user": user_prompt,
+                "image_base64": image_base64,
+                "kwargs": kwargs,
+            }
         )
         content = self._responses.pop(0) if self._responses else "FINISH()"
         return LLMResponse(content=content, model_name=self.model_name)
 
 
-def make_snapshot(*, url: str, elements: list[Element], confidence: float | None = None) -> Snapshot:
+def make_snapshot(
+    *, url: str, elements: list[Element], confidence: float | None = None
+) -> Snapshot:
     diagnostics = SnapshotDiagnostics(confidence=confidence) if confidence is not None else None
     return Snapshot(
         status="success",
@@ -230,8 +239,12 @@ async def test_snapshot_limit_ramp_increases_limit_on_low_confidence() -> None:
     tracer = MockTracer()
     runtime = AgentRuntime(backend=backend, tracer=tracer)
 
-    s_low = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)], confidence=0.1)
-    s_hi = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)], confidence=0.9)
+    s_low = make_snapshot(
+        url="https://example.com/start", elements=[make_clickable_element(1)], confidence=0.1
+    )
+    s_hi = make_snapshot(
+        url="https://example.com/start", elements=[make_clickable_element(1)], confidence=0.9
+    )
     s_done = make_snapshot(url="https://example.com/done", elements=[make_clickable_element(1)])
 
     seen_limits: list[int] = []
@@ -305,7 +318,9 @@ async def test_short_circuit_to_vision_on_canvas_and_low_actionables() -> None:
 
     executor = ProviderStub(responses=["CLICK(999)"])  # should NOT be called
     vision = VisionProviderStub(responses=["CLICK_XY(100, 200)"])
-    agent = RuntimeAgent(runtime=runtime, executor=executor, vision_executor=vision, short_circuit_canvas=True)
+    agent = RuntimeAgent(
+        runtime=runtime, executor=executor, vision_executor=vision, short_circuit_canvas=True
+    )
 
     def pred(ctx: AssertContext) -> AssertOutcome:
         ok = (ctx.url or "").endswith("/done")
@@ -335,4 +350,3 @@ async def test_short_circuit_to_vision_on_canvas_and_low_actionables() -> None:
     assert len(executor.calls) == 0
     assert len(vision.calls) == 1
     assert backend.mouse_clicks == [(100.0, 200.0)]
-

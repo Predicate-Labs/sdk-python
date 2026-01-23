@@ -67,10 +67,42 @@ class AssertContext:
     snapshot: Snapshot | None = None
     url: str | None = None
     step_id: str | None = None
+    # Optional: non-snapshot state signals for verification (e.g., downloads).
+    downloads: list[dict[str, Any]] | None = None
 
 
 # Type alias for assertion predicates
 Predicate = Callable[[AssertContext], AssertOutcome]
+
+
+def download_completed(filename_substring: str | None = None) -> Predicate:
+    """
+    Predicate that passes if a browser download has completed.
+
+    Notes:
+    - This relies on `AssertContext.downloads` being populated by the runtime/backend.
+    - For PlaywrightBackend, downloads are tracked automatically when possible.
+    """
+
+    def _pred(ctx: AssertContext) -> AssertOutcome:
+        downloads = ctx.downloads or []
+        for d in downloads:
+            if str(d.get("status") or "") != "completed":
+                continue
+            fname = str(d.get("filename") or d.get("suggested_filename") or "")
+            if filename_substring is None or (filename_substring in fname):
+                return AssertOutcome(passed=True, reason="", details={"download": d})
+        return AssertOutcome(
+            passed=False,
+            reason=(
+                f"no completed download matched: {filename_substring}"
+                if filename_substring
+                else "no completed downloads"
+            ),
+            details={"filename_substring": filename_substring, "downloads": downloads},
+        )
+
+    return _pred
 
 
 def url_matches(pattern: str) -> Predicate:

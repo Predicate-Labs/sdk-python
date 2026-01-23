@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BBox(BaseModel):
@@ -313,6 +313,9 @@ class SnapshotDiagnostics(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     metrics: SnapshotDiagnosticsMetrics | None = None
     captcha: CaptchaDiagnostics | None = None
+    # P1-01: forward-compatible vision recommendation signal (optional)
+    requires_vision: bool | None = None
+    requires_vision_reason: str | None = None
 
     def get_grid_bounds(self, grid_id: int | None = None) -> list[GridInfo]:
         """
@@ -677,8 +680,7 @@ class SnapshotOptions(BaseModel):
     # API credentials (for browser-use integration without SentienceBrowser)
     sentience_api_key: str | None = None  # Sentience API key for Pro/Enterprise features
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AgentActionResult(BaseModel):

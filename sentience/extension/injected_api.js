@@ -103,9 +103,9 @@
             const iframes = document.querySelectorAll("iframe");
             for (const iframe of iframes) {
                 const src = iframe.getAttribute("src") || "", title = iframe.getAttribute("title") || "";
-                if (src) for (const [provider, hints] of Object.entries(CAPTCHA_IFRAME_HINTS)) matchHints(src, hints) && (hasIframeHit = !0, 
+                if (src) for (const [provider, hints] of Object.entries(CAPTCHA_IFRAME_HINTS)) matchHints(src, hints) && (hasIframeHit = !0,
                 providerSignals[provider] += 1, addEvidence(evidence.iframe_src_hits, truncateText(src, 120)));
-                if (title && matchHints(title, [ "captcha", "recaptcha" ]) && (hasContainerHit = !0, 
+                if (title && matchHints(title, [ "captcha", "recaptcha" ]) && (hasContainerHit = !0,
                 addEvidence(evidence.selector_hits, 'iframe[title*="captcha"]')), evidence.iframe_src_hits.length >= 5) break;
             }
         } catch (e) {}
@@ -114,14 +114,14 @@
             for (const script of scripts) {
                 const src = script.getAttribute("src") || "";
                 if (src) {
-                    for (const [provider, hints] of Object.entries(CAPTCHA_SCRIPT_HINTS)) matchHints(src, hints) && (hasScriptHit = !0, 
+                    for (const [provider, hints] of Object.entries(CAPTCHA_SCRIPT_HINTS)) matchHints(src, hints) && (hasScriptHit = !0,
                     providerSignals[provider] += 1, addEvidence(evidence.selector_hits, `script[src*="${hints[0]}"]`));
                     if (evidence.selector_hits.length >= 5) break;
                 }
             }
         } catch (e) {}
         for (const {selector: selector, provider: provider} of CAPTCHA_CONTAINER_SELECTORS) try {
-            document.querySelector(selector) && (hasContainerHit = !0, addEvidence(evidence.selector_hits, selector), 
+            document.querySelector(selector) && (hasContainerHit = !0, addEvidence(evidence.selector_hits, selector),
             "unknown" !== provider && (providerSignals[provider] += 1));
         } catch (e) {}
         const textSnippet = function() {
@@ -139,7 +139,7 @@
             } catch (e) {}
             try {
                 let bodyText = document.body?.innerText || "";
-                return !bodyText && document.body?.textContent && (bodyText = document.body.textContent), 
+                return !bodyText && document.body?.textContent && (bodyText = document.body.textContent),
                 truncateText(bodyText.replace(/\s+/g, " ").trim(), 2e3);
             } catch (e) {
                 return "";
@@ -147,21 +147,21 @@
         }();
         if (textSnippet) {
             const lowerText = textSnippet.toLowerCase();
-            for (const keyword of CAPTCHA_TEXT_KEYWORDS) lowerText.includes(keyword) && (hasKeywordHit = !0, 
+            for (const keyword of CAPTCHA_TEXT_KEYWORDS) lowerText.includes(keyword) && (hasKeywordHit = !0,
             addEvidence(evidence.text_hits, keyword));
         }
         try {
             const lowerUrl = (window.location?.href || "").toLowerCase();
-            for (const hint of CAPTCHA_URL_HINTS) lowerUrl.includes(hint) && (hasUrlHit = !0, 
+            for (const hint of CAPTCHA_URL_HINTS) lowerUrl.includes(hint) && (hasUrlHit = !0,
             addEvidence(evidence.url_hits, hint));
         } catch (e) {}
         let confidence = 0;
-        hasIframeHit && (confidence += .7), hasContainerHit && (confidence += .5), hasScriptHit && (confidence += .5), 
-        hasKeywordHit && (confidence += .3), hasUrlHit && (confidence += .2), confidence = Math.min(1, confidence), 
+        hasIframeHit && (confidence += .7), hasContainerHit && (confidence += .5), hasScriptHit && (confidence += .5),
+        hasKeywordHit && (confidence += .3), hasUrlHit && (confidence += .2), confidence = Math.min(1, confidence),
         hasIframeHit && (confidence = Math.max(confidence, .8)), !hasKeywordHit || hasIframeHit || hasContainerHit || hasScriptHit || hasUrlHit || (confidence = Math.min(confidence, .4));
         const detected = confidence >= .7;
         let providerHint = null;
-        return providerSignals.recaptcha > 0 ? providerHint = "recaptcha" : providerSignals.hcaptcha > 0 ? providerHint = "hcaptcha" : providerSignals.turnstile > 0 ? providerHint = "turnstile" : providerSignals.arkose > 0 ? providerHint = "arkose" : providerSignals.awswaf > 0 ? providerHint = "awswaf" : detected && (providerHint = "unknown"), 
+        return providerSignals.recaptcha > 0 ? providerHint = "recaptcha" : providerSignals.hcaptcha > 0 ? providerHint = "hcaptcha" : providerSignals.turnstile > 0 ? providerHint = "turnstile" : providerSignals.arkose > 0 ? providerHint = "arkose" : providerSignals.awswaf > 0 ? providerHint = "awswaf" : detected && (providerHint = "unknown"),
         {
             detected: detected,
             provider_hint: providerHint,
@@ -271,7 +271,7 @@
                     if (labelEl) {
                         let text = "";
                         try {
-                            if (text = (labelEl.innerText || "").trim(), !text && labelEl.textContent && (text = labelEl.textContent.trim()), 
+                            if (text = (labelEl.innerText || "").trim(), !text && labelEl.textContent && (text = labelEl.textContent.trim()),
                             !text && labelEl.getAttribute) {
                                 const ariaLabel = labelEl.getAttribute("aria-label");
                                 ariaLabel && (text = ariaLabel.trim());
@@ -466,7 +466,7 @@
                         });
                         const checkStable = () => {
                             const timeSinceLastChange = Date.now() - lastChange, totalWait = Date.now() - startTime;
-                            timeSinceLastChange >= quietPeriod || totalWait >= maxWait ? (observer.disconnect(), 
+                            timeSinceLastChange >= quietPeriod || totalWait >= maxWait ? (observer.disconnect(),
                             resolve()) : setTimeout(checkStable, 50);
                         };
                         checkStable();
@@ -492,7 +492,7 @@
                                 });
                                 const checkQuiet = () => {
                                     const timeSinceLastChange = Date.now() - lastChange, totalWait = Date.now() - startTime;
-                                    timeSinceLastChange >= quietPeriod || totalWait >= maxWait ? (quietObserver.disconnect(), 
+                                    timeSinceLastChange >= quietPeriod || totalWait >= maxWait ? (quietObserver.disconnect(),
                                     resolve()) : setTimeout(checkQuiet, 50);
                                 };
                                 checkQuiet();
@@ -607,7 +607,7 @@
                 }(el);
                 let safeValue = null, valueRedacted = null;
                 try {
-                    if (void 0 !== el.value || el.getAttribute && null !== el.getAttribute("value")) if (isPasswordInput) safeValue = null, 
+                    if (void 0 !== el.value || el.getAttribute && null !== el.getAttribute("value")) if (isPasswordInput) safeValue = null,
                     valueRedacted = "true"; else {
                         const rawValue = void 0 !== el.value ? String(el.value) : String(el.getAttribute("value"));
                         safeValue = rawValue.length > 200 ? rawValue.substring(0, 200) : rawValue, valueRedacted = "false";
@@ -734,8 +734,8 @@
                             const requestId = `iframe-${idx}-${Date.now()}`, timeout = setTimeout(() => {
                                 resolve(null);
                             }, 5e3), listener = event => {
-                                "SENTIENCE_IFRAME_SNAPSHOT_RESPONSE" === event.data?.type && event.data, "SENTIENCE_IFRAME_SNAPSHOT_RESPONSE" === event.data?.type && event.data?.requestId === requestId && (clearTimeout(timeout), 
-                                window.removeEventListener("message", listener), event.data.error ? resolve(null) : (event.data.snapshot, 
+                                "SENTIENCE_IFRAME_SNAPSHOT_RESPONSE" === event.data?.type && event.data, "SENTIENCE_IFRAME_SNAPSHOT_RESPONSE" === event.data?.type && event.data?.requestId === requestId && (clearTimeout(timeout),
+                                window.removeEventListener("message", listener), event.data.error ? resolve(null) : (event.data.snapshot,
                                 resolve({
                                     iframe: iframe,
                                     data: event.data.snapshot,
@@ -751,7 +751,7 @@
                                         ...options,
                                         collectIframes: !0
                                     }
-                                }, "*") : (clearTimeout(timeout), window.removeEventListener("message", listener), 
+                                }, "*") : (clearTimeout(timeout), window.removeEventListener("message", listener),
                                 resolve(null));
                             } catch (error) {
                                 clearTimeout(timeout), window.removeEventListener("message", listener), resolve(null);
@@ -792,7 +792,9 @@
                     }
                 });
             } catch (error) {}
-            const processed = await function(rawData, options) {
+            let processed = null;
+            try {
+                processed = await function(rawData, options) {
                 return new Promise((resolve, reject) => {
                     const requestId = Math.random().toString(36).substring(7);
                     let resolved = !1;
@@ -801,7 +803,7 @@
                     }, 25e3), listener = e => {
                         if ("SENTIENCE_SNAPSHOT_RESULT" === e.data.type && e.data.requestId === requestId) {
                             if (resolved) return;
-                            resolved = !0, clearTimeout(timeout), window.removeEventListener("message", listener), 
+                            resolved = !0, clearTimeout(timeout), window.removeEventListener("message", listener),
                             e.data.error ? reject(new Error(e.data.error)) : resolve({
                                 elements: e.data.elements,
                                 raw_elements: e.data.raw_elements,
@@ -818,17 +820,92 @@
                             options: options
                         }, "*");
                     } catch (error) {
-                        resolved || (resolved = !0, clearTimeout(timeout), window.removeEventListener("message", listener), 
+                        resolved || (resolved = !0, clearTimeout(timeout), window.removeEventListener("message", listener),
                         reject(new Error(`Failed to send snapshot request: ${error.message}`)));
                     }
                 });
             }(allRawElements, options);
-            if (!processed || !processed.elements) throw new Error("WASM processing returned invalid result");
+            } catch (error) {
+                processed = {
+                    elements: (allRawElements || []).map(r => {
+                        const rect = r && r.rect || {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        }, attrs = r && r.attributes || {}, role = attrs.role || r && (r.inferred_role || r.inferredRole) || ("a" === r.tag ? "link" : "generic");
+                        return {
+                            id: Number(r && r.id || 0),
+                            role: String(role || "generic"),
+                            text: r && (r.text || r.semantic_text || r.semanticText) || null,
+                            importance: 1,
+                            bbox: {
+                                x: Number(rect.x || 0),
+                                y: Number(rect.y || 0),
+                                width: Number(rect.width || 0),
+                                height: Number(rect.height || 0)
+                            },
+                            visual_cues: {
+                                is_primary: !1,
+                                is_clickable: !1
+                            },
+                            in_viewport: !0,
+                            is_occluded: !!(r && (r.occluded || r.is_occluded)),
+                            z_index: 0,
+                            name: attrs.aria_label || attrs.ariaLabel || null,
+                            value: r && r.value || null,
+                            input_type: attrs.type_ || attrs.type || null,
+                            checked: "boolean" == typeof r.checked ? r.checked : null,
+                            disabled: "boolean" == typeof r.disabled ? r.disabled : null,
+                            expanded: "boolean" == typeof r.expanded ? r.expanded : null
+                        };
+                    }),
+                    raw_elements: allRawElements,
+                    duration: null
+                };
+            }
+            if (!processed || !processed.elements) processed = {
+                elements: (allRawElements || []).map(r => {
+                    const rect = r && r.rect || {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0
+                    }, attrs = r && r.attributes || {}, role = attrs.role || r && (r.inferred_role || r.inferredRole) || ("a" === r.tag ? "link" : "generic");
+                    return {
+                        id: Number(r && r.id || 0),
+                        role: String(role || "generic"),
+                        text: r && (r.text || r.semantic_text || r.semanticText) || null,
+                        importance: 1,
+                        bbox: {
+                            x: Number(rect.x || 0),
+                            y: Number(rect.y || 0),
+                            width: Number(rect.width || 0),
+                            height: Number(rect.height || 0)
+                        },
+                        visual_cues: {
+                            is_primary: !1,
+                            is_clickable: !1
+                        },
+                        in_viewport: !0,
+                        is_occluded: !!(r && (r.occluded || r.is_occluded)),
+                        z_index: 0,
+                        name: attrs.aria_label || attrs.ariaLabel || null,
+                        value: r && r.value || null,
+                        input_type: attrs.type_ || attrs.type || null,
+                        checked: "boolean" == typeof r.checked ? r.checked : null,
+                        disabled: "boolean" == typeof r.disabled ? r.disabled : null,
+                        expanded: "boolean" == typeof r.expanded ? r.expanded : null
+                    };
+                }),
+                raw_elements: allRawElements,
+                duration: null
+            };
             let screenshot = null;
             options.screenshot && (screenshot = await function(options) {
                 return new Promise(resolve => {
                     const requestId = Math.random().toString(36).substring(7), listener = e => {
-                        "SENTIENCE_SCREENSHOT_RESULT" === e.data.type && e.data.requestId === requestId && (window.removeEventListener("message", listener), 
+                        "SENTIENCE_SCREENSHOT_RESULT" === e.data.type && e.data.requestId === requestId && (window.removeEventListener("message", listener),
                         resolve(e.data.screenshot));
                     };
                     window.addEventListener("message", listener), window.postMessage({
@@ -888,15 +965,15 @@
                 }
                 if (node.nodeType !== Node.ELEMENT_NODE) return;
                 const tag = node.tagName.toLowerCase();
-                if ("h1" === tag && (markdown += "\n# "), "h2" === tag && (markdown += "\n## "), 
-                "h3" === tag && (markdown += "\n### "), "li" === tag && (markdown += "\n- "), insideLink || "p" !== tag && "div" !== tag && "br" !== tag || (markdown += "\n"), 
-                "strong" !== tag && "b" !== tag || (markdown += "**"), "em" !== tag && "i" !== tag || (markdown += "_"), 
-                "a" === tag && (markdown += "[", insideLink = !0), node.shadowRoot ? Array.from(node.shadowRoot.childNodes).forEach(walk) : node.childNodes.forEach(walk), 
+                if ("h1" === tag && (markdown += "\n# "), "h2" === tag && (markdown += "\n## "),
+                "h3" === tag && (markdown += "\n### "), "li" === tag && (markdown += "\n- "), insideLink || "p" !== tag && "div" !== tag && "br" !== tag || (markdown += "\n"),
+                "strong" !== tag && "b" !== tag || (markdown += "**"), "em" !== tag && "i" !== tag || (markdown += "_"),
+                "a" === tag && (markdown += "[", insideLink = !0), node.shadowRoot ? Array.from(node.shadowRoot.childNodes).forEach(walk) : node.childNodes.forEach(walk),
                 "a" === tag) {
                     const href = node.getAttribute("href");
                     markdown += href ? `](${href})` : "]", insideLink = !1;
                 }
-                "strong" !== tag && "b" !== tag || (markdown += "**"), "em" !== tag && "i" !== tag || (markdown += "_"), 
+                "strong" !== tag && "b" !== tag || (markdown += "**"), "em" !== tag && "i" !== tag || (markdown += "_"),
                 insideLink || "h1" !== tag && "h2" !== tag && "h3" !== tag && "p" !== tag && "div" !== tag || (markdown += "\n");
             }(tempDiv), markdown.replace(/\n{3,}/g, "\n\n").trim();
         }(document.body) : function(root) {
@@ -909,7 +986,7 @@
                         const style = window.getComputedStyle(node);
                         if ("none" === style.display || "hidden" === style.visibility) return;
                         const isBlock = "block" === style.display || "flex" === style.display || "P" === node.tagName || "DIV" === node.tagName;
-                        isBlock && (text += " "), node.shadowRoot ? Array.from(node.shadowRoot.childNodes).forEach(walk) : node.childNodes.forEach(walk), 
+                        isBlock && (text += " "), node.shadowRoot ? Array.from(node.shadowRoot.childNodes).forEach(walk) : node.childNodes.forEach(walk),
                         isBlock && (text += "\n");
                     }
                 } else text += node.textContent;
@@ -1008,25 +1085,25 @@
     }
     function startRecording(options = {}) {
         const {highlightColor: highlightColor = "#ff0000", successColor: successColor = "#00ff00", autoDisableTimeout: autoDisableTimeout = 18e5, keyboardShortcut: keyboardShortcut = "Ctrl+Shift+I"} = options;
-        if (!window.sentience_registry || 0 === window.sentience_registry.length) return alert("Registry empty. Run `await window.sentience.snapshot()` first!"), 
+        if (!window.sentience_registry || 0 === window.sentience_registry.length) return alert("Registry empty. Run `await window.sentience.snapshot()` first!"),
         () => {};
         window.sentience_registry_map = new Map, window.sentience_registry.forEach((el, idx) => {
             el && window.sentience_registry_map.set(el, idx);
         });
         let highlightBox = document.getElementById("sentience-highlight-box");
-        highlightBox || (highlightBox = document.createElement("div"), highlightBox.id = "sentience-highlight-box", 
-        highlightBox.style.cssText = `\n            position: fixed;\n            pointer-events: none;\n            z-index: 2147483647;\n            border: 2px solid ${highlightColor};\n            background: rgba(255, 0, 0, 0.1);\n            display: none;\n            transition: all 0.1s ease;\n            box-sizing: border-box;\n        `, 
+        highlightBox || (highlightBox = document.createElement("div"), highlightBox.id = "sentience-highlight-box",
+        highlightBox.style.cssText = `\n            position: fixed;\n            pointer-events: none;\n            z-index: 2147483647;\n            border: 2px solid ${highlightColor};\n            background: rgba(255, 0, 0, 0.1);\n            display: none;\n            transition: all 0.1s ease;\n            box-sizing: border-box;\n        `,
         document.body.appendChild(highlightBox));
         let recordingIndicator = document.getElementById("sentience-recording-indicator");
-        recordingIndicator || (recordingIndicator = document.createElement("div"), recordingIndicator.id = "sentience-recording-indicator", 
-        recordingIndicator.style.cssText = `\n            position: fixed;\n            top: 0;\n            left: 0;\n            right: 0;\n            height: 3px;\n            background: ${highlightColor};\n            z-index: 2147483646;\n            pointer-events: none;\n        `, 
+        recordingIndicator || (recordingIndicator = document.createElement("div"), recordingIndicator.id = "sentience-recording-indicator",
+        recordingIndicator.style.cssText = `\n            position: fixed;\n            top: 0;\n            left: 0;\n            right: 0;\n            height: 3px;\n            background: ${highlightColor};\n            z-index: 2147483646;\n            pointer-events: none;\n        `,
         document.body.appendChild(recordingIndicator)), recordingIndicator.style.display = "block";
         const mouseOverHandler = e => {
             const el = e.target;
             if (!el || el === highlightBox || el === recordingIndicator) return;
             const rect = el.getBoundingClientRect();
-            highlightBox.style.display = "block", highlightBox.style.top = rect.top + window.scrollY + "px", 
-            highlightBox.style.left = rect.left + window.scrollX + "px", highlightBox.style.width = rect.width + "px", 
+            highlightBox.style.display = "block", highlightBox.style.top = rect.top + window.scrollY + "px",
+            highlightBox.style.left = rect.left + window.scrollX + "px", highlightBox.style.width = rect.width + "px",
             highlightBox.style.height = rect.height + "px";
         }, clickHandler = e => {
             e.preventDefault(), e.stopPropagation();
@@ -1103,7 +1180,7 @@
                 debug_snapshot: rawData
             }, jsonString = JSON.stringify(snippet, null, 2);
             navigator.clipboard.writeText(jsonString).then(() => {
-                highlightBox.style.border = `2px solid ${successColor}`, highlightBox.style.background = "rgba(0, 255, 0, 0.2)", 
+                highlightBox.style.border = `2px solid ${successColor}`, highlightBox.style.background = "rgba(0, 255, 0, 0.2)",
                 setTimeout(() => {
                     highlightBox.style.border = `2px solid ${highlightColor}`, highlightBox.style.background = "rgba(255, 0, 0, 0.1)";
                 }, 500);
@@ -1113,15 +1190,15 @@
         };
         let timeoutId = null;
         const stopRecording = () => {
-            document.removeEventListener("mouseover", mouseOverHandler, !0), document.removeEventListener("click", clickHandler, !0), 
-            document.removeEventListener("keydown", keyboardHandler, !0), timeoutId && (clearTimeout(timeoutId), 
-            timeoutId = null), highlightBox && (highlightBox.style.display = "none"), recordingIndicator && (recordingIndicator.style.display = "none"), 
+            document.removeEventListener("mouseover", mouseOverHandler, !0), document.removeEventListener("click", clickHandler, !0),
+            document.removeEventListener("keydown", keyboardHandler, !0), timeoutId && (clearTimeout(timeoutId),
+            timeoutId = null), highlightBox && (highlightBox.style.display = "none"), recordingIndicator && (recordingIndicator.style.display = "none"),
             window.sentience_registry_map && window.sentience_registry_map.clear(), window.sentience_stopRecording === stopRecording && delete window.sentience_stopRecording;
         }, keyboardHandler = e => {
-            (e.ctrlKey || e.metaKey) && e.shiftKey && "I" === e.key && (e.preventDefault(), 
+            (e.ctrlKey || e.metaKey) && e.shiftKey && "I" === e.key && (e.preventDefault(),
             stopRecording());
         };
-        return document.addEventListener("mouseover", mouseOverHandler, !0), document.addEventListener("click", clickHandler, !0), 
+        return document.addEventListener("mouseover", mouseOverHandler, !0), document.addEventListener("click", clickHandler, !0),
         document.addEventListener("keydown", keyboardHandler, !0), autoDisableTimeout > 0 && (timeoutId = setTimeout(() => {
             stopRecording();
         }, autoDisableTimeout)), window.sentience_stopRecording = stopRecording, stopRecording;

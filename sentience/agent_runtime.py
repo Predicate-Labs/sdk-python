@@ -209,10 +209,14 @@ class AgentRuntime:
         elif self._cached_url:
             url = self._cached_url
 
+        downloads = None
+        try:
+            downloads = getattr(self.backend, "downloads", None)
+        except Exception:
+            downloads = None
+
         return AssertContext(
-            snapshot=self.last_snapshot,
-            url=url,
-            step_id=self.step_id,
+            snapshot=self.last_snapshot, url=url, step_id=self.step_id, downloads=downloads
         )
 
     async def get_url(self) -> str:

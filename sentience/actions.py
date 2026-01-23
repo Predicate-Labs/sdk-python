@@ -1,11 +1,10 @@
-from typing import Optional
-
 """
 Actions v1 - click, type, press
 """
 
 import asyncio
 import time
+from pathlib import Path
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
@@ -41,6 +40,7 @@ def click(  # noqa: C901
     start_time = time.time()
     url_before = browser.page.url
     cursor_meta: dict | None = None
+    error_msg = ""
 
     if use_mouse:
         # Hybrid approach: Get element bbox from snapshot, calculate center, use mouse.click()
@@ -252,6 +252,417 @@ def type_text(
         outcome=outcome,
         url_changed=url_changed,
         snapshot_after=snapshot_after,
+    )
+
+
+def clear(
+    browser: SentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Clear the value of an input/textarea element (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if ('value' in el) {
+                el.value = '';
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+            return false;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "clear_failed", "reason": "Element not found or not clearable"},
+        )
+
+    browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def check(
+    browser: SentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Ensure a checkbox/radio is checked (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if (!('checked' in el)) return false;
+            if (el.checked === true) return true;
+            try { el.click(); } catch { return false; }
+            return el.checked === true || true;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "check_failed", "reason": "Element not found or not checkable"},
+        )
+
+    browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def uncheck(
+    browser: SentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Ensure a checkbox/radio is unchecked (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if (!('checked' in el)) return false;
+            if (el.checked === false) return true;
+            try { el.click(); } catch { return false; }
+            return el.checked === false || true;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "uncheck_failed", "reason": "Element not found or not uncheckable"},
+        )
+
+    browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def select_option(
+    browser: SentienceBrowser,
+    element_id: int,
+    option: str,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Select an option in a <select> element by matching option value or label (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = browser.page.evaluate(
+        """
+        (args) => {
+            const el = window.sentience_registry[args.id];
+            if (!el) return false;
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag !== 'SELECT') return false;
+            const needle = String(args.option ?? '');
+            const opts = Array.from(el.options || []);
+            let chosen = null;
+            for (const o of opts) {
+                if (String(o.value) === needle || String(o.text) === needle) { chosen = o; break; }
+            }
+            if (!chosen) {
+                for (const o of opts) {
+                    if (String(o.text || '').includes(needle)) { chosen = o; break; }
+                }
+            }
+            if (!chosen) return false;
+            el.value = chosen.value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+        """,
+        {"id": element_id, "option": option},
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "select_failed", "reason": "Element not found or option not found"},
+        )
+
+    browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def upload_file(
+    browser: SentienceBrowser,
+    element_id: int,
+    file_path: str,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Upload a local file via an <input type="file"> element (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    p = str(Path(file_path))
+
+    try:
+        handle = browser.page.evaluate_handle(
+            "(id) => window.sentience_registry[id] || null",
+            element_id,
+        )
+        el = handle.as_element()
+        if el is None:
+            raise RuntimeError("Element not found")
+        el.set_input_files(p)
+        success = True
+        error_msg = None
+    except Exception as e:
+        success = False
+        error_msg = str(e)
+
+    browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else ("dom_updated" if success else "error")
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = snapshot(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=success,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+        error=(
+            None if success else {"code": "upload_failed", "reason": error_msg or "upload failed"}
+        ),
+    )
+
+
+def submit(
+    browser: SentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Submit a form (best-effort) by clicking a submit control or calling requestSubmit().
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag === 'FORM') {
+                if (typeof el.requestSubmit === 'function') { el.requestSubmit(); return true; }
+                try { el.submit(); return true; } catch { return false; }
+            }
+            const form = el.form;
+            if (form && typeof form.requestSubmit === 'function') { form.requestSubmit(); return true; }
+            try { el.click(); return true; } catch { return false; }
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "submit_failed", "reason": "Element not found or not submittable"},
+        )
+
+    browser.page.wait_for_timeout(500)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = snapshot(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def back(
+    browser: SentienceBrowser,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Navigate back in history (best-effort).
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    try:
+        browser.page.go_back()
+        success = True
+        error_msg = None
+    except Exception as e:
+        success = False
+        error_msg = str(e)
+
+    try:
+        browser.page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    try:
+        url_after = browser.page.url
+        url_changed = url_before != url_after
+    except Exception:
+        url_changed = True
+
+    outcome = "navigated" if url_changed else ("dom_updated" if success else "error")
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = snapshot(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=success,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+        error=(None if success else {"code": "back_failed", "reason": error_msg or "back failed"}),
     )
 
 
@@ -627,6 +1038,7 @@ async def click_async(
     start_time = time.time()
     url_before = browser.page.url
     cursor_meta: dict | None = None
+    error_msg = ""
 
     if use_mouse:
         try:
@@ -841,6 +1253,403 @@ async def type_text_async(
         outcome=outcome,
         url_changed=url_changed,
         snapshot_after=snapshot_after,
+    )
+
+
+async def clear_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Clear the value of an input/textarea element (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = await browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if ('value' in el) {
+                el.value = '';
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+            return false;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "clear_failed", "reason": "Element not found or not clearable"},
+        )
+
+    await browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def check_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Ensure a checkbox/radio is checked (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = await browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if (!('checked' in el)) return false;
+            if (el.checked === true) return true;
+            try { el.click(); } catch { return false; }
+            return true;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "check_failed", "reason": "Element not found or not checkable"},
+        )
+
+    await browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def uncheck_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Ensure a checkbox/radio is unchecked (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = await browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            if (!('checked' in el)) return false;
+            if (el.checked === false) return true;
+            try { el.click(); } catch { return false; }
+            return true;
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "uncheck_failed", "reason": "Element not found or not uncheckable"},
+        )
+
+    await browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def select_option_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    option: str,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Select an option in a <select> by matching option value/label (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = await browser.page.evaluate(
+        """
+        (args) => {
+            const el = window.sentience_registry[args.id];
+            if (!el) return false;
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag !== 'SELECT') return false;
+            const needle = String(args.option ?? '');
+            const opts = Array.from(el.options || []);
+            let chosen = null;
+            for (const o of opts) {
+                if (String(o.value) === needle || String(o.text) === needle) { chosen = o; break; }
+            }
+            if (!chosen) {
+                for (const o of opts) {
+                    if (String(o.text || '').includes(needle)) { chosen = o; break; }
+                }
+            }
+            if (!chosen) return false;
+            el.value = chosen.value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+        """,
+        {"id": element_id, "option": option},
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "select_failed", "reason": "Element not found or option not found"},
+        )
+
+    await browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def upload_file_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    file_path: str,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Upload a local file via an <input type='file'> (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    p = str(Path(file_path))
+
+    try:
+        handle = await browser.page.evaluate_handle(
+            "(id) => window.sentience_registry[id] || null",
+            element_id,
+        )
+        el = handle.as_element()
+        if el is None:
+            raise RuntimeError("Element not found")
+        await el.set_input_files(p)
+        success = True
+        error_msg = None
+    except Exception as e:
+        success = False
+        error_msg = str(e)
+
+    await browser.page.wait_for_timeout(250)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else ("dom_updated" if success else "error")
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = await snapshot_async(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=success,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+        error=(
+            None if success else {"code": "upload_failed", "reason": error_msg or "upload failed"}
+        ),
+    )
+
+
+async def submit_async(
+    browser: AsyncSentienceBrowser,
+    element_id: int,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Submit a form (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    ok = await browser.page.evaluate(
+        """
+        (id) => {
+            const el = window.sentience_registry[id];
+            if (!el) return false;
+            try { el.focus?.(); } catch {}
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag === 'FORM') {
+                if (typeof el.requestSubmit === 'function') { el.requestSubmit(); return true; }
+                try { el.submit(); return true; } catch { return false; }
+            }
+            const form = el.form;
+            if (form && typeof form.requestSubmit === 'function') { form.requestSubmit(); return true; }
+            try { el.click(); return true; } catch { return false; }
+        }
+        """,
+        element_id,
+    )
+
+    if not ok:
+        return ActionResult(
+            success=False,
+            duration_ms=int((time.time() - start_time) * 1000),
+            outcome="error",
+            error={"code": "submit_failed", "reason": "Element not found or not submittable"},
+        )
+
+    await browser.page.wait_for_timeout(500)
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = await snapshot_async(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def back_async(
+    browser: AsyncSentienceBrowser,
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """Navigate back in history (best-effort, async)."""
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    try:
+        await browser.page.go_back()
+        success = True
+        error_msg = None
+    except Exception as e:
+        success = False
+        error_msg = str(e)
+
+    try:
+        await browser.page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    try:
+        url_after = browser.page.url
+        url_changed = url_before != url_after
+    except Exception:
+        url_changed = True
+
+    outcome = "navigated" if url_changed else ("dom_updated" if success else "error")
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        try:
+            snapshot_after = await snapshot_async(browser)
+        except Exception:
+            snapshot_after = None
+
+    return ActionResult(
+        success=success,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+        error=(None if success else {"code": "back_failed", "reason": error_msg or "back failed"}),
     )
 
 

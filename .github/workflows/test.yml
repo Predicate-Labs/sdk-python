@@ -40,61 +40,8 @@ jobs:
         # Also clean .pyc files in sentience package specifically
         find sentience -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('sentience').rglob('__pycache__') if p.is_dir()]" || true
         find sentience -name "*.pyc" -delete 2>/dev/null || python -c "import pathlib; [p.unlink() for p in pathlib.Path('sentience').rglob('*.pyc')]" || true
-        # CRITICAL: Fix assertTrue bug if it exists in source (shouldn't happen, but safety check)
-        python << 'PYEOF'
-        import re
-        import os
-        import sys
-
-        # Set UTF-8 encoding for Windows compatibility
-        if sys.platform == 'win32':
-            import io
-            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
-        file_path = 'sentience/agent_runtime.py'
-        print(f'=== Auto-fix check for {file_path} ===')
-        try:
-            if not os.path.exists(file_path):
-                print(f'ERROR: {file_path} not found!')
-                sys.exit(1)
-
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            if 'self.assertTrue(' in content:
-                print('WARNING: Found self.assertTrue( in source file! Auto-fixing...')
-                # Count occurrences
-                count = len(re.findall(r'self\.assertTrue\s*\(', content))
-                print(f'Found {count} occurrence(s) of self.assertTrue(')
-
-                # Replace all occurrences
-                new_content = re.sub(r'self\.assertTrue\s*\(', 'self.assert_(', content)
-
-                # Write back
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-
-                # Verify the fix
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    verify_content = f.read()
-                    if 'self.assertTrue(' in verify_content:
-                        print('ERROR: Auto-fix failed! File still contains self.assertTrue(')
-                        sys.exit(1)
-                    else:
-                        print('OK: Auto-fixed: Replaced self.assertTrue( with self.assert_(')
-                        print('OK: Verified: File no longer contains self.assertTrue(')
-            else:
-                print('OK: Source file is correct (uses self.assert_())')
-        except Exception as e:
-            print(f'ERROR in auto-fix: {e}')
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-        PYEOF
-        # Verify source file is fixed before installation
-        echo "=== Verifying source file after auto-fix ==="
-        python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('sentience/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue( after auto-fix!'; print('OK: Source file verified: uses self.assert_()')"
+        # Ensure source uses assert_ (no auto-rewrite).
+        python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('sentience/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue('; print('OK: Source file verified: uses self.assert_()')"
 
         # Force reinstall to ensure latest code
         pip install --no-cache-dir --force-reinstall -e ".[dev]"
