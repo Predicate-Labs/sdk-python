@@ -1101,6 +1101,10 @@ Return ONLY the integer ID number from the label, nothing else."""
                     },
                 }
 
+                post_snapshot_digest = (
+                    self._best_effort_post_snapshot_digest(goal) if self.tracer else None
+                )
+
                 # Build complete step_end event
                 step_end_data = TraceEventBuilder.build_step_end_event(
                     step_id=step_id,
@@ -1110,6 +1114,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                     pre_url=pre_url,
                     post_url=post_url or pre_url,
                     snapshot_digest=snapshot_digest,
+                    post_snapshot_digest=post_snapshot_digest,
                     llm_data={
                         "response_text": llm_response_text,
                         "response_hash": f"sha256:{self._compute_hash(llm_response_text)}",
@@ -2011,6 +2016,10 @@ Return ONLY the integer ID number from the label, nothing else."""
                     },
                 }
 
+                post_snapshot_digest = (
+                    self._best_effort_post_snapshot_digest(goal) if self.tracer else None
+                )
+
                 # Build complete step_end event
                 step_end_data = TraceEventBuilder.build_step_end_event(
                     step_id=step_id,
@@ -2020,6 +2029,7 @@ Return ONLY the integer ID number from the label, nothing else."""
                     pre_url=pre_url,
                     post_url=post_url or pre_url,
                     snapshot_digest=snapshot_digest,
+                    post_snapshot_digest=post_snapshot_digest,
                     llm_data={
                         "response_text": llm_response_text,
                         "response_hash": f"sha256:{self._compute_hash(llm_response_text)}",

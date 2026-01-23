@@ -144,6 +144,12 @@ class GridInfo(BaseModel):
     )
     is_dominant: bool = False  # Whether this grid is the dominant group (main content area)
 
+    # Z-index and modal detection fields (from gateway/sentience-core)
+    z_index: int = 0  # Z-index of this grid (max among elements in this grid)
+    z_index_max: int = 0  # Global max z-index across ALL grids (for comparison)
+    blocks_interaction: bool = False  # Whether this grid blocks interaction with content behind it
+    viewport_coverage: float = 0.0  # Ratio of grid area to viewport area (0.0-1.0)
+
 
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
@@ -161,6 +167,9 @@ class Snapshot(BaseModel):
     dominant_group_key: str | None = None  # The most common group_key (main content group)
     # Phase 2: Runtime stability/debug info (confidence/reasons/metrics)
     diagnostics: SnapshotDiagnostics | None = None
+    # Modal detection fields (from gateway)
+    modal_detected: bool | None = None  # True if a modal/overlay grid was detected
+    modal_grids: list[GridInfo] | None = None  # Array of GridInfo for detected modal grids
 
     def save(self, filepath: str) -> None:
         """Save snapshot as JSON file"""

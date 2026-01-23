@@ -86,26 +86,50 @@ class RuntimeAgent:
         step: RuntimeStep,
     ) -> bool:
         self.runtime.begin_step(step.goal)
+        emitted = False
+        ok = False
+        try:
+            snap = await self._snapshot_with_ramp(step=step)
 
-        snap = await self._snapshot_with_ramp(step=step)
+            if await self._should_short_circuit_to_vision(step=step, snap=snap):
+                ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
+                return ok
 
-        if await self._should_short_circuit_to_vision(step=step, snap=snap):
-            ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
-            return ok
+            # 1) Structured executor attempt.
+            action = self._propose_structured_action(task_goal=task_goal, step=step, snap=snap)
+            await self._execute_action(action=action, snap=snap)
+            ok = await self._apply_verifications(step=step)
+            if ok:
+                return True
 
-        # 1) Structured executor attempt.
-        action = self._propose_structured_action(task_goal=task_goal, step=step, snap=snap)
-        await self._execute_action(action=action, snap=snap)
-        ok = await self._apply_verifications(step=step)
-        if ok:
-            return True
+            # 2) Optional vision executor fallback (bounded).
+            if step.vision_executor_enabled and step.max_vision_executor_attempts > 0:
+                ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
+                return ok
 
-        # 2) Optional vision executor fallback (bounded).
-        if step.vision_executor_enabled and step.max_vision_executor_attempts > 0:
-            ok2 = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
-            return ok2
-
-        return False
+            return False
+        except Exception as exc:
+            try:
+                await self.runtime.emit_step_end(
+                    success=False,
+                    error=str(exc),
+                    outcome="exception",
+                    verify_passed=False,
+                )
+                emitted = True
+            except Exception:
+                pass
+            raise
+        finally:
+            if not emitted:
+                try:
+                    await self.runtime.emit_step_end(
+                        success=ok,
+                        outcome=("ok" if ok else "verification_failed"),
+                        verify_passed=ok,
+                    )
+                except Exception:
+                    pass
 
     async def _snapshot_with_ramp(self, *, step: RuntimeStep) -> Snapshot:
         limit = step.snapshot_limit_base
