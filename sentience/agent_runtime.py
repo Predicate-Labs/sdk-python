@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import hashlib
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -72,6 +73,7 @@ from typing import TYPE_CHECKING, Any
 from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
 from .models import Snapshot, SnapshotOptions
+from .trace_event_builder import TraceEventBuilder
 from .verification import AssertContext, AssertOutcome, Predicate
 
 if TYPE_CHECKING:
@@ -138,6 +140,8 @@ class AgentRuntime:
 
         # Snapshot state
         self.last_snapshot: Snapshot | None = None
+        self._step_pre_snapshot: Snapshot | None = None
+        self._step_pre_url: str | None = None
 
         # Failure artifacts (Phase 1)
         self._artifact_buffer: FailureArtifactBuffer | None = None
@@ -148,6 +152,12 @@ class AgentRuntime:
 
         # Assertions accumulated during current step
         self._assertions_this_step: list[dict[str, Any]] = []
+        self._step_goal: str | None = None
+        self._last_action: str | None = None
+        self._last_action_error: str | None = None
+        self._last_action_outcome: str | None = None
+        self._last_action_duration_ms: int | None = None
+        self._last_action_success: bool | None = None
 
         # Task completion tracking
         self._task_done: bool = False
@@ -250,6 +260,11 @@ class AgentRuntime:
         # Check if using legacy browser (backward compat)
         if hasattr(self, "_legacy_browser") and hasattr(self, "_legacy_page"):
             self.last_snapshot = await self._legacy_browser.snapshot(self._legacy_page, **kwargs)
+            if self.last_snapshot is not None:
+                self._cached_url = self.last_snapshot.url
+                if self._step_pre_snapshot is None:
+                    self._step_pre_snapshot = self.last_snapshot
+                    self._step_pre_url = self.last_snapshot.url
             return self.last_snapshot
 
         # Use backend-agnostic snapshot
@@ -262,6 +277,11 @@ class AgentRuntime:
         options = SnapshotOptions(**options_dict)
 
         self.last_snapshot = await backend_snapshot(self.backend, options=options)
+        if self.last_snapshot is not None:
+            self._cached_url = self.last_snapshot.url
+            if self._step_pre_snapshot is None:
+                self._step_pre_snapshot = self.last_snapshot
+                self._step_pre_url = self.last_snapshot.url
         if not skip_captcha_handling:
             await self._handle_captcha_if_needed(self.last_snapshot, source="gateway")
         return self.last_snapshot
@@ -414,6 +434,7 @@ class AgentRuntime:
         """
         Record an action in the artifact timeline and capture a frame if enabled.
         """
+        self._last_action = action
         if not self._artifact_buffer:
             return
         self._artifact_buffer.record_step(
@@ -424,6 +445,107 @@ class AgentRuntime:
         )
         if self._artifact_buffer.options.capture_on_action:
             await self._capture_artifact_frame()
+
+    def _compute_snapshot_digest(self, snap: Snapshot | None) -> str | None:
+        if snap is None:
+            return None
+        try:
+            return (
+                "sha256:"
+                + hashlib.sha256(f"{snap.url}{snap.timestamp}".encode("utf-8")).hexdigest()
+            )
+        except Exception:
+            return None
+
+    async def emit_step_end(
+        self,
+        *,
+        action: str | None = None,
+        success: bool | None = None,
+        error: str | None = None,
+        outcome: str | None = None,
+        duration_ms: int | None = None,
+        attempt: int = 0,
+        verify_passed: bool | None = None,
+        verify_signals: dict[str, Any] | None = None,
+        post_url: str | None = None,
+        post_snapshot_digest: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Emit a step_end event using TraceEventBuilder.
+        """
+        goal = self._step_goal or ""
+        pre_snap = self._step_pre_snapshot or self.last_snapshot
+        pre_url = (
+            self._step_pre_url
+            or (pre_snap.url if pre_snap else None)
+            or self._cached_url
+            or ""
+        )
+
+        if post_url is None:
+            try:
+                post_url = await self.get_url()
+            except Exception:
+                post_url = (
+                    (self.last_snapshot.url if self.last_snapshot else None) or self._cached_url
+                )
+        post_url = post_url or pre_url
+
+        pre_digest = self._compute_snapshot_digest(pre_snap)
+        post_digest = post_snapshot_digest or self._compute_snapshot_digest(self.last_snapshot)
+        url_changed = bool(pre_url and post_url and str(pre_url) != str(post_url))
+
+        assertions_data = self.get_assertions_for_step_end()
+        assertions = assertions_data.get("assertions") or []
+
+        signals = dict(verify_signals or {})
+        signals.setdefault("url_changed", url_changed)
+        if error and "error" not in signals:
+            signals["error"] = error
+
+        passed = (
+            bool(verify_passed)
+            if verify_passed is not None
+            else self.required_assertions_passed()
+        )
+
+        exec_success = bool(success) if success is not None else bool(
+            self._last_action_success if self._last_action_success is not None else passed
+        )
+
+        exec_data: dict[str, Any] = {
+            "success": exec_success,
+            "action": action or self._last_action or "unknown",
+            "outcome": outcome or self._last_action_outcome or "",
+        }
+        if duration_ms is not None:
+            exec_data["duration_ms"] = int(duration_ms)
+        if error:
+            exec_data["error"] = error
+
+        verify_data = {
+            "passed": bool(passed),
+            "signals": signals,
+        }
+
+        step_end_data = TraceEventBuilder.build_step_end_event(
+            step_id=self.step_id or "",
+            step_index=int(self.step_index),
+            goal=goal,
+            attempt=int(attempt),
+            pre_url=str(pre_url or ""),
+            post_url=str(post_url or ""),
+            snapshot_digest=pre_digest,
+            llm_data={},
+            exec_data=exec_data,
+            verify_data=verify_data,
+            pre_elements=None,
+            assertions=assertions,
+            post_snapshot_digest=post_digest,
+        )
+        self.tracer.emit("step_end", step_end_data, step_id=self.step_id)
+        return step_end_data
 
     async def _capture_artifact_frame(self) -> None:
         if not self._artifact_buffer:
@@ -511,6 +633,14 @@ class AgentRuntime:
         """
         # Clear previous step state
         self._assertions_this_step = []
+        self._step_pre_snapshot = None
+        self._step_pre_url = None
+        self._step_goal = goal
+        self._last_action = None
+        self._last_action_error = None
+        self._last_action_outcome = None
+        self._last_action_duration_ms = None
+        self._last_action_success = None
 
         # Update step index
         if step_index is not None:

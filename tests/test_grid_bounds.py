@@ -348,3 +348,94 @@ class TestGetGridBounds:
         assert result[0].grid_id == 0
         assert result[1].grid_id == 1
         assert result[2].grid_id == 2
+
+
+class TestGridInfoModalFields:
+    """Tests for GridInfo z-index and modal detection fields"""
+
+    def test_grid_info_default_values(self):
+        """Test that GridInfo has correct default values for new fields"""
+        grid_info = GridInfo(
+            grid_id=0,
+            bbox=BBox(x=0, y=0, width=100, height=100),
+            row_count=1,
+            col_count=1,
+            item_count=1,
+        )
+        # New optional fields should have defaults
+        assert grid_info.z_index == 0
+        assert grid_info.z_index_max == 0
+        assert grid_info.blocks_interaction is False
+        assert grid_info.viewport_coverage == 0.0
+
+    def test_grid_info_with_modal_fields(self):
+        """Test creating GridInfo with modal detection fields"""
+        grid_info = GridInfo(
+            grid_id=1,
+            bbox=BBox(x=100, y=100, width=500, height=400),
+            row_count=2,
+            col_count=3,
+            item_count=6,
+            confidence=0.95,
+            z_index=1000,
+            z_index_max=1000,
+            blocks_interaction=True,
+            viewport_coverage=0.25,
+        )
+        assert grid_info.z_index == 1000
+        assert grid_info.z_index_max == 1000
+        assert grid_info.blocks_interaction is True
+        assert grid_info.viewport_coverage == 0.25
+
+
+class TestSnapshotModalFields:
+    """Tests for Snapshot modal detection fields"""
+
+    def test_snapshot_without_modal(self):
+        """Test snapshot with no modal detected"""
+        snapshot = Snapshot(
+            status="success",
+            url="https://example.com",
+            elements=[],
+        )
+        # modal_detected and modal_grids should be None by default
+        assert snapshot.modal_detected is None
+        assert snapshot.modal_grids is None
+
+    def test_snapshot_with_modal_detected(self):
+        """Test snapshot with modal detected"""
+        modal_grid = GridInfo(
+            grid_id=1,
+            bbox=BBox(x=200, y=150, width=600, height=400),
+            row_count=1,
+            col_count=2,
+            item_count=5,
+            z_index=1000,
+            z_index_max=1000,
+            blocks_interaction=True,
+            viewport_coverage=0.20,
+        )
+        snapshot = Snapshot(
+            status="success",
+            url="https://example.com",
+            elements=[],
+            modal_detected=True,
+            modal_grids=[modal_grid],
+        )
+        assert snapshot.modal_detected is True
+        assert snapshot.modal_grids is not None
+        assert len(snapshot.modal_grids) == 1
+        assert snapshot.modal_grids[0].z_index == 1000
+        assert snapshot.modal_grids[0].blocks_interaction is True
+
+    def test_snapshot_modal_false(self):
+        """Test snapshot with modal_detected explicitly False"""
+        snapshot = Snapshot(
+            status="success",
+            url="https://example.com",
+            elements=[],
+            modal_detected=False,
+            modal_grids=None,
+        )
+        assert snapshot.modal_detected is False
+        assert snapshot.modal_grids is None

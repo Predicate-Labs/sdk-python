@@ -113,6 +113,7 @@ class SentienceLangChainCore:
                     pre_url=pre_url or "",
                     post_url=post_url or "",
                     snapshot_digest=None,
+                    post_snapshot_digest=None,
                     llm_data={},
                     exec_data=exec_data,
                     verify_data=verify_data,
