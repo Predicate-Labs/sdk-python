@@ -96,6 +96,9 @@ def test_register_default_tools_adds_core_tools() -> None:
         "click_rect",
         "press",
         "evaluate_js",
+        "grant_permissions",
+        "clear_permissions",
+        "set_geolocation",
     } <= names
 
 
@@ -149,8 +152,9 @@ def test_tool_context_require_raises_on_missing_capability() -> None:
             return False
 
     ctx = ToolContext(RuntimeStub())
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         ctx.require("tabs")
+    assert excinfo.value.error == "unsupported_capability"
 
 
 @pytest.mark.asyncio
@@ -208,7 +212,7 @@ async def test_default_tools_capability_checks() -> None:
             return None
 
         def can(self, name: str) -> bool:
-            return name != "keyboard" and name != "evaluate_js"
+            return name not in {"keyboard", "evaluate_js", "permissions"}
 
         async def snapshot(self, **_kwargs):
             return None
@@ -219,12 +223,22 @@ async def test_default_tools_capability_checks() -> None:
     ctx = ToolContext(RuntimeStub())
     register_default_tools(registry, ctx)
 
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         await registry.execute("press", {"key": "Enter"}, ctx=ctx)
+    assert excinfo.value.error == "unsupported_capability"
 
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         await registry.execute(
             "scroll_to_element",
             {"element_id": 1, "behavior": "instant", "block": "center"},
             ctx=ctx,
         )
+    assert excinfo.value.error == "unsupported_capability"
+
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
+        await registry.execute(
+            "grant_permissions",
+            {"permissions": ["geolocation"]},
+            ctx=ctx,
+        )
+    assert excinfo.value.error == "unsupported_capability"

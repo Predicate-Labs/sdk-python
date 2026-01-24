@@ -18,6 +18,7 @@ class BackendCapabilities(BaseModel):
     downloads: bool = False
     filesystem_tools: bool = False
     keyboard: bool = False
+    permissions: bool = False
 
 
 class UnsupportedCapabilityError(RuntimeError):

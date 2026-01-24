@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from ..agent_runtime import AgentRuntime
 from ..backends import actions as backend_actions
 from ..models import ActionResult, BBox, EvaluateJsRequest, Snapshot
-from .context import ToolContext
+from .context import ToolContext, UnsupportedCapabilityError
 from .registry import ToolRegistry
 
 
@@ -54,6 +54,21 @@ class EvaluateJsToolInput(BaseModel):
     truncate: bool = Field(True, description="Truncate output when too long.")
 
 
+class GrantPermissionsInput(BaseModel):
+    permissions: list[str] = Field(..., min_length=1, description="Permissions to grant.")
+    origin: str | None = Field(None, description="Optional origin to apply permissions.")
+
+
+class ClearPermissionsInput(BaseModel):
+    pass
+
+
+class SetGeolocationInput(BaseModel):
+    latitude: float = Field(..., description="Latitude in decimal degrees.")
+    longitude: float = Field(..., description="Longitude in decimal degrees.")
+    accuracy: float | None = Field(None, description="Optional accuracy in meters.")
+
+
 def register_default_tools(
     registry: ToolRegistry, runtime: ToolContext | "AgentRuntime" | None = None
 ) -> ToolRegistry:
@@ -67,6 +82,17 @@ def register_default_tools(
                 return runtime.runtime
             return runtime
         raise RuntimeError("ToolContext with runtime is required")
+
+    def _get_permission_context(runtime_ref):
+        legacy_browser = getattr(runtime_ref, "_legacy_browser", None)
+        if legacy_browser is not None:
+            context = getattr(legacy_browser, "context", None)
+            if context is not None:
+                return context
+        backend = getattr(runtime_ref, "backend", None)
+        page = getattr(backend, "_page", None) or getattr(backend, "page", None)
+        context = getattr(page, "context", None) if page is not None else None
+        return context
 
     @registry.tool(
         name="snapshot_state",
@@ -228,5 +254,65 @@ def register_default_tools(
             duration_ms=0,
             outcome="dom_updated",
         )
+
+    @registry.tool(
+        name="grant_permissions",
+        input_model=GrantPermissionsInput,
+        output_model=ActionResult,
+        description="Grant browser permissions for the current context.",
+    )
+    async def grant_permissions_tool(ctx, params: GrantPermissionsInput) -> ActionResult:
+        runtime_ref = _get_runtime(ctx)
+        if ctx is not None:
+            ctx.require("permissions")
+        elif not runtime_ref.can("permissions"):
+            raise UnsupportedCapabilityError("permissions")
+        context = _get_permission_context(runtime_ref)
+        if context is None:
+            raise RuntimeError("Permission context unavailable")
+        await context.grant_permissions(params.permissions, origin=params.origin)
+        return ActionResult(success=True, duration_ms=0, outcome="dom_updated")
+
+    @registry.tool(
+        name="clear_permissions",
+        input_model=ClearPermissionsInput,
+        output_model=ActionResult,
+        description="Clear browser permissions for the current context.",
+    )
+    async def clear_permissions_tool(ctx, _params: ClearPermissionsInput) -> ActionResult:
+        runtime_ref = _get_runtime(ctx)
+        if ctx is not None:
+            ctx.require("permissions")
+        elif not runtime_ref.can("permissions"):
+            raise UnsupportedCapabilityError("permissions")
+        context = _get_permission_context(runtime_ref)
+        if context is None:
+            raise RuntimeError("Permission context unavailable")
+        await context.clear_permissions()
+        return ActionResult(success=True, duration_ms=0, outcome="dom_updated")
+
+    @registry.tool(
+        name="set_geolocation",
+        input_model=SetGeolocationInput,
+        output_model=ActionResult,
+        description="Set geolocation for the current browser context.",
+    )
+    async def set_geolocation_tool(ctx, params: SetGeolocationInput) -> ActionResult:
+        runtime_ref = _get_runtime(ctx)
+        if ctx is not None:
+            ctx.require("permissions")
+        elif not runtime_ref.can("permissions"):
+            raise UnsupportedCapabilityError("permissions")
+        context = _get_permission_context(runtime_ref)
+        if context is None:
+            raise RuntimeError("Permission context unavailable")
+        await context.set_geolocation(
+            {
+                "latitude": params.latitude,
+                "longitude": params.longitude,
+                "accuracy": params.accuracy,
+            }
+        )
+        return ActionResult(success=True, duration_ms=0, outcome="dom_updated")
 
     return registry

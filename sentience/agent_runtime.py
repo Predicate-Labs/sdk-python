@@ -385,6 +385,21 @@ class AgentRuntime:
             getattr(getattr(backend, "_page", None), "keyboard", None)
         )
         has_downloads = bool(getattr(backend, "downloads", None))
+        has_permissions = False
+        try:
+            context = None
+            legacy_browser = getattr(self, "_legacy_browser", None)
+            if legacy_browser is not None:
+                context = getattr(legacy_browser, "context", None)
+            if context is None:
+                page = getattr(backend, "_page", None) or getattr(backend, "page", None)
+                context = getattr(page, "context", None) if page is not None else None
+            if context is not None:
+                has_permissions = bool(
+                    hasattr(context, "clear_permissions") and hasattr(context, "grant_permissions")
+                )
+        except Exception:
+            has_permissions = False
         has_files = False
         if self.tool_registry is not None:
             try:
@@ -397,6 +412,7 @@ class AgentRuntime:
             downloads=has_downloads,
             filesystem_tools=has_files,
             keyboard=bool(has_keyboard or has_eval),
+            permissions=has_permissions,
         )
 
     def can(self, capability: str) -> bool:
