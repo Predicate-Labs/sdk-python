@@ -149,8 +149,9 @@ def test_tool_context_require_raises_on_missing_capability() -> None:
             return False
 
     ctx = ToolContext(RuntimeStub())
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         ctx.require("tabs")
+    assert excinfo.value.error == "unsupported_capability"
 
 
 @pytest.mark.asyncio
@@ -219,12 +220,14 @@ async def test_default_tools_capability_checks() -> None:
     ctx = ToolContext(RuntimeStub())
     register_default_tools(registry, ctx)
 
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         await registry.execute("press", {"key": "Enter"}, ctx=ctx)
+    assert excinfo.value.error == "unsupported_capability"
 
-    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError) as excinfo:
         await registry.execute(
             "scroll_to_element",
             {"element_id": 1, "behavior": "instant", "block": "center"},
             ctx=ctx,
         )
+    assert excinfo.value.error == "unsupported_capability"
