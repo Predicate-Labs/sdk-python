@@ -10,7 +10,7 @@ from urllib.parse import quote_plus
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
 from .cursor_policy import CursorPolicy, build_human_cursor_path
-from .models import ActionResult, BBox, Snapshot
+from .models import ActionResult, BBox, Snapshot, SnapshotOptions
 from .sentience_methods import SentienceMethod
 from .snapshot import snapshot, snapshot_async
 
@@ -809,9 +809,17 @@ def search(
     query: str,
     engine: str = "duckduckgo",
     take_snapshot: bool = False,
+    snapshot_options: SnapshotOptions | None = None,
 ) -> ActionResult:
     """
     Navigate to a search results page for the given query.
+
+    Args:
+        browser: SentienceBrowser instance
+        query: Search query string
+        engine: Search engine name (duckduckgo, google, google.com, bing)
+        take_snapshot: Whether to take snapshot after navigation
+        snapshot_options: Snapshot options passed to snapshot() when take_snapshot is True.
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call browser.start() first.")
@@ -831,7 +839,7 @@ def search(
 
     snapshot_after: Snapshot | None = None
     if take_snapshot:
-        snapshot_after = snapshot(browser)
+        snapshot_after = snapshot(browser, snapshot_options)
 
     return ActionResult(
         success=True,
@@ -1877,9 +1885,17 @@ async def search_async(
     query: str,
     engine: str = "duckduckgo",
     take_snapshot: bool = False,
+    snapshot_options: SnapshotOptions | None = None,
 ) -> ActionResult:
     """
     Async version of search().
+
+    Args:
+        browser: AsyncSentienceBrowser instance
+        query: Search query string
+        engine: Search engine name (duckduckgo, google, google.com, bing)
+        take_snapshot: Whether to take snapshot after navigation
+        snapshot_options: Snapshot options passed to snapshot_async() when take_snapshot is True.
     """
     if not browser.page:
         raise RuntimeError("Browser not started. Call await browser.start() first.")
@@ -1899,7 +1915,7 @@ async def search_async(
 
     snapshot_after: Snapshot | None = None
     if take_snapshot:
-        snapshot_after = await snapshot_async(browser)
+        snapshot_after = await snapshot_async(browser, snapshot_options)
 
     return ActionResult(
         success=True,
