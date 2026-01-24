@@ -2,7 +2,10 @@
 Tests for actions (click, type, press, click_rect)
 """
 
+import pytest
+
 from sentience import (
+    AsyncSentienceBrowser,
     SentienceBrowser,
     back,
     check,
@@ -12,7 +15,11 @@ from sentience import (
     find,
     press,
     scroll_to,
+    search,
+    search_async,
     select_option,
+    send_keys,
+    send_keys_async,
     snapshot,
     submit,
     type_text,
@@ -63,6 +70,106 @@ def test_press():
         result = press(browser, "Enter")
         assert result.success is True
         assert result.duration_ms > 0
+
+
+def test_send_keys():
+    """Test send_keys helper"""
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        result = send_keys(browser, "CTRL+L")
+        assert result.success is True
+        assert result.duration_ms > 0
+
+
+def test_send_keys_empty_sequence() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        with pytest.raises(ValueError, match="empty"):
+            send_keys(browser, "")
+
+
+def test_send_keys_braced_sequence() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        result = send_keys(browser, "{CTRL+L}")
+        assert result.success is True
+
+
+def test_send_keys_multi_sequence_and_alias() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        result = send_keys(browser, "Tab Tab Enter")
+        assert result.success is True
+        result = send_keys(browser, "CMD+C")
+        assert result.success is True
+
+
+def test_search_builds_url() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        result = search(browser, "sentience sdk", engine="duckduckgo")
+        assert result.success is True
+        assert result.duration_ms > 0
+
+        result = search(browser, "sentience sdk", engine="google")
+        assert result.success is True
+
+        result = search(browser, "sentience sdk", engine="bing")
+        assert result.success is True
+
+        result = search(browser, "sentience sdk", engine="google.com")
+        assert result.success is True
+
+
+def test_search_empty_query() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        with pytest.raises(ValueError, match="empty"):
+            search(browser, "")
+
+
+def test_search_disallowed_domain() -> None:
+    with SentienceBrowser(allowed_domains=["example.com"]) as browser:
+        browser.page.goto("https://example.com")
+        browser.page.wait_for_load_state("networkidle")
+
+        with pytest.raises(ValueError, match="domain not allowed"):
+            search(browser, "sentience sdk", engine="duckduckgo")
+
+
+@pytest.mark.asyncio
+async def test_search_async() -> None:
+    async with AsyncSentienceBrowser() as browser:
+        await browser.page.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        result = await search_async(
+            browser, "sentience sdk", engine="duckduckgo", take_snapshot=True
+        )
+        assert result.success is True
+        assert result.snapshot_after is not None
+
+
+@pytest.mark.asyncio
+async def test_send_keys_async() -> None:
+    async with AsyncSentienceBrowser() as browser:
+        await browser.page.goto("https://example.com")
+        await browser.page.wait_for_load_state("networkidle")
+
+        result = await send_keys_async(browser, "CTRL+L")
+        assert result.success is True
 
 
 def test_click_rect():
