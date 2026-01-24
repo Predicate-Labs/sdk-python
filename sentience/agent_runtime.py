@@ -72,7 +72,15 @@ from typing import TYPE_CHECKING, Any
 
 from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
-from .models import Snapshot, SnapshotOptions
+from .models import (
+    EvaluateJsRequest,
+    EvaluateJsResult,
+    Snapshot,
+    SnapshotOptions,
+    TabInfo,
+    TabListResult,
+    TabOperationResult,
+)
 from .trace_event_builder import TraceEventBuilder
 from .verification import AssertContext, AssertOutcome, Predicate
 
@@ -286,6 +294,97 @@ class AgentRuntime:
             await self._handle_captcha_if_needed(self.last_snapshot, source="gateway")
         return self.last_snapshot
 
+    async def evaluate_js(self, request: EvaluateJsRequest) -> EvaluateJsResult:
+        """
+        Evaluate JavaScript expression in the active backend.
+
+        Args:
+            request: EvaluateJsRequest with code and output limits.
+
+        Returns:
+            EvaluateJsResult with normalized text output.
+        """
+        try:
+            value = await self.backend.eval(request.code)
+        except Exception as exc:  # pragma: no cover - backend-specific errors
+            return EvaluateJsResult(ok=False, error=str(exc))
+
+        text = self._stringify_eval_value(value)
+        truncated = False
+        if request.truncate and len(text) > request.max_output_chars:
+            text = text[: request.max_output_chars] + "..."
+            truncated = True
+
+        return EvaluateJsResult(
+            ok=True,
+            value=value,
+            text=text,
+            truncated=truncated,
+        )
+
+    async def list_tabs(self) -> TabListResult:
+        backend = self._get_tab_backend()
+        if backend is None:
+            return TabListResult(ok=False, error="unsupported_capability")
+        try:
+            tabs = await backend.list_tabs()
+        except Exception as exc:  # pragma: no cover - backend specific
+            return TabListResult(ok=False, error=str(exc))
+        return TabListResult(ok=True, tabs=tabs)
+
+    async def open_tab(self, url: str) -> TabOperationResult:
+        backend = self._get_tab_backend()
+        if backend is None:
+            return TabOperationResult(ok=False, error="unsupported_capability")
+        try:
+            tab = await backend.open_tab(url)
+        except Exception as exc:  # pragma: no cover - backend specific
+            return TabOperationResult(ok=False, error=str(exc))
+        return TabOperationResult(ok=True, tab=tab)
+
+    async def switch_tab(self, tab_id: str) -> TabOperationResult:
+        backend = self._get_tab_backend()
+        if backend is None:
+            return TabOperationResult(ok=False, error="unsupported_capability")
+        try:
+            tab = await backend.switch_tab(tab_id)
+        except Exception as exc:  # pragma: no cover - backend specific
+            return TabOperationResult(ok=False, error=str(exc))
+        return TabOperationResult(ok=True, tab=tab)
+
+    async def close_tab(self, tab_id: str) -> TabOperationResult:
+        backend = self._get_tab_backend()
+        if backend is None:
+            return TabOperationResult(ok=False, error="unsupported_capability")
+        try:
+            tab = await backend.close_tab(tab_id)
+        except Exception as exc:  # pragma: no cover - backend specific
+            return TabOperationResult(ok=False, error=str(exc))
+        return TabOperationResult(ok=True, tab=tab)
+
+    def _get_tab_backend(self):
+        backend = getattr(self, "backend", None)
+        if backend is None:
+            return None
+        if not all(
+            hasattr(backend, attr) for attr in ("list_tabs", "open_tab", "switch_tab", "close_tab")
+        ):
+            return None
+        return backend
+
+    @staticmethod
+    def _stringify_eval_value(value: Any) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, (dict, list)):
+            try:
+                import json
+
+                return json.dumps(value, ensure_ascii=False)
+            except Exception:
+                return str(value)
+        return str(value)
+
     def set_captcha_options(self, options: CaptchaOptions) -> None:
         """
         Configure CAPTCHA handling (disabled by default unless set).
@@ -450,10 +549,7 @@ class AgentRuntime:
         if snap is None:
             return None
         try:
-            return (
-                "sha256:"
-                + hashlib.sha256(f"{snap.url}{snap.timestamp}".encode("utf-8")).hexdigest()
-            )
+            return "sha256:" + hashlib.sha256(f"{snap.url}{snap.timestamp}".encode()).hexdigest()
         except Exception:
             return None
 
@@ -477,10 +573,7 @@ class AgentRuntime:
         goal = self._step_goal or ""
         pre_snap = self._step_pre_snapshot or self.last_snapshot
         pre_url = (
-            self._step_pre_url
-            or (pre_snap.url if pre_snap else None)
-            or self._cached_url
-            or ""
+            self._step_pre_url or (pre_snap.url if pre_snap else None) or self._cached_url or ""
         )
 
         if post_url is None:
@@ -488,8 +581,8 @@ class AgentRuntime:
                 post_url = await self.get_url()
             except Exception:
                 post_url = (
-                    (self.last_snapshot.url if self.last_snapshot else None) or self._cached_url
-                )
+                    self.last_snapshot.url if self.last_snapshot else None
+                ) or self._cached_url
         post_url = post_url or pre_url
 
         pre_digest = self._compute_snapshot_digest(pre_snap)
@@ -505,13 +598,15 @@ class AgentRuntime:
             signals["error"] = error
 
         passed = (
-            bool(verify_passed)
-            if verify_passed is not None
-            else self.required_assertions_passed()
+            bool(verify_passed) if verify_passed is not None else self.required_assertions_passed()
         )
 
-        exec_success = bool(success) if success is not None else bool(
-            self._last_action_success if self._last_action_success is not None else passed
+        exec_success = (
+            bool(success)
+            if success is not None
+            else bool(
+                self._last_action_success if self._last_action_success is not None else passed
+            )
         )
 
         exec_data: dict[str, Any] = {
@@ -716,7 +811,9 @@ class AgentRuntime:
             True if task is complete (assertion passed), False otherwise
         """
         # Convenience wrapper for assert_ with required=True
+        # pylint: disable=deprecated-method
         ok = self.assert_(predicate, label=label, required=True)
+        # pylint: enable=deprecated-method
         if ok:
             self._task_done = True
             self._task_done_label = label

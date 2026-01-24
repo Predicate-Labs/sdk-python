@@ -6,7 +6,15 @@ import pytest
 
 from sentience.agent_runtime import AgentRuntime
 from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.models import BBox, Element, Snapshot, SnapshotDiagnostics, Viewport, VisualCues
+from sentience.models import (
+    BBox,
+    Element,
+    Snapshot,
+    SnapshotDiagnostics,
+    StepHookContext,
+    Viewport,
+    VisualCues,
+)
 from sentience.runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
 from sentience.verification import AssertContext, AssertOutcome
 
@@ -231,6 +239,43 @@ async def test_runtime_agent_vision_executor_fallback_after_verification_fail() 
     assert ok is True
     assert len(executor.calls) == 1
     assert len(vision.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_runtime_agent_hooks_called() -> None:
+    backend = MockBackend()
+    tracer = MockTracer()
+    runtime = AgentRuntime(backend=backend, tracer=tracer)
+    executor = ProviderStub(responses=["CLICK(1)"])
+
+    agent = RuntimeAgent(runtime=runtime, executor=executor)
+    step = RuntimeStep(goal="click first", verifications=[], max_snapshot_attempts=1)
+
+    started: list[StepHookContext] = []
+    ended: list[StepHookContext] = []
+
+    async def on_start(ctx: StepHookContext):
+        started.append(ctx)
+
+    async def on_end(ctx: StepHookContext):
+        ended.append(ctx)
+
+    snapshot = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)])
+
+    async def fake_snapshot(**_kwargs):
+        runtime.last_snapshot = snapshot
+        return snapshot
+
+    runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+    await agent.run_step(task_goal="task", step=step, on_step_start=on_start, on_step_end=on_end)
+
+    assert len(started) == 1
+    assert len(ended) == 1
+    assert started[0].goal == "click first"
+    assert ended[0].success is True
+    assert ended[0].outcome == "ok"
+    assert ended[0].error is None
 
 
 @pytest.mark.asyncio

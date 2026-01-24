@@ -22,6 +22,24 @@ pip install transformers torch  # For local LLMs
 pip install -e .
 ```
 
+## 🧭 Manual driver CLI
+
+Use the interactive CLI to open a page, inspect clickables, and drive actions:
+
+```bash
+sentience driver --url https://example.com
+```
+
+Commands:
+- `open <url>`
+- `state [limit]`
+- `click <element_id>`
+- `type <element_id> <text>`
+- `press <key>`
+- `screenshot [path]`
+- `help`
+- `close`
+
 ## Jest for AI Web Agent
 
 ### Semantic snapshots and assertions that let agents act, verify, and know when they're done.

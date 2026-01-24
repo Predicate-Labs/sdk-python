@@ -5,7 +5,10 @@ Implements observe-think-act loop for natural language commands
 
 import asyncio
 import hashlib
+import inspect
+import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .action_executor import ActionExecutor
@@ -23,6 +26,7 @@ from .models import (
     ScreenshotConfig,
     Snapshot,
     SnapshotOptions,
+    StepHookContext,
     TokenStats,
 )
 from .protocols import AsyncBrowserProtocol, BrowserProtocol
@@ -63,6 +67,51 @@ def _safe_tracer_call(
         # Tracer errors should not break agent execution
         if verbose:
             print(f"⚠️  Tracer error (non-fatal): {tracer_error}")
+
+
+def _safe_hook_call_sync(
+    hook: Callable[[StepHookContext], Any] | None,
+    ctx: StepHookContext,
+    verbose: bool,
+) -> None:
+    if not hook:
+        return
+    try:
+        result = hook(ctx)
+        if inspect.isawaitable(result):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                asyncio.run(result)
+            else:
+                loop.create_task(result)
+    except Exception as hook_error:
+        if verbose:
+            print(f"⚠️  Hook error (non-fatal): {hook_error}")
+        else:
+            logging.getLogger(__name__).warning(
+                "Hook error (non-fatal): %s", hook_error
+            )
+
+
+async def _safe_hook_call_async(
+    hook: Callable[[StepHookContext], Any] | None,
+    ctx: StepHookContext,
+    verbose: bool,
+) -> None:
+    if not hook:
+        return
+    try:
+        result = hook(ctx)
+        if inspect.isawaitable(result):
+            await result
+    except Exception as hook_error:
+        if verbose:
+            print(f"⚠️  Hook error (non-fatal): {hook_error}")
+        else:
+            logging.getLogger(__name__).warning(
+                "Hook error (non-fatal): %s", hook_error
+            )
 
 
 class SentienceAgent(BaseAgent):
@@ -181,6 +230,8 @@ class SentienceAgent(BaseAgent):
         goal: str,
         max_retries: int = 2,
         snapshot_options: SnapshotOptions | None = None,
+        on_step_start: Callable[[StepHookContext], Any] | None = None,
+        on_step_end: Callable[[StepHookContext], Any] | None = None,
     ) -> AgentActionResult:
         """
         Execute a high-level goal using observe → think → act loop
@@ -223,6 +274,18 @@ class SentienceAgent(BaseAgent):
                 attempt=0,
                 pre_url=pre_url,
             )
+
+        _safe_hook_call_sync(
+            on_step_start,
+            StepHookContext(
+                step_id=step_id,
+                step_index=self._step_count,
+                goal=goal,
+                attempt=0,
+                url=pre_url,
+            ),
+            self.verbose,
+        )
 
         # Track data collected during step execution for step_end emission on failure
         _step_snap_with_diff: Snapshot | None = None
@@ -396,8 +459,8 @@ class SentienceAgent(BaseAgent):
                 _step_duration_ms = duration_ms
 
                 # Emit action execution trace event if tracer is enabled
+                post_url = self.browser.page.url if self.browser.page else None
                 if self.tracer:
-                    post_url = self.browser.page.url if self.browser.page else None
 
                     # Include element data for live overlay visualization
                     elements_data = [
@@ -454,7 +517,6 @@ class SentienceAgent(BaseAgent):
                 if self.tracer:
                     # Get pre_url from step_start (stored in tracer or use current)
                     pre_url = snap.url
-                    post_url = self.browser.page.url if self.browser.page else None
 
                     # Compute snapshot digest (simplified - use URL + timestamp)
                     snapshot_digest = f"sha256:{self._compute_hash(f'{pre_url}{snap.timestamp}')}"
@@ -561,6 +623,20 @@ class SentienceAgent(BaseAgent):
                         step_id=step_id,
                     )
 
+                _safe_hook_call_sync(
+                    on_step_end,
+                    StepHookContext(
+                        step_id=step_id,
+                        step_index=self._step_count,
+                        goal=goal,
+                        attempt=attempt,
+                        url=post_url,
+                        success=result.success,
+                        outcome=result.outcome,
+                        error=result.error,
+                    ),
+                    self.verbose,
+                )
                 return result
 
             except Exception as e:
@@ -659,6 +735,20 @@ class SentienceAgent(BaseAgent):
                             "attempt": attempt,
                             "duration_ms": 0,
                         }
+                    )
+                    _safe_hook_call_sync(
+                        on_step_end,
+                        StepHookContext(
+                            step_id=step_id,
+                            step_index=self._step_count,
+                            goal=goal,
+                            attempt=attempt,
+                            url=_step_pre_url,
+                            success=False,
+                            outcome="exception",
+                            error=str(e),
+                        ),
+                        self.verbose,
                     )
                     raise RuntimeError(f"Failed after {max_retries} retries: {e}")
 
@@ -833,6 +923,8 @@ class SentienceAgentAsync(BaseAgentAsync):
         goal: str,
         max_retries: int = 2,
         snapshot_options: SnapshotOptions | None = None,
+        on_step_start: Callable[[StepHookContext], Any] | None = None,
+        on_step_end: Callable[[StepHookContext], Any] | None = None,
     ) -> AgentActionResult:
         """
         Execute a high-level goal using observe → think → act loop (async)
@@ -872,6 +964,18 @@ class SentienceAgentAsync(BaseAgentAsync):
                 attempt=0,
                 pre_url=pre_url,
             )
+
+        await _safe_hook_call_async(
+            on_step_start,
+            StepHookContext(
+                step_id=step_id,
+                step_index=self._step_count,
+                goal=goal,
+                attempt=0,
+                url=pre_url,
+            ),
+            self.verbose,
+        )
 
         # Track data collected during step execution for step_end emission on failure
         _step_snap_with_diff: Snapshot | None = None
@@ -1209,6 +1313,21 @@ class SentienceAgentAsync(BaseAgentAsync):
                         step_id=step_id,
                     )
 
+                post_url = self.browser.page.url if self.browser.page else None
+                await _safe_hook_call_async(
+                    on_step_end,
+                    StepHookContext(
+                        step_id=step_id,
+                        step_index=self._step_count,
+                        goal=goal,
+                        attempt=attempt,
+                        url=post_url,
+                        success=result.success,
+                        outcome=result.outcome,
+                        error=result.error,
+                    ),
+                    self.verbose,
+                )
                 return result
 
             except Exception as e:
@@ -1307,6 +1426,20 @@ class SentienceAgentAsync(BaseAgentAsync):
                             "attempt": attempt,
                             "duration_ms": 0,
                         }
+                    )
+                    await _safe_hook_call_async(
+                        on_step_end,
+                        StepHookContext(
+                            step_id=step_id,
+                            step_index=self._step_count,
+                            goal=goal,
+                            attempt=attempt,
+                            url=_step_pre_url,
+                            success=False,
+                            outcome="exception",
+                            error=str(e),
+                        ),
+                        self.verbose,
                     )
                     raise RuntimeError(f"Failed after {max_retries} retries: {e}")
 

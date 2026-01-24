@@ -10,7 +10,9 @@ This module intentionally keeps the control plane verification-first:
 from __future__ import annotations
 
 import base64
+import inspect
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -18,7 +20,7 @@ from .agent_runtime import AgentRuntime
 from .backends import actions as backend_actions
 from .llm_interaction_handler import LLMInteractionHandler
 from .llm_provider import LLMProvider
-from .models import BBox, Snapshot
+from .models import BBox, Snapshot, StepHookContext
 from .verification import AssertContext, AssertOutcome, Predicate
 
 
@@ -84,15 +86,29 @@ class RuntimeAgent:
         *,
         task_goal: str,
         step: RuntimeStep,
+        on_step_start: Callable[[StepHookContext], Any] | None = None,
+        on_step_end: Callable[[StepHookContext], Any] | None = None,
     ) -> bool:
-        self.runtime.begin_step(step.goal)
+        step_id = self.runtime.begin_step(step.goal)
+        await self._run_hook(
+            on_step_start,
+            StepHookContext(
+                step_id=step_id,
+                step_index=self.runtime.step_index,
+                goal=step.goal,
+                url=getattr(self.runtime.last_snapshot, "url", None),
+            ),
+        )
         emitted = False
         ok = False
+        error_msg: str | None = None
+        outcome: str | None = None
         try:
             snap = await self._snapshot_with_ramp(step=step)
 
             if await self._should_short_circuit_to_vision(step=step, snap=snap):
                 ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
+                outcome = "ok" if ok else "verification_failed"
                 return ok
 
             # 1) Structured executor attempt.
@@ -100,15 +116,20 @@ class RuntimeAgent:
             await self._execute_action(action=action, snap=snap)
             ok = await self._apply_verifications(step=step)
             if ok:
+                outcome = "ok"
                 return True
 
             # 2) Optional vision executor fallback (bounded).
             if step.vision_executor_enabled and step.max_vision_executor_attempts > 0:
                 ok = await self._vision_executor_attempt(task_goal=task_goal, step=step, snap=snap)
+                outcome = "ok" if ok else "verification_failed"
                 return ok
 
+            outcome = "verification_failed"
             return False
         except Exception as exc:
+            error_msg = str(exc)
+            outcome = "exception"
             try:
                 await self.runtime.emit_step_end(
                     success=False,
@@ -130,6 +151,29 @@ class RuntimeAgent:
                     )
                 except Exception:
                     pass
+            await self._run_hook(
+                on_step_end,
+                StepHookContext(
+                    step_id=step_id,
+                    step_index=self.runtime.step_index,
+                    goal=step.goal,
+                    url=getattr(self.runtime.last_snapshot, "url", None),
+                    success=ok,
+                    outcome=outcome,
+                    error=error_msg,
+                ),
+            )
+
+    async def _run_hook(
+        self,
+        hook: Callable[[StepHookContext], Any] | None,
+        ctx: StepHookContext,
+    ) -> None:
+        if hook is None:
+            return
+        result = hook(ctx)
+        if inspect.isawaitable(result):
+            await result
 
     async def _snapshot_with_ramp(self, *, step: RuntimeStep) -> Snapshot:
         limit = step.snapshot_limit_base

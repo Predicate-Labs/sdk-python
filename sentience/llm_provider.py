@@ -335,9 +335,7 @@ class DeepInfraProvider(OpenAIProvider):
         model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
         base_url: str = "https://api.deepinfra.com/v1/openai",
     ):
-        api_key = get_api_key_from_env(
-            ["DEEPINFRA_TOKEN", "DEEPINFRA_API_KEY"], api_key
-        )
+        api_key = get_api_key_from_env(["DEEPINFRA_TOKEN", "DEEPINFRA_API_KEY"], api_key)
         super().__init__(api_key=api_key, model=model, base_url=base_url)
 
 

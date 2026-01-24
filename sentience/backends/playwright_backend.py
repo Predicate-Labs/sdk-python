@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..models import TabInfo
 from .protocol import BrowserBackend, LayoutMetrics, ViewportInfo
 
 if TYPE_CHECKING:
@@ -53,6 +54,7 @@ class PlaywrightBackend:
         self._page = page
         self._cached_viewport: ViewportInfo | None = None
         self._downloads: list[dict[str, Any]] = []
+        self._tab_registry: dict[str, "AsyncPage"] = {}
 
         # Best-effort download tracking (does not change behavior unless a download occurs).
         # pylint: disable=broad-exception-caught
@@ -107,6 +109,104 @@ class PlaywrightBackend:
     def page(self) -> "AsyncPage":
         """Access the underlying Playwright page."""
         return self._page
+
+    async def list_tabs(self) -> list[TabInfo]:
+        self._prune_tabs()
+        context = self._page.context
+        tabs: list[TabInfo] = []
+        for page in context.pages:
+            tab_id = self._ensure_tab_id(page)
+            title = None
+            try:
+                title = await page.title()
+            except Exception:  # pylint: disable=broad-exception-caught
+                title = None
+            tabs.append(
+                TabInfo(
+                    tab_id=tab_id,
+                    url=getattr(page, "url", None),
+                    title=title,
+                    is_active=page == self._page,
+                )
+            )
+        return tabs
+
+    async def open_tab(self, url: str) -> TabInfo:
+        self._prune_tabs()
+        context = self._page.context
+        page = await context.new_page()
+        await page.goto(url)
+        self._page = page
+        tab_id = self._ensure_tab_id(page)
+        title = None
+        try:
+            title = await page.title()
+        except Exception:  # pylint: disable=broad-exception-caught
+            title = None
+        return TabInfo(tab_id=tab_id, url=getattr(page, "url", None), title=title, is_active=True)
+
+    async def switch_tab(self, tab_id: str) -> TabInfo:
+        self._prune_tabs()
+        page = self._tab_registry.get(tab_id)
+        if page is None:
+            raise ValueError(f"unknown tab_id: {tab_id}")
+        self._page = page
+        try:
+            await page.bring_to_front()
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+        title = None
+        try:
+            title = await page.title()
+        except Exception:  # pylint: disable=broad-exception-caught
+            title = None
+        return TabInfo(tab_id=tab_id, url=getattr(page, "url", None), title=title, is_active=True)
+
+    async def close_tab(self, tab_id: str) -> TabInfo:
+        self._prune_tabs()
+        page = self._tab_registry.get(tab_id)
+        if page is None:
+            raise ValueError(f"unknown tab_id: {tab_id}")
+        info = TabInfo(
+            tab_id=tab_id,
+            url=getattr(page, "url", None),
+            title=None,
+            is_active=page == self._page,
+        )
+        try:
+            info.title = await page.title()
+        except Exception:  # pylint: disable=broad-exception-caught
+            info.title = None
+        await page.close()
+        self._tab_registry.pop(tab_id, None)
+        if self._page == page:
+            context = page.context
+            pages = context.pages
+            if pages:
+                self._page = pages[0]
+        return info
+
+    def _ensure_tab_id(self, page: "AsyncPage") -> str:
+        self._prune_tabs()
+        for tab_id, entry in self._tab_registry.items():
+            if entry == page:
+                return tab_id
+        tab_id = f"tab-{id(page)}"
+        self._tab_registry[tab_id] = page
+        return tab_id
+
+    def _prune_tabs(self) -> None:
+        dead: list[str] = []
+        for tab_id, page in self._tab_registry.items():
+            is_closed = getattr(page, "is_closed", None)
+            try:
+                closed = is_closed() if callable(is_closed) else bool(is_closed)
+            except Exception:  # pragma: no cover - defensive
+                closed = False
+            if closed:
+                dead.append(tab_id)
+        for tab_id in dead:
+            self._tab_registry.pop(tab_id, None)
 
     async def refresh_page_info(self) -> ViewportInfo:
         """Cache viewport + scroll offsets; cheap & safe to call often."""

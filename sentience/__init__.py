@@ -86,6 +86,7 @@ from .models import (  # Agent Layer Models
     Snapshot,
     SnapshotFilter,
     SnapshotOptions,
+    StepHookContext,
     StorageState,
     TextContext,
     TextMatch,
