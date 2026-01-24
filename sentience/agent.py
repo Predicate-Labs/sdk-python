@@ -257,9 +257,9 @@ class SentienceAgent(BaseAgent):
         self._step_count += 1
         step_id = f"step-{self._step_count}"
 
+        pre_url = self.browser.page.url if self.browser.page else None
         # Emit step_start trace event if tracer is enabled
         if self.tracer:
-            pre_url = self.browser.page.url if self.browser.page else None
             _safe_tracer_call(
                 self.tracer,
                 "emit_step_start",
@@ -947,9 +947,9 @@ class SentienceAgentAsync(BaseAgentAsync):
         self._step_count += 1
         step_id = f"step-{self._step_count}"
 
+        pre_url = self.browser.page.url if self.browser.page else None
         # Emit step_start trace event if tracer is enabled
         if self.tracer:
-            pre_url = self.browser.page.url if self.browser.page else None
             _safe_tracer_call(
                 self.tracer,
                 "emit_step_start",
