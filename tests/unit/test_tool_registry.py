@@ -3,7 +3,13 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from sentience.tools import ToolContext, ToolRegistry, ToolSpec, register_default_tools
+from sentience.tools import (
+    ToolContext,
+    ToolRegistry,
+    ToolSpec,
+    UnsupportedCapabilityError,
+    register_default_tools,
+)
 
 
 class EchoInput(BaseModel):
@@ -143,7 +149,7 @@ def test_tool_context_require_raises_on_missing_capability() -> None:
             return False
 
     ctx = ToolContext(RuntimeStub())
-    with pytest.raises(ValueError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
         ctx.require("tabs")
 
 
@@ -213,10 +219,10 @@ async def test_default_tools_capability_checks() -> None:
     ctx = ToolContext(RuntimeStub())
     register_default_tools(registry, ctx)
 
-    with pytest.raises(ValueError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
         await registry.execute("press", {"key": "Enter"}, ctx=ctx)
 
-    with pytest.raises(ValueError, match="unsupported_capability"):
+    with pytest.raises(UnsupportedCapabilityError, match="unsupported_capability"):
         await registry.execute(
             "scroll_to_element",
             {"element_id": 1, "behavior": "instant", "block": "center"},

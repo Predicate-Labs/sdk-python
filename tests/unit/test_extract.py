@@ -24,9 +24,7 @@ class LLMStub(LLMProvider):
         return "stub"
 
 
-class BrowserStub:
-    page = True
-
+class PageStub:
     def __init__(self, content: str):
         self._content = content
 
@@ -38,6 +36,30 @@ class BrowserStub:
             "content": self._content,
             "length": len(self._content),
         }
+
+
+class AsyncPageStub:
+    def __init__(self, content: str):
+        self._content = content
+
+    async def evaluate(self, _script: str, _opts: dict):
+        return {
+            "status": "success",
+            "url": "https://example.com",
+            "format": "markdown",
+            "content": self._content,
+            "length": len(self._content),
+        }
+
+
+class BrowserStub:
+    def __init__(self, content: str):
+        self.page = PageStub(content)
+
+
+class AsyncBrowserStub:
+    def __init__(self, content: str):
+        self.page = AsyncPageStub(content)
 
 
 class ItemSchema(BaseModel):
@@ -64,7 +86,7 @@ def test_extract_schema_invalid_json() -> None:
 
 @pytest.mark.asyncio
 async def test_extract_async_schema_success() -> None:
-    browser = BrowserStub("Product: Widget")
+    browser = AsyncBrowserStub("Product: Widget")
     llm = LLMStub('{"name":"Widget","price":"$10"}')
     from sentience.read import extract_async
 
