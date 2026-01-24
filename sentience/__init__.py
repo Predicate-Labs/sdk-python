@@ -55,7 +55,7 @@ from .backends import wait_for_stable as backend_wait_for_stable
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
-from .browser import SentienceBrowser
+from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 
@@ -192,6 +192,7 @@ __all__ = [
     "backend_wait_for_stable",
     # Core SDK
     "SentienceBrowser",
+    "AsyncSentienceBrowser",
     "Snapshot",
     "Element",
     "BBox",
