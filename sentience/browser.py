@@ -22,6 +22,7 @@ from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwrigh
 from sentience._extension_loader import find_extension_path
 from sentience.constants import SENTIENCE_API_URL
 from sentience.models import ProxyConfig, StorageState, Viewport
+from sentience.permissions import PermissionPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ class SentienceBrowser:
         allowed_domains: list[str] | None = None,
         prohibited_domains: list[str] | None = None,
         keep_alive: bool = False,
+        permission_policy: PermissionPolicy | dict | None = None,
     ):
         """
         Initialize Sentience browser
@@ -134,6 +136,7 @@ class SentienceBrowser:
                               Viewport(width=1920, height=1080) (Full HD)
                               {"width": 1280, "height": 800} (dict also supported)
                      If None, defaults to Viewport(width=1280, height=800).
+            permission_policy: Optional permission policy to apply on context creation.
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -165,6 +168,7 @@ class SentienceBrowser:
         self.allowed_domains = allowed_domains or []
         self.prohibited_domains = prohibited_domains or []
         self.keep_alive = keep_alive
+        self.permission_policy = self._coerce_permission_policy(permission_policy)
 
         # Viewport configuration - convert dict to Viewport if needed
         if viewport is None:
@@ -230,6 +234,28 @@ class SentienceBrowser:
                 f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
             )
             return None
+
+    def _coerce_permission_policy(
+        self, policy: PermissionPolicy | dict | None
+    ) -> PermissionPolicy | None:
+        if policy is None:
+            return None
+        if isinstance(policy, PermissionPolicy):
+            return policy
+        if isinstance(policy, dict):
+            return PermissionPolicy(**policy)
+        raise TypeError("permission_policy must be PermissionPolicy, dict, or None")
+
+    def apply_permission_policy(self, context: BrowserContext) -> None:
+        policy = self.permission_policy
+        if policy is None:
+            return
+        if policy.default in ("clear", "deny"):
+            context.clear_permissions()
+        if policy.geolocation:
+            context.set_geolocation(policy.geolocation)
+        if policy.auto_grant:
+            context.grant_permissions(policy.auto_grant, origin=policy.origin)
 
     def start(self) -> None:
         """Launch browser with extension loaded"""
@@ -337,6 +363,9 @@ class SentienceBrowser:
         # Note: We pass headless=False to launch_persistent_context because we handle
         # headless mode via the --headless=new arg above. This is a Playwright workaround.
         self.context = self.playwright.chromium.launch_persistent_context(**launch_params)
+
+        if self.context is not None:
+            self.apply_permission_policy(self.context)
 
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
 
@@ -712,6 +741,7 @@ class AsyncSentienceBrowser:
         allowed_domains: list[str] | None = None,
         prohibited_domains: list[str] | None = None,
         keep_alive: bool = False,
+        permission_policy: PermissionPolicy | dict | None = None,
     ):
         """
         Initialize Async Sentience browser
@@ -740,6 +770,7 @@ class AsyncSentienceBrowser:
                             this specific browser binary instead of Playwright's managed browser.
                             Useful to guarantee Chromium (not Chrome for Testing) on macOS.
                             Example: "/path/to/playwright/chromium-1234/chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+            permission_policy: Optional permission policy to apply on context creation.
         """
         self.api_key = api_key
         # Only set api_url if api_key is provided, otherwise None (free tier)
@@ -770,6 +801,7 @@ class AsyncSentienceBrowser:
         self.allowed_domains = allowed_domains or []
         self.prohibited_domains = prohibited_domains or []
         self.keep_alive = keep_alive
+        self.permission_policy = self._coerce_permission_policy(permission_policy)
 
         # Viewport configuration - convert dict to Viewport if needed
         if viewport is None:
@@ -835,6 +867,28 @@ class AsyncSentienceBrowser:
                 f"Invalid proxy configuration: {e}. Expected format: http://username:password@host:port"
             )
             return None
+
+    def _coerce_permission_policy(
+        self, policy: PermissionPolicy | dict | None
+    ) -> PermissionPolicy | None:
+        if policy is None:
+            return None
+        if isinstance(policy, PermissionPolicy):
+            return policy
+        if isinstance(policy, dict):
+            return PermissionPolicy(**policy)
+        raise TypeError("permission_policy must be PermissionPolicy, dict, or None")
+
+    async def apply_permission_policy(self, context: AsyncBrowserContext) -> None:
+        policy = self.permission_policy
+        if policy is None:
+            return
+        if policy.default in ("clear", "deny"):
+            await context.clear_permissions()
+        if policy.geolocation:
+            await context.set_geolocation(policy.geolocation)
+        if policy.auto_grant:
+            await context.grant_permissions(policy.auto_grant, origin=policy.origin)
 
     async def start(self) -> None:
         """Launch browser with extension loaded (async)"""
@@ -938,6 +992,9 @@ class AsyncSentienceBrowser:
 
         # Launch persistent context
         self.context = await self.playwright.chromium.launch_persistent_context(**launch_params)
+
+        if self.context is not None:
+            await self.apply_permission_policy(self.context)
 
         self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
 
