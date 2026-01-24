@@ -223,7 +223,7 @@ def extract(
         schema_desc = json.dumps(schema.model_json_schema(), ensure_ascii=False)
     system = "You extract structured data from markdown content. " "Return only JSON. No prose."
     user = f"QUERY:\n{query}\n\nSCHEMA:\n{schema_desc}\n\nCONTENT:\n{content}"
-    response = await llm.generate_async(system, user)
+    response = llm.generate(system, user)
     raw = response.content.strip()
 
     if schema is None:
@@ -257,7 +257,7 @@ async def extract_async(
         schema_desc = json.dumps(schema.model_json_schema(), ensure_ascii=False)
     system = "You extract structured data from markdown content. " "Return only JSON. No prose."
     user = f"QUERY:\n{query}\n\nSCHEMA:\n{schema_desc}\n\nCONTENT:\n{content}"
-    response = llm.generate(system, user)
+    response = await llm.generate_async(system, user)
     raw = response.content.strip()
 
     if schema is None:
