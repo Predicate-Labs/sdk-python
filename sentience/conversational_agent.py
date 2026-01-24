@@ -311,7 +311,7 @@ Create a step-by-step execution plan."""
         except Exception as e:
             if self.verbose:
                 print(f"❌ Step failed: {e}")
-            return StepExecutionResult(success=False, action=action, error=str(e))
+            return StepExecutionResult(success=False, action=action, data={}, error=str(e))
 
     def _extract_information(self, snap: Snapshot, info_type: str) -> ExtractionResult:
         """

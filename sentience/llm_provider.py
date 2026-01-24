@@ -3,6 +3,7 @@ LLM Provider abstraction layer for Sentience SDK
 Enables "Bring Your Own Brain" (BYOB) pattern - plug in any LLM provider
 """
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -58,6 +59,12 @@ class LLMProvider(ABC):
             LLMResponse with content and token usage
         """
         pass
+
+    async def generate_async(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
+        """
+        Async wrapper around generate() for providers without native async support.
+        """
+        return await asyncio.to_thread(self.generate, system_prompt, user_prompt, **kwargs)
 
     @abstractmethod
     def supports_json_mode(self) -> bool:
@@ -335,9 +342,7 @@ class DeepInfraProvider(OpenAIProvider):
         model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
         base_url: str = "https://api.deepinfra.com/v1/openai",
     ):
-        api_key = get_api_key_from_env(
-            ["DEEPINFRA_TOKEN", "DEEPINFRA_API_KEY"], api_key
-        )
+        api_key = get_api_key_from_env(["DEEPINFRA_TOKEN", "DEEPINFRA_API_KEY"], api_key)
         super().__init__(api_key=api_key, model=model, base_url=base_url)
 
 

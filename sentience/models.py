@@ -630,6 +630,75 @@ class ActionResult(BaseModel):
     cursor: dict[str, Any] | None = None
 
 
+class TabInfo(BaseModel):
+    """Metadata about an open browser tab/page."""
+
+    tab_id: str
+    url: str | None = None
+    title: str | None = None
+    is_active: bool = False
+
+
+class TabListResult(BaseModel):
+    """Result of listing tabs."""
+
+    ok: bool
+    tabs: list[TabInfo] = Field(default_factory=list)
+    error: str | None = None
+
+
+class TabOperationResult(BaseModel):
+    """Result of tab operations (open/switch/close)."""
+
+    ok: bool
+    tab: TabInfo | None = None
+    error: str | None = None
+
+
+class StepHookContext(BaseModel):
+    """Context passed to lifecycle hooks."""
+
+    step_id: str
+    step_index: int
+    goal: str
+    attempt: int = 0
+    url: str | None = None
+    success: bool | None = None
+    outcome: str | None = None
+    error: str | None = None
+
+
+class EvaluateJsRequest(BaseModel):
+    """Request for evaluate_js helper."""
+
+    code: str = Field(
+        ...,
+        min_length=1,
+        max_length=8000,
+        description="JavaScript source code to evaluate in the page context.",
+    )
+    max_output_chars: int = Field(
+        4000,
+        ge=1,
+        le=20000,
+        description="Maximum number of characters to return in the text field.",
+    )
+    truncate: bool = Field(
+        True,
+        description="Whether to truncate text output when it exceeds max_output_chars.",
+    )
+
+
+class EvaluateJsResult(BaseModel):
+    """Result of evaluate_js helper."""
+
+    ok: bool = Field(..., description="Whether evaluation succeeded.")
+    value: Any | None = Field(None, description="Raw value returned by the page evaluation.")
+    text: str | None = Field(None, description="Best-effort string representation of the value.")
+    truncated: bool = Field(False, description="True if text output was truncated.")
+    error: str | None = Field(None, description="Error string when ok=False.")
+
+
 class WaitResult(BaseModel):
     """Result of wait_for operation"""
 
@@ -985,6 +1054,15 @@ class ReadResult(BaseModel):
     format: Literal["raw", "text", "markdown"]
     content: str
     length: int
+    error: str | None = None
+
+
+class ExtractResult(BaseModel):
+    """Result of extract() or extract_async() operation"""
+
+    ok: bool
+    data: Any | None = None
+    raw: str | None = None
     error: str | None = None
 
 

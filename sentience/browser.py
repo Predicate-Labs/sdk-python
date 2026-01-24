@@ -34,6 +34,51 @@ except ImportError:
     STEALTH_AVAILABLE = False
 
 
+def _normalize_domain(domain: str) -> str:
+    raw = domain.strip()
+    if "://" in raw:
+        host = urlparse(raw).hostname or ""
+    else:
+        host = raw.split("/", 1)[0]
+    host = host.split(":", 1)[0]
+    return host.strip().lower().lstrip(".")
+
+
+def _domain_matches(host: str, pattern: str) -> bool:
+    host_norm = _normalize_domain(host)
+    pat = _normalize_domain(pattern)
+    if pat.startswith("*."):
+        pat = pat[2:]
+    return host_norm == pat or host_norm.endswith(f".{pat}")
+
+
+def _extract_host(url: str) -> str | None:
+    raw = url.strip()
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    parsed = urlparse(raw)
+    return parsed.hostname
+
+
+def _is_domain_allowed(
+    host: str | None, allowed: list[str] | None, prohibited: list[str] | None
+) -> bool:
+    """
+    Return True if host is allowed based on allow/deny lists.
+
+    Deny list takes precedence. Empty allow list means allow all.
+    """
+    if not host:
+        return False
+    if prohibited:
+        for pattern in prohibited:
+            if _domain_matches(host, pattern):
+                return False
+    if allowed:
+        return any(_domain_matches(host, pattern) for pattern in allowed)
+    return True
+
+
 class SentienceBrowser:
     """Main browser session with Sentience extension loaded"""
 
@@ -49,6 +94,9 @@ class SentienceBrowser:
         record_video_size: dict[str, int] | None = None,
         viewport: Viewport | dict[str, int] | None = None,
         device_scale_factor: float | None = None,
+        allowed_domains: list[str] | None = None,
+        prohibited_domains: list[str] | None = None,
+        keep_alive: bool = False,
     ):
         """
         Initialize Sentience browser
@@ -112,6 +160,11 @@ class SentienceBrowser:
         # Video recording support
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
+
+        # Domain policies + keep-alive
+        self.allowed_domains = allowed_domains or []
+        self.prohibited_domains = prohibited_domains or []
+        self.keep_alive = keep_alive
 
         # Viewport configuration - convert dict to Viewport if needed
         if viewport is None:
@@ -299,9 +352,16 @@ class SentienceBrowser:
         time.sleep(0.5)
 
     def goto(self, url: str) -> None:
-        """Navigate to a URL and ensure extension is ready"""
+        """Navigate to a URL and ensure extension is ready.
+
+        This enforces domain allow/deny policies. Direct page.goto() calls
+        bypass policy checks.
+        """
         if not self.page:
             raise RuntimeError("Browser not started. Call start() first.")
+        host = _extract_host(url)
+        if not _is_domain_allowed(host, self.allowed_domains, self.prohibited_domains):
+            raise ValueError(f"domain not allowed: {host}")
 
         self.page.goto(url, wait_until="domcontentloaded")
 
@@ -474,10 +534,15 @@ class SentienceBrowser:
             Path to video file if recording was enabled, None otherwise
             Note: Video files are saved automatically by Playwright when context closes.
             If multiple pages exist, returns the path to the first page's video.
+            If keep_alive is True, returns None and skips shutdown.
         """
         # CRITICAL: Don't access page.video.path() BEFORE closing context
         # This can poke the video subsystem at an awkward time and cause crashes on macOS
         # Instead, we'll locate the video file after context closes
+
+        if self.keep_alive:
+            logger.info("Keep-alive enabled; skipping browser shutdown.")
+            return None
 
         # Close context (this triggers video file finalization)
         if self.context:
@@ -644,6 +709,9 @@ class AsyncSentienceBrowser:
         viewport: Viewport | dict[str, int] | None = None,
         device_scale_factor: float | None = None,
         executable_path: str | None = None,
+        allowed_domains: list[str] | None = None,
+        prohibited_domains: list[str] | None = None,
+        keep_alive: bool = False,
     ):
         """
         Initialize Async Sentience browser
@@ -697,6 +765,11 @@ class AsyncSentienceBrowser:
         # Video recording support
         self.record_video_dir = record_video_dir
         self.record_video_size = record_video_size or {"width": 1280, "height": 800}
+
+        # Domain policies + keep-alive
+        self.allowed_domains = allowed_domains or []
+        self.prohibited_domains = prohibited_domains or []
+        self.keep_alive = keep_alive
 
         # Viewport configuration - convert dict to Viewport if needed
         if viewport is None:
@@ -880,9 +953,16 @@ class AsyncSentienceBrowser:
         await asyncio.sleep(0.5)
 
     async def goto(self, url: str) -> None:
-        """Navigate to a URL and ensure extension is ready (async)"""
+        """Navigate to a URL and ensure extension is ready (async).
+
+        This enforces domain allow/deny policies. Direct page.goto() calls
+        bypass policy checks.
+        """
         if not self.page:
             raise RuntimeError("Browser not started. Call await start() first.")
+        host = _extract_host(url)
+        if not _is_domain_allowed(host, self.allowed_domains, self.prohibited_domains):
+            raise ValueError(f"domain not allowed: {host}")
 
         await self.page.goto(url, wait_until="domcontentloaded")
 
@@ -1031,7 +1111,12 @@ class AsyncSentienceBrowser:
 
         Note: Video path is resolved AFTER context close to avoid touching video
         subsystem during teardown, which can cause crashes on macOS.
+        If keep_alive is True, returns (None, True) and skips shutdown.
         """
+        if self.keep_alive:
+            logger.info("Keep-alive enabled; skipping browser shutdown.")
+            return None, True
+
         # CRITICAL: Don't access page.video.path() BEFORE closing context
         # This can poke the video subsystem at an awkward time and cause crashes
         # Instead, we'll locate the video file after context closes

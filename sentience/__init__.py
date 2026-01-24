@@ -19,7 +19,11 @@ from .actions import (
     click_rect,
     press,
     scroll_to,
+    search,
+    search_async,
     select_option,
+    send_keys,
+    send_keys_async,
     submit,
     type_text,
     uncheck,
@@ -51,7 +55,7 @@ from .backends import wait_for_stable as backend_wait_for_stable
 
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
-from .browser import SentienceBrowser
+from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 
@@ -86,6 +90,7 @@ from .models import (  # Agent Layer Models
     Snapshot,
     SnapshotFilter,
     SnapshotOptions,
+    StepHookContext,
     StorageState,
     TextContext,
     TextMatch,
@@ -101,13 +106,14 @@ from .models import (  # Agent Layer Models
 from .ordinal import OrdinalIntent, boost_ordinal_elements, detect_ordinal_intent, select_by_ordinal
 from .overlay import clear_overlay, show_overlay
 from .query import find, query
-from .read import read
+from .read import extract, extract_async, read
 from .recorder import Recorder, Trace, TraceStep, record
 from .runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
 from .screenshot import screenshot
 from .sentience_methods import AgentAction, SentienceMethod
 from .snapshot import snapshot
 from .text_search import find_text_rect
+from .tools import BackendCapabilities, ToolContext, ToolRegistry, ToolSpec, register_default_tools
 from .tracer_factory import SENTIENCE_API_URL, create_tracer
 from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
 
@@ -186,6 +192,7 @@ __all__ = [
     "backend_wait_for_stable",
     # Core SDK
     "SentienceBrowser",
+    "AsyncSentienceBrowser",
     "Snapshot",
     "Element",
     "BBox",

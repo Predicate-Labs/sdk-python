@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from sentience.agent_runtime import AgentRuntime
-from sentience.models import SnapshotOptions
+from sentience.models import EvaluateJsRequest, SnapshotOptions, TabInfo
 from sentience.verification import AssertContext, AssertOutcome
 
 
@@ -53,6 +53,21 @@ class MockBackend:
 
     async def wait_ready_state(self, state="interactive", timeout_ms=15000) -> None:
         pass
+
+    async def list_tabs(self):
+        return [
+            TabInfo(tab_id="tab-1", url="https://example.com", is_active=True),
+            TabInfo(tab_id="tab-2", url="https://example.com/2", is_active=False),
+        ]
+
+    async def open_tab(self, url: str):
+        return TabInfo(tab_id="tab-new", url=url, is_active=True)
+
+    async def switch_tab(self, tab_id: str):
+        return TabInfo(tab_id=tab_id, url="https://example.com/2", is_active=True)
+
+    async def close_tab(self, tab_id: str):
+        return TabInfo(tab_id=tab_id, url="https://example.com/2", is_active=False)
 
 
 class MockTracer:
@@ -129,6 +144,52 @@ class TestAgentRuntimeInit:
         assert runtime._snapshot_options.limit == 50
         assert runtime._snapshot_options.sentience_api_key == "sk_pro_key"
         assert runtime._snapshot_options.use_api is True
+
+    @pytest.mark.asyncio
+    async def test_evaluate_js_success(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        backend.eval_results["1 + 1"] = 2
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        result = await runtime.evaluate_js(EvaluateJsRequest(code="1 + 1"))
+
+        assert result.ok is True
+        assert result.value == 2
+        assert result.text == "2"
+
+    @pytest.mark.asyncio
+    async def test_evaluate_js_truncate(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        backend.eval_results["long"] = "x" * 50
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        result = await runtime.evaluate_js(EvaluateJsRequest(code="long", max_output_chars=10))
+
+        assert result.ok is True
+        assert result.truncated is True
+        assert result.text == "x" * 10 + "..."
+
+    @pytest.mark.asyncio
+    async def test_tab_operations(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        tabs = await runtime.list_tabs()
+        assert tabs.ok is True
+        assert len(tabs.tabs) == 2
+
+        opened = await runtime.open_tab("https://example.com/new")
+        assert opened.ok is True
+        assert opened.tab is not None
+
+        switched = await runtime.switch_tab("tab-2")
+        assert switched.ok is True
+
+        closed = await runtime.close_tab("tab-2")
+        assert closed.ok is True
 
 
 class TestAgentRuntimeGetUrl:
