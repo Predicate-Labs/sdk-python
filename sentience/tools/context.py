@@ -7,8 +7,7 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from ..agent_runtime import AgentRuntime
-
-from .filesystem import FileSandbox
+    from .filesystem import FileSandbox
 
 
 class BackendCapabilities(BaseModel):
@@ -38,12 +37,14 @@ class ToolContext:
     def __init__(
         self,
         runtime: AgentRuntime,
-        files: FileSandbox | None = None,
+        files: "FileSandbox" | None = None,
         base_dir: Path | None = None,
     ) -> None:
         self.runtime = runtime
         if files is None:
             root = base_dir or (Path.cwd() / ".sentience" / "files")
+            from .filesystem import FileSandbox
+
             files = FileSandbox(root)
         self.files = files
 
