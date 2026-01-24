@@ -115,9 +115,7 @@ def register_filesystem_tools(
         output_model=WriteFileOutput,
         description="Write a file to the sandbox.",
     )
-    async def write_file(
-        ctx: ToolContext | None, params: WriteFileInput
-    ) -> WriteFileOutput:
+    async def write_file(ctx: ToolContext | None, params: WriteFileInput) -> WriteFileOutput:
         files = _get_files(ctx)
         written = files.write_text(params.path, params.content, overwrite=params.overwrite)
         return WriteFileOutput(path=params.path, bytes_written=written)
@@ -128,9 +126,7 @@ def register_filesystem_tools(
         output_model=AppendFileOutput,
         description="Append text to a file in the sandbox.",
     )
-    async def append_file(
-        ctx: ToolContext | None, params: AppendFileInput
-    ) -> AppendFileOutput:
+    async def append_file(ctx: ToolContext | None, params: AppendFileInput) -> AppendFileOutput:
         files = _get_files(ctx)
         written = files.append_text(params.path, params.content)
         return AppendFileOutput(path=params.path, bytes_written=written)
@@ -141,9 +137,7 @@ def register_filesystem_tools(
         output_model=ReplaceFileOutput,
         description="Replace text in a file in the sandbox.",
     )
-    async def replace_file(
-        ctx: ToolContext | None, params: ReplaceFileInput
-    ) -> ReplaceFileOutput:
+    async def replace_file(ctx: ToolContext | None, params: ReplaceFileInput) -> ReplaceFileOutput:
         files = _get_files(ctx)
         replaced = files.replace_text(params.path, params.old, params.new)
         return ReplaceFileOutput(path=params.path, replaced=replaced)

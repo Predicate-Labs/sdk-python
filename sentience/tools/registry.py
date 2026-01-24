@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import inspect
 import time
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,7 +42,7 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolSpec] = {}
 
-    def register(self, spec: ToolSpec) -> "ToolRegistry":
+    def register(self, spec: ToolSpec) -> ToolRegistry:
         if spec.name in self._tools:
             raise ValueError(f"tool already registered: {spec.name}")
         self._tools[spec.name] = spec

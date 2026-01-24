@@ -5,6 +5,7 @@ Actions v1 - click, type, press
 import asyncio
 import time
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
@@ -694,6 +695,138 @@ def press(browser: SentienceBrowser, key: str, take_snapshot: bool = False) -> A
     url_after = browser.page.url
     url_changed = url_before != url_after
 
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def _normalize_key_token(token: str) -> str:
+    lookup = {
+        "CMD": "Meta",
+        "COMMAND": "Meta",
+        "CTRL": "Control",
+        "CONTROL": "Control",
+        "ALT": "Alt",
+        "OPTION": "Alt",
+        "SHIFT": "Shift",
+        "ESC": "Escape",
+        "ESCAPE": "Escape",
+        "ENTER": "Enter",
+        "RETURN": "Enter",
+        "TAB": "Tab",
+        "SPACE": "Space",
+    }
+    upper = token.strip().upper()
+    return lookup.get(upper, token.strip())
+
+
+def _parse_key_sequence(sequence: str) -> list[str]:
+    parts = []
+    for raw in sequence.replace(",", " ").split():
+        raw = raw.strip()
+        if not raw:
+            continue
+        if raw.startswith("{") and raw.endswith("}"):
+            raw = raw[1:-1]
+        if "+" in raw:
+            combo = "+".join(_normalize_key_token(tok) for tok in raw.split("+") if tok)
+            parts.append(combo)
+        else:
+            parts.append(_normalize_key_token(raw))
+    return parts
+
+
+def send_keys(
+    browser: SentienceBrowser,
+    sequence: str,
+    take_snapshot: bool = False,
+    delay_ms: int = 50,
+) -> ActionResult:
+    """
+    Send a sequence of key presses (e.g., "CMD+H", "CTRL+SHIFT+P").
+
+    Supports sequences separated by commas/spaces, and brace-wrapped tokens
+    like "{ENTER}" or "{CTRL+L}".
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    keys = _parse_key_sequence(sequence)
+    if not keys:
+        raise ValueError("send_keys sequence is empty")
+    for key in keys:
+        browser.page.keyboard.press(key)
+        if delay_ms > 0:
+            browser.page.wait_for_timeout(delay_ms)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = snapshot(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+def _build_search_url(query: str, engine: str) -> str:
+    q = quote_plus(query)
+    key = engine.strip().lower()
+    if key in {"duckduckgo", "ddg"}:
+        return f"https://duckduckgo.com/?q={q}"
+    if key in {"google.com", "google"}:
+        return f"https://www.google.com/search?q={q}"
+    if key in {"google"}:
+        return f"https://www.google.com/search?q={q}"
+    if key in {"bing"}:
+        return f"https://www.bing.com/search?q={q}"
+    raise ValueError(f"unsupported search engine: {engine}")
+
+
+def search(
+    browser: SentienceBrowser,
+    query: str,
+    engine: str = "duckduckgo",
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Navigate to a search results page for the given query.
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call browser.start() first.")
+    if not query.strip():
+        raise ValueError("search query is empty")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    url = _build_search_url(query, engine)
+    browser.goto(url)
+    browser.page.wait_for_load_state("networkidle")
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
     outcome = "navigated" if url_changed else "dom_updated"
 
     snapshot_after: Snapshot | None = None
@@ -1683,6 +1816,85 @@ async def press_async(
     url_after = browser.page.url
     url_changed = url_before != url_after
 
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def send_keys_async(
+    browser: AsyncSentienceBrowser,
+    sequence: str,
+    take_snapshot: bool = False,
+    delay_ms: int = 50,
+) -> ActionResult:
+    """
+    Async version of send_keys().
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+
+    start_time = time.time()
+    url_before = browser.page.url
+
+    keys = _parse_key_sequence(sequence)
+    if not keys:
+        raise ValueError("send_keys sequence is empty")
+    for key in keys:
+        await browser.page.keyboard.press(key)
+        if delay_ms > 0:
+            await browser.page.wait_for_timeout(delay_ms)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
+    outcome = "navigated" if url_changed else "dom_updated"
+
+    snapshot_after: Snapshot | None = None
+    if take_snapshot:
+        snapshot_after = await snapshot_async(browser)
+
+    return ActionResult(
+        success=True,
+        duration_ms=duration_ms,
+        outcome=outcome,
+        url_changed=url_changed,
+        snapshot_after=snapshot_after,
+    )
+
+
+async def search_async(
+    browser: AsyncSentienceBrowser,
+    query: str,
+    engine: str = "duckduckgo",
+    take_snapshot: bool = False,
+) -> ActionResult:
+    """
+    Async version of search().
+    """
+    if not browser.page:
+        raise RuntimeError("Browser not started. Call await browser.start() first.")
+    if not query.strip():
+        raise ValueError("search query is empty")
+
+    start_time = time.time()
+    url_before = browser.page.url
+    url = _build_search_url(query, engine)
+    await browser.goto(url)
+    await browser.page.wait_for_load_state("networkidle")
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    url_after = browser.page.url
+    url_changed = url_before != url_after
     outcome = "navigated" if url_changed else "dom_updated"
 
     snapshot_after: Snapshot | None = None
