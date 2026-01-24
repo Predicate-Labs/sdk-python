@@ -81,6 +81,7 @@ from .models import (
     TabListResult,
     TabOperationResult,
 )
+from .tools import BackendCapabilities, ToolRegistry
 from .trace_event_builder import TraceEventBuilder
 from .verification import AssertContext, AssertOutcome, Predicate
 
@@ -118,6 +119,7 @@ class AgentRuntime:
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
         sentience_api_key: str | None = None,
+        tool_registry: ToolRegistry | None = None,
     ):
         """
         Initialize agent runtime with any BrowserBackend-compatible browser.
@@ -130,9 +132,11 @@ class AgentRuntime:
             tracer: Tracer for emitting verification events
             snapshot_options: Default options for snapshots
             sentience_api_key: API key for Pro/Enterprise tier (enables Gateway refinement)
+            tool_registry: Optional ToolRegistry for LLM-callable tools
         """
         self.backend = backend
         self.tracer = tracer
+        self.tool_registry = tool_registry
 
         # Build default snapshot options with API key if provided
         default_opts = snapshot_options or SnapshotOptions()
@@ -371,6 +375,33 @@ class AgentRuntime:
         ):
             return None
         return backend
+
+    def capabilities(self) -> BackendCapabilities:
+        backend = getattr(self, "backend", None)
+        if backend is None:
+            return BackendCapabilities()
+        has_eval = hasattr(backend, "eval")
+        has_keyboard = hasattr(backend, "type_text") or bool(
+            getattr(getattr(backend, "_page", None), "keyboard", None)
+        )
+        has_downloads = bool(getattr(backend, "downloads", None))
+        has_files = False
+        if self.tool_registry is not None:
+            try:
+                has_files = self.tool_registry.get("read_file") is not None
+            except Exception:
+                has_files = False
+        return BackendCapabilities(
+            tabs=self._get_tab_backend() is not None,
+            evaluate_js=bool(has_eval),
+            downloads=has_downloads,
+            filesystem_tools=has_files,
+            keyboard=bool(has_keyboard or has_eval),
+        )
+
+    def can(self, capability: str) -> bool:
+        caps = self.capabilities()
+        return bool(getattr(caps, capability, False))
 
     @staticmethod
     def _stringify_eval_value(value: Any) -> str:

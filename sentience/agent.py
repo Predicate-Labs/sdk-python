@@ -89,9 +89,7 @@ def _safe_hook_call_sync(
         if verbose:
             print(f"⚠️  Hook error (non-fatal): {hook_error}")
         else:
-            logging.getLogger(__name__).warning(
-                "Hook error (non-fatal): %s", hook_error
-            )
+            logging.getLogger(__name__).warning("Hook error (non-fatal): %s", hook_error)
 
 
 async def _safe_hook_call_async(
@@ -109,9 +107,7 @@ async def _safe_hook_call_async(
         if verbose:
             print(f"⚠️  Hook error (non-fatal): {hook_error}")
         else:
-            logging.getLogger(__name__).warning(
-                "Hook error (non-fatal): %s", hook_error
-            )
+            logging.getLogger(__name__).warning("Hook error (non-fatal): %s", hook_error)
 
 
 class SentienceAgent(BaseAgent):

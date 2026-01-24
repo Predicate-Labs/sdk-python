@@ -102,13 +102,14 @@ from .models import (  # Agent Layer Models
 from .ordinal import OrdinalIntent, boost_ordinal_elements, detect_ordinal_intent, select_by_ordinal
 from .overlay import clear_overlay, show_overlay
 from .query import find, query
-from .read import read
+from .read import extract, extract_async, read
 from .recorder import Recorder, Trace, TraceStep, record
 from .runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
 from .screenshot import screenshot
 from .sentience_methods import AgentAction, SentienceMethod
 from .snapshot import snapshot
 from .text_search import find_text_rect
+from .tools import BackendCapabilities, ToolContext, ToolRegistry, ToolSpec, register_default_tools
 from .tracer_factory import SENTIENCE_API_URL, create_tracer
 from .tracing import JsonlTraceSink, TraceEvent, Tracer, TraceSink
 

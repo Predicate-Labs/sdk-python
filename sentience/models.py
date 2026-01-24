@@ -693,18 +693,10 @@ class EvaluateJsResult(BaseModel):
     """Result of evaluate_js helper."""
 
     ok: bool = Field(..., description="Whether evaluation succeeded.")
-    value: Any | None = Field(
-        None, description="Raw value returned by the page evaluation."
-    )
-    text: str | None = Field(
-        None, description="Best-effort string representation of the value."
-    )
-    truncated: bool = Field(
-        False, description="True if text output was truncated."
-    )
-    error: str | None = Field(
-        None, description="Error string when ok=False."
-    )
+    value: Any | None = Field(None, description="Raw value returned by the page evaluation.")
+    text: str | None = Field(None, description="Best-effort string representation of the value.")
+    truncated: bool = Field(False, description="True if text output was truncated.")
+    error: str | None = Field(None, description="Error string when ok=False.")
 
 
 class WaitResult(BaseModel):
@@ -1062,6 +1054,15 @@ class ReadResult(BaseModel):
     format: Literal["raw", "text", "markdown"]
     content: str
     length: int
+    error: str | None = None
+
+
+class ExtractResult(BaseModel):
+    """Result of extract() or extract_async() operation"""
+
+    ok: bool
+    data: Any | None = None
+    raw: str | None = None
     error: str | None = None
 
 
