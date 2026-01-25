@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from .models import CaptchaDiagnostics
 
 CaptchaPolicy = Literal["abort", "callback"]
 CaptchaAction = Literal["abort", "retry_new_session", "wait_until_cleared"]
 CaptchaSource = Literal["extension", "gateway", "runtime"]
+
+
+@dataclass
+class PageControlHook:
+    evaluate_js: Callable[[str], Awaitable[Any]]
 
 
 @dataclass
@@ -23,6 +28,7 @@ class CaptchaContext:
     snapshot_path: str | None = None
     live_session_url: str | None = None
     meta: dict[str, str] | None = None
+    page_control: PageControlHook | None = None
 
 
 @dataclass
