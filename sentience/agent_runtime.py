@@ -70,7 +70,13 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
+from .captcha import (
+    CaptchaContext,
+    CaptchaHandlingError,
+    CaptchaOptions,
+    CaptchaResolution,
+    PageControlHook,
+)
 from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
 from .models import (
     EvaluateJsRequest,
@@ -479,7 +485,17 @@ class AgentRuntime:
             url=snapshot.url,
             source=source,  # type: ignore[arg-type]
             captcha=captcha,
+            page_control=self._create_captcha_page_control(),
         )
+
+    def _create_captcha_page_control(self) -> PageControlHook:
+        async def _eval(code: str) -> Any:
+            result = await self.evaluate_js(EvaluateJsRequest(code=code))
+            if not result.ok:
+                raise RuntimeError(result.error or "evaluate_js failed")
+            return result.value
+
+        return PageControlHook(evaluate_js=_eval)
 
     def _emit_captcha_event(self, reason_code: str, details: dict[str, Any] | None = None) -> None:
         payload = {
