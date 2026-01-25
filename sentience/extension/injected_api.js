@@ -29,6 +29,18 @@
         selector: "#g-recaptcha",
         provider: "recaptcha"
     }, {
+        selector: ".recaptcha-checkbox-border",
+        provider: "recaptcha"
+    }, {
+        selector: "#recaptcha-anchor-label",
+        provider: "recaptcha"
+    }, {
+        selector: '[class*="recaptcha" i]',
+        provider: "recaptcha"
+    }, {
+        selector: '[id*="recaptcha" i]',
+        provider: "recaptcha"
+    }, {
         selector: "[data-sitekey]",
         provider: "unknown"
     }, {
@@ -72,6 +84,12 @@
         provider: "awswaf"
     }, {
         selector: 'iframe[title*="captcha" i]',
+        provider: "unknown"
+    }, {
+        selector: '[class*="captcha" i]',
+        provider: "unknown"
+    }, {
+        selector: '[id*="captcha" i]',
         provider: "unknown"
     } ];
     function addEvidence(list, value) {
