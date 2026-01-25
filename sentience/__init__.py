@@ -164,7 +164,7 @@ from .vision_executor import (
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for
 
-__version__ = "0.99.1"
+__version__ = "0.99.2"
 
 __all__ = [
     # Extension helpers (for browser-use integration)
