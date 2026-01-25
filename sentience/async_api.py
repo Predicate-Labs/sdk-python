@@ -52,8 +52,8 @@ from sentience.overlay import clear_overlay_async, show_overlay_async
 from sentience.query import find, query
 
 # ========== Phase 2B: Supporting Utilities ==========
-# Re-export async read function from read.py
-from sentience.read import read_async
+# Re-export async read functions from read.py
+from sentience.read import read_async, read_best_effort_async
 
 # ========== Phase 2D: Developer Tools ==========
 # Re-export async recorder and inspector from their modules
@@ -90,6 +90,7 @@ __all__ = [
     "find_text_rect_async",  # Re-exported from text_search.py
     # Phase 2B: Supporting Utilities
     "read_async",  # Re-exported from read.py
+    "read_best_effort_async",  # Re-exported from read.py
     "show_overlay_async",  # Re-exported from overlay.py
     "clear_overlay_async",  # Re-exported from overlay.py
     "expect_async",  # Re-exported from expect.py

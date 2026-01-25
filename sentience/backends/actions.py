@@ -121,6 +121,7 @@ async def type_text(
     text: str,
     target: BBox | dict[str, float] | tuple[float, float] | None = None,
     clear_first: bool = False,
+    delay_ms: float | None = None,
 ) -> ActionResult:
     """
     Type text, optionally clicking a target first.
@@ -159,8 +160,8 @@ async def type_text(
             await backend.eval("document.execCommand('selectAll')")
             await asyncio.sleep(0.02)
 
-        # Type the text
-        await backend.type_text(text)
+        # Type the text (optional human-like delay)
+        await backend.type_text(text, delay_ms=delay_ms)
 
         duration_ms = int((time.time() - start_time) * 1000)
         return ActionResult(

@@ -342,8 +342,10 @@ class CDPBackendV0:
             },
         )
 
-    async def type_text(self, text: str) -> None:
+    async def type_text(self, text: str, delay_ms: float | None = None) -> None:
         """Type text using keyboard input."""
+        # Preserve historical default (~10ms) unless caller overrides.
+        per_char_delay_s = 0.01 if delay_ms is None else max(0.0, float(delay_ms) / 1000.0)
         for char in text:
             # Key down
             await self._transport.send(
@@ -372,8 +374,9 @@ class CDPBackendV0:
                 },
             )
 
-            # Small delay between characters
-            await asyncio.sleep(0.01)
+            # Delay between characters (human-like typing when requested)
+            if per_char_delay_s:
+                await asyncio.sleep(per_char_delay_s)
 
     async def wait_ready_state(
         self,

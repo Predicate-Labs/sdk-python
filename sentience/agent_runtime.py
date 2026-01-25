@@ -445,6 +445,29 @@ class AgentRuntime:
         captcha = getattr(snapshot.diagnostics, "captcha", None) if snapshot.diagnostics else None
         if not captcha or not getattr(captcha, "detected", False):
             return False
+        # IMPORTANT: Many sites load CAPTCHA libraries proactively. We only want to
+        # block execution when there's evidence it's actually *present/active*.
+        # If we block on low-signal detections (e.g. just a recaptcha script tag),
+        # interactive runs will “do nothing” and time out.
+        evidence = getattr(captcha, "evidence", None)
+        if evidence is not None:
+            def _list(name: str) -> list[str]:
+                try:
+                    v = getattr(evidence, name, None)
+                except Exception:
+                    v = None
+                if v is None and isinstance(evidence, dict):
+                    v = evidence.get(name)
+                if not v:
+                    return []
+                return [str(x) for x in v if x is not None]
+
+            iframe_hits = _list("iframe_src_hits")
+            url_hits = _list("url_hits")
+            text_hits = _list("text_hits")
+            # If we only saw selector/script hints, treat as non-blocking.
+            if not iframe_hits and not url_hits and not text_hits:
+                return False
         confidence = getattr(captcha, "confidence", 0.0)
         return confidence >= self._captcha_options.min_confidence
 

@@ -107,7 +107,7 @@ from .models import (  # Agent Layer Models
 from .ordinal import OrdinalIntent, boost_ordinal_elements, detect_ordinal_intent, select_by_ordinal
 from .overlay import clear_overlay, show_overlay
 from .query import find, query
-from .read import extract, extract_async, read
+from .read import extract, extract_async, read, read_best_effort
 from .recorder import Recorder, Trace, TraceStep, record
 from .runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
 from .screenshot import screenshot
@@ -220,6 +220,7 @@ __all__ = [
     "ScriptGenerator",
     "generate",
     "read",
+    "read_best_effort",
     "screenshot",
     "show_overlay",
     "clear_overlay",

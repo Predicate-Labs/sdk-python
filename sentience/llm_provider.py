@@ -343,6 +343,14 @@ class DeepInfraProvider(OpenAIProvider):
         base_url: str = "https://api.deepinfra.com/v1/openai",
     ):
         api_key = get_api_key_from_env(["DEEPINFRA_TOKEN", "DEEPINFRA_API_KEY"], api_key)
+        # IMPORTANT: If we pass api_key=None to the OpenAI SDK client, it may
+        # implicitly fall back to OPENAI_API_KEY from the environment.
+        # That leads to confusing 401s against DeepInfra with an OpenAI key.
+        if not api_key:
+            raise RuntimeError(
+                "DeepInfra API key is missing. Set DEEPINFRA_API_KEY (or DEEPINFRA_TOKEN), "
+                "or pass api_key=... to DeepInfraProvider."
+            )
         super().__init__(api_key=api_key, model=model, base_url=base_url)
 
 
