@@ -188,7 +188,7 @@ class BrowserBackend(Protocol):
         """
         ...
 
-    async def type_text(self, text: str) -> None:
+    async def type_text(self, text: str, delay_ms: float | None = None) -> None:
         """
         Type text using keyboard input.
 
@@ -196,6 +196,8 @@ class BrowserBackend(Protocol):
 
         Args:
             text: Text to type
+            delay_ms: Optional delay between keystrokes in milliseconds.
+                      If None, backend default behavior is used.
         """
         ...
 

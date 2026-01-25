@@ -315,9 +315,10 @@ class PlaywrightBackend:
 
         await self._page.mouse.wheel(0, delta_y)
 
-    async def type_text(self, text: str) -> None:
+    async def type_text(self, text: str, delay_ms: float | None = None) -> None:
         """Type text using keyboard input."""
-        await self._page.keyboard.type(text)
+        delay = 0 if delay_ms is None else max(0, float(delay_ms))
+        await self._page.keyboard.type(text, delay=delay)
 
     async def wait_ready_state(
         self,

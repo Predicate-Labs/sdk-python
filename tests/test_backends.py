@@ -771,7 +771,7 @@ class TestPlaywrightBackend:
         backend = PlaywrightBackend(mock_page)
         await backend.type_text("Hello")
 
-        mock_keyboard.type.assert_called_once_with("Hello")
+        mock_keyboard.type.assert_called_once_with("Hello", delay=0)
 
     @pytest.mark.asyncio
     async def test_screenshot_png(self) -> None:
