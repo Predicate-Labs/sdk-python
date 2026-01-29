@@ -152,7 +152,7 @@ def test_element_ml_fields_optional():
         is_occluded=False,
         z_index=0,
     )
-    assert element_without_ml.rerank_index is None
+    assert element_without_ml.fused_rank_index is None
     assert element_without_ml.heuristic_index is None
     assert element_without_ml.ml_probability is None
     assert element_without_ml.ml_score is None
@@ -168,12 +168,12 @@ def test_element_ml_fields_optional():
         in_viewport=True,
         is_occluded=False,
         z_index=1,
-        rerank_index=0,
+        fused_rank_index=0,
         heuristic_index=5,
         ml_probability=0.95,
         ml_score=2.34,
     )
-    assert element_with_ml.rerank_index == 0
+    assert element_with_ml.fused_rank_index == 0
     assert element_with_ml.heuristic_index == 5
     assert element_with_ml.ml_probability == 0.95
     assert element_with_ml.ml_score == 2.34
@@ -189,10 +189,10 @@ def test_element_ml_fields_optional():
         in_viewport=True,
         is_occluded=False,
         z_index=0,
-        rerank_index=1,
+        fused_rank_index=1,
         ml_probability=0.87,
     )
-    assert element_partial.rerank_index == 1
+    assert element_partial.fused_rank_index == 1
     assert element_partial.heuristic_index is None
     assert element_partial.ml_probability == 0.87
     assert element_partial.ml_score is None
