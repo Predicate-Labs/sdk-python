@@ -149,7 +149,7 @@
                   "in_viewport": {"type": "boolean"},
                   "is_occluded": {"type": "boolean"},
                   "z_index": {"type": "integer"},
-                  "rerank_index": {"type": ["integer", "null"]},
+                  "fused_rank_index": {"type": ["integer", "null"]},
                   "heuristic_index": {"type": ["integer", "null"]},
                   "ml_probability": {"type": ["number", "null"]},
                   "ml_score": {"type": ["number", "null"]},

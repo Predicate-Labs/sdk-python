@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from ..agent_runtime import AgentRuntime
+
 from ..backends import actions as backend_actions
 from ..models import ActionResult, BBox, EvaluateJsRequest, Snapshot
 from .context import ToolContext, UnsupportedCapabilityError
@@ -70,7 +72,7 @@ class SetGeolocationInput(BaseModel):
 
 
 def register_default_tools(
-    registry: ToolRegistry, runtime: ToolContext | "AgentRuntime" | None = None
+    registry: ToolRegistry, runtime: ToolContext | AgentRuntime | None = None
 ) -> ToolRegistry:
     """Register default browser tools on a registry."""
 

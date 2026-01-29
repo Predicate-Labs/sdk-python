@@ -49,7 +49,7 @@ class Element(BaseModel):
     z_index: int = 0
 
     # ML reranking metadata (optional - can be absent or null)
-    rerank_index: int | None = None  # 0-based, The rank after ML reranking
+    fused_rank_index: int | None = None  # 0-based, The rank index after ML reranking
     heuristic_index: int | None = None  # 0-based, Where it would have been without ML
     ml_probability: float | None = None  # Confidence score from ONNX model (0.0 - 1.0)
     ml_score: float | None = None  # Raw logit score (optional, for debugging)
@@ -151,6 +151,34 @@ class GridInfo(BaseModel):
     viewport_coverage: float = 0.0  # Ratio of grid area to viewport area (0.0-1.0)
 
 
+class MlRerankTags(BaseModel):
+    """ML rerank tag configuration used for candidate text"""
+
+    repeated: bool
+    sponsored_ish: bool
+    non_sponsored: bool
+    pos: bool
+    occ: bool
+    vocc: bool
+    short: bool
+    action_ish: bool
+    nav_ish: bool
+
+
+class MlRerankInfo(BaseModel):
+    """ML rerank metadata for a snapshot response"""
+
+    enabled: bool
+    applied: bool
+    reason: str | None = None
+    candidate_count: int | None = None
+    top_probability: float | None = None
+    min_confidence: float | None = None
+    is_high_confidence: bool | None = None
+    tags: MlRerankTags | None = None
+    error: str | None = None
+
+
 class Snapshot(BaseModel):
     """Snapshot response from extension"""
 
@@ -170,6 +198,8 @@ class Snapshot(BaseModel):
     # Modal detection fields (from gateway)
     modal_detected: bool | None = None  # True if a modal/overlay grid was detected
     modal_grids: list[GridInfo] | None = None  # Array of GridInfo for detected modal grids
+    # ML rerank metadata (optional)
+    ml_rerank: MlRerankInfo | None = None
 
     def save(self, filepath: str) -> None:
         """Save snapshot as JSON file"""

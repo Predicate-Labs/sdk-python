@@ -152,7 +152,7 @@ def test_element_ml_fields_optional():
         is_occluded=False,
         z_index=0,
     )
-    assert element_without_ml.rerank_index is None
+    assert element_without_ml.fused_rank_index is None
     assert element_without_ml.heuristic_index is None
     assert element_without_ml.ml_probability is None
     assert element_without_ml.ml_score is None
@@ -168,12 +168,12 @@ def test_element_ml_fields_optional():
         in_viewport=True,
         is_occluded=False,
         z_index=1,
-        rerank_index=0,
+        fused_rank_index=0,
         heuristic_index=5,
         ml_probability=0.95,
         ml_score=2.34,
     )
-    assert element_with_ml.rerank_index == 0
+    assert element_with_ml.fused_rank_index == 0
     assert element_with_ml.heuristic_index == 5
     assert element_with_ml.ml_probability == 0.95
     assert element_with_ml.ml_score == 2.34
@@ -189,10 +189,45 @@ def test_element_ml_fields_optional():
         in_viewport=True,
         is_occluded=False,
         z_index=0,
-        rerank_index=1,
+        fused_rank_index=1,
         ml_probability=0.87,
     )
-    assert element_partial.rerank_index == 1
+    assert element_partial.fused_rank_index == 1
     assert element_partial.heuristic_index is None
     assert element_partial.ml_probability == 0.87
     assert element_partial.ml_score is None
+
+
+def test_snapshot_ml_rerank_metadata_optional():
+    """Test snapshot ML rerank metadata model"""
+    from sentience.models import MlRerankInfo, MlRerankTags, Snapshot
+
+    snap = Snapshot(
+        status="success",
+        url="https://example.com",
+        elements=[],
+        ml_rerank=MlRerankInfo(
+            enabled=True,
+            applied=False,
+            reason="low_confidence",
+            candidate_count=25,
+            top_probability=0.42,
+            min_confidence=0.6,
+            is_high_confidence=False,
+            tags=MlRerankTags(
+                repeated=True,
+                sponsored_ish=True,
+                non_sponsored=False,
+                pos=True,
+                occ=True,
+                vocc=False,
+                short=True,
+                action_ish=False,
+                nav_ish=False,
+            ),
+        ),
+    )
+
+    assert snap.ml_rerank is not None
+    assert snap.ml_rerank.enabled is True
+    assert snap.ml_rerank.is_high_confidence is False

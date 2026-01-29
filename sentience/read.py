@@ -2,8 +2,8 @@
 Read page content - supports raw HTML, text, and markdown formats
 """
 
-import os
 import json
+import os
 import re
 from typing import Any, Literal
 
@@ -13,7 +13,6 @@ from .browser import AsyncSentienceBrowser, SentienceBrowser
 from .browser_evaluator import BrowserEvaluator
 from .llm_provider import LLMProvider
 from .models import ExtractResult, ReadResult
-
 
 _READ_EVAL_JS = r"""
 (options) => {
@@ -104,7 +103,9 @@ def _fallback_read_from_page_sync(
             html = page.content()
             if not isinstance(html, str) or _looks_empty_content(html):
                 return None
-            return ReadResult(status="success", url=url, format="raw", content=html, length=len(html))
+            return ReadResult(
+                status="success", url=url, format="raw", content=html, length=len(html)
+            )
 
         if output_format == "text":
             text = page.evaluate(
@@ -112,7 +113,9 @@ def _fallback_read_from_page_sync(
             )
             if not isinstance(text, str) or _looks_empty_content(text):
                 return None
-            return ReadResult(status="success", url=url, format="text", content=text, length=len(text))
+            return ReadResult(
+                status="success", url=url, format="text", content=text, length=len(text)
+            )
 
         if output_format == "markdown":
             try:
@@ -125,7 +128,9 @@ def _fallback_read_from_page_sync(
             md = markdownify(html, heading_style="ATX", wrap=True)
             if not isinstance(md, str) or _looks_empty_content(md):
                 return None
-            return ReadResult(status="success", url=url, format="markdown", content=md, length=len(md))
+            return ReadResult(
+                status="success", url=url, format="markdown", content=md, length=len(md)
+            )
     except Exception:
         return None
     return None
@@ -145,7 +150,9 @@ async def _fallback_read_from_page_async(
             html = await page.content()
             if not isinstance(html, str) or _looks_empty_content(html):
                 return None
-            return ReadResult(status="success", url=url, format="raw", content=html, length=len(html))
+            return ReadResult(
+                status="success", url=url, format="raw", content=html, length=len(html)
+            )
 
         if output_format == "text":
             text = await page.evaluate(
@@ -153,7 +160,9 @@ async def _fallback_read_from_page_async(
             )
             if not isinstance(text, str) or _looks_empty_content(text):
                 return None
-            return ReadResult(status="success", url=url, format="text", content=text, length=len(text))
+            return ReadResult(
+                status="success", url=url, format="text", content=text, length=len(text)
+            )
 
         if output_format == "markdown":
             try:
@@ -166,7 +175,9 @@ async def _fallback_read_from_page_async(
             md = markdownify(html, heading_style="ATX", wrap=True)
             if not isinstance(md, str) or _looks_empty_content(md):
                 return None
-            return ReadResult(status="success", url=url, format="markdown", content=md, length=len(md))
+            return ReadResult(
+                status="success", url=url, format="markdown", content=md, length=len(md)
+            )
     except Exception:
         return None
     return None
@@ -231,6 +242,7 @@ def read(
             try:
                 # Use markdownify for enhanced markdown conversion
                 from markdownify import markdownify  # type: ignore
+
                 try:
                     # Some markdownify versions don't expose MarkdownifyError.
                     from markdownify import MarkdownifyError  # type: ignore
@@ -374,6 +386,7 @@ async def read_async(
             try:
                 # Use markdownify for enhanced markdown conversion
                 from markdownify import markdownify  # type: ignore
+
                 try:
                     from markdownify import MarkdownifyError  # type: ignore
                 except Exception:  # pragma: no cover
@@ -420,7 +433,9 @@ async def read_async(
     if rr.status == "success" and _looks_empty_content(rr.content):
         fb = await _fallback_read_from_page_async(browser.page, output_format=output_format)
         if fb is not None:
-            _debug_read(f"fallback=playwright reason=empty_content_from_extension format={output_format}")
+            _debug_read(
+                f"fallback=playwright reason=empty_content_from_extension format={output_format}"
+            )
             return fb
         return ReadResult(
             status="error",
@@ -441,9 +456,7 @@ async def read_best_effort_async(
     """
     Async best-effort read. See `read_best_effort()` for semantics.
     """
-    return await read_async(
-        browser, output_format=output_format, enhance_markdown=enhance_markdown
-    )
+    return await read_async(browser, output_format=output_format, enhance_markdown=enhance_markdown)
 
 
 def _extract_json_payload(text: str) -> dict[str, Any]:

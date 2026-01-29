@@ -56,7 +56,6 @@ from .backends import wait_for_stable as backend_wait_for_stable
 # Agent Layer (Phase 1 & 2)
 from .base_agent import BaseAgent
 from .browser import AsyncSentienceBrowser, SentienceBrowser
-from .permissions import PermissionPolicy
 from .captcha import CaptchaContext, CaptchaHandlingError, CaptchaOptions, CaptchaResolution
 from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 
@@ -106,6 +105,7 @@ from .models import (  # Agent Layer Models
 # Ordinal support (Phase 3)
 from .ordinal import OrdinalIntent, boost_ordinal_elements, detect_ordinal_intent, select_by_ordinal
 from .overlay import clear_overlay, show_overlay
+from .permissions import PermissionPolicy
 from .query import find, query
 from .read import extract, extract_async, read, read_best_effort
 from .recorder import Recorder, Trace, TraceStep, record
