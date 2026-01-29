@@ -196,3 +196,39 @@ def test_element_ml_fields_optional():
     assert element_partial.heuristic_index is None
     assert element_partial.ml_probability == 0.87
     assert element_partial.ml_score is None
+
+
+def test_snapshot_ml_rerank_metadata_optional():
+    """Test snapshot ML rerank metadata model"""
+    from sentience.models import MlRerankInfo, MlRerankTags, Snapshot
+
+    snap = Snapshot(
+        status="success",
+        url="https://example.com",
+        elements=[],
+        ml_rerank=MlRerankInfo(
+            enabled=True,
+            applied=False,
+            reason="low_confidence",
+            candidate_count=25,
+            top_probability=0.42,
+            min_confidence=0.6,
+            is_high_confidence=False,
+            tags=MlRerankTags(
+                repeated=True,
+                sponsored_ish=True,
+                non_sponsored=False,
+                pos=True,
+                occ=True,
+                vocc=False,
+                short=True,
+                action_ish=False,
+                nav_ish=False,
+            ),
+        ),
+    )
+
+    assert snap.ml_rerank is not None
+    assert snap.ml_rerank.enabled is True
+    assert snap.ml_rerank.is_high_confidence is False
+
