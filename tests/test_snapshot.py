@@ -231,4 +231,3 @@ def test_snapshot_ml_rerank_metadata_optional():
     assert snap.ml_rerank is not None
     assert snap.ml_rerank.enabled is True
     assert snap.ml_rerank.is_high_confidence is False
-

@@ -457,6 +457,7 @@ class AgentRuntime:
         # interactive runs will “do nothing” and time out.
         evidence = getattr(captcha, "evidence", None)
         if evidence is not None:
+
             def _list(name: str) -> list[str]:
                 try:
                     v = getattr(evidence, name, None)

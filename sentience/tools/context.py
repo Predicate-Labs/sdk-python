@@ -38,7 +38,7 @@ class ToolContext:
     def __init__(
         self,
         runtime: AgentRuntime,
-        files: "FileSandbox" | None = None,
+        files: FileSandbox | None = None,
         base_dir: Path | None = None,
     ) -> None:
         self.runtime = runtime

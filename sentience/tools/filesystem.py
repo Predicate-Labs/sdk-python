@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .context import ToolContext
+
 from .registry import ToolRegistry
 
 
@@ -94,7 +95,7 @@ def register_filesystem_tools(
 ) -> ToolRegistry:
     """Register sandboxed filesystem tools."""
 
-    def _get_files(ctx: "ToolContext" | None) -> FileSandbox:
+    def _get_files(ctx: ToolContext | None) -> FileSandbox:
         if ctx is not None:
             return ctx.files
         if sandbox is not None:
@@ -107,7 +108,7 @@ def register_filesystem_tools(
         output_model=ReadFileOutput,
         description="Read a file from the sandbox.",
     )
-    async def read_file(ctx: "ToolContext" | None, params: ReadFileInput) -> ReadFileOutput:
+    async def read_file(ctx: ToolContext | None, params: ReadFileInput) -> ReadFileOutput:
         files = _get_files(ctx)
         return ReadFileOutput(content=files.read_text(params.path))
 
@@ -117,7 +118,7 @@ def register_filesystem_tools(
         output_model=WriteFileOutput,
         description="Write a file to the sandbox.",
     )
-    async def write_file(ctx: "ToolContext" | None, params: WriteFileInput) -> WriteFileOutput:
+    async def write_file(ctx: ToolContext | None, params: WriteFileInput) -> WriteFileOutput:
         files = _get_files(ctx)
         written = files.write_text(params.path, params.content, overwrite=params.overwrite)
         return WriteFileOutput(path=params.path, bytes_written=written)
@@ -128,7 +129,7 @@ def register_filesystem_tools(
         output_model=AppendFileOutput,
         description="Append text to a file in the sandbox.",
     )
-    async def append_file(ctx: "ToolContext" | None, params: AppendFileInput) -> AppendFileOutput:
+    async def append_file(ctx: ToolContext | None, params: AppendFileInput) -> AppendFileOutput:
         files = _get_files(ctx)
         written = files.append_text(params.path, params.content)
         return AppendFileOutput(path=params.path, bytes_written=written)
@@ -139,7 +140,7 @@ def register_filesystem_tools(
         output_model=ReplaceFileOutput,
         description="Replace text in a file in the sandbox.",
     )
-    async def replace_file(ctx: "ToolContext" | None, params: ReplaceFileInput) -> ReplaceFileOutput:
+    async def replace_file(ctx: ToolContext | None, params: ReplaceFileInput) -> ReplaceFileOutput:
         files = _get_files(ctx)
         replaced = files.replace_text(params.path, params.old, params.new)
         return ReplaceFileOutput(path=params.path, replaced=replaced)
