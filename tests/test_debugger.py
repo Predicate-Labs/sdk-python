@@ -69,3 +69,14 @@ def test_check_auto_opens_step_when_missing() -> None:
     runtime.begin_step.assert_called_once_with("verify:has_cart", step_index=None)
     runtime.check.assert_called_once_with(predicate, "has_cart", required=True)
     assert handle == "check-handle"
+
+
+def test_check_strict_mode_requires_explicit_step() -> None:
+    runtime = MockRuntime()
+
+    from sentience.debugger import SentienceDebugger
+
+    debugger = SentienceDebugger(runtime=runtime, auto_step=False)
+
+    with pytest.raises(RuntimeError, match="No active step"):
+        debugger.check(predicate=MagicMock(), label="has_cart", required=True)

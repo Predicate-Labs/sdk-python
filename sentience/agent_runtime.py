@@ -782,6 +782,14 @@ class AgentRuntime:
         self.tracer.emit("step_end", step_end_data, step_id=self.step_id)
         return step_end_data
 
+    async def end_step(self, **kwargs: Any) -> dict[str, Any]:
+        """
+        User-friendly alias for emit_step_end().
+
+        This keeps step lifecycle naming symmetric with begin_step().
+        """
+        return await self.emit_step_end(**kwargs)
+
     async def _capture_artifact_frame(self) -> None:
         if not self._artifact_buffer:
             return
