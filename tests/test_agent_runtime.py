@@ -755,6 +755,21 @@ class TestAgentRuntimeSnapshot:
         assert result is mock_snapshot
         assert runtime.last_snapshot is mock_snapshot
 
+
+class TestAgentRuntimeEndStep:
+    @pytest.mark.asyncio
+    async def test_end_step_aliases_emit_step_end(self) -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        with patch.object(runtime, "emit_step_end", new_callable=AsyncMock) as emit_mock:
+            emit_mock.return_value = {"ok": True}
+            out = await runtime.end_step(action="noop")
+
+        emit_mock.assert_awaited_once_with(action="noop")
+        assert out == {"ok": True}
+
     @pytest.mark.asyncio
     async def test_snapshot_with_backend(self) -> None:
         """Test snapshot uses backend-agnostic snapshot."""

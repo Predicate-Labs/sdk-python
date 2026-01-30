@@ -22,9 +22,10 @@ class SentienceDebugger:
     Verifier-only sidecar wrapper around AgentRuntime.
     """
 
-    def __init__(self, runtime: AgentRuntime) -> None:
+    def __init__(self, runtime: AgentRuntime, *, auto_step: bool = True) -> None:
         self.runtime = runtime
         self._step_open = False
+        self._auto_step = bool(auto_step)
 
     @classmethod
     def attach(
@@ -65,5 +66,9 @@ class SentienceDebugger:
 
     def check(self, predicate, label: str, required: bool = False):
         if not self._step_open:
+            if not self._auto_step:
+                raise RuntimeError(
+                    f"No active step. Call dbg.begin_step(...) or use 'async with dbg.step(...)' before check(label={label!r})."
+                )
             self.begin_step(f"verify:{label}")
         return self.runtime.check(predicate, label, required=required)
