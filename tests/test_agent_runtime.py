@@ -695,6 +695,41 @@ class TestAgentRuntimeFromSentienceBrowser:
             assert runtime._snapshot_options.use_api is True
 
 
+class TestAgentRuntimeFromPlaywrightPage:
+    """Tests for from_playwright_page factory method."""
+
+    def test_from_playwright_page_creates_runtime(self) -> None:
+        """Test from_playwright_page creates runtime with PlaywrightBackend."""
+        mock_page = MagicMock()
+        tracer = MockTracer()
+
+        with patch("sentience.backends.playwright_backend.PlaywrightBackend") as MockPWBackend:
+            mock_backend_instance = MagicMock()
+            MockPWBackend.return_value = mock_backend_instance
+
+            runtime = AgentRuntime.from_playwright_page(page=mock_page, tracer=tracer)
+
+            assert runtime.backend is mock_backend_instance
+            assert not hasattr(runtime, "_legacy_browser")
+            assert not hasattr(runtime, "_legacy_page")
+            MockPWBackend.assert_called_once_with(mock_page)
+
+    def test_from_playwright_page_with_api_key(self) -> None:
+        """Test from_playwright_page passes API key."""
+        mock_page = MagicMock()
+        tracer = MockTracer()
+
+        with patch("sentience.backends.playwright_backend.PlaywrightBackend"):
+            runtime = AgentRuntime.from_playwright_page(
+                page=mock_page,
+                tracer=tracer,
+                sentience_api_key="sk_test",
+            )
+
+            assert runtime._snapshot_options.sentience_api_key == "sk_test"
+            assert runtime._snapshot_options.use_api is True
+
+
 class TestAgentRuntimeSnapshot:
     """Tests for snapshot method."""
 

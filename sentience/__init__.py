@@ -32,6 +32,7 @@ from .actions import (
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime, AssertionHandle
+from .debugger import SentienceDebugger
 
 # Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
@@ -286,6 +287,7 @@ __all__ = [
     "AgentAction",
     # Verification (agent assertion loop)
     "AgentRuntime",
+    "SentienceDebugger",
     "AssertContext",
     "AssertOutcome",
     "Predicate",
