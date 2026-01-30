@@ -78,6 +78,64 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## SentienceDebugger: attach to your existing agent framework (sidecar mode)
+
+If you already have an agent loop (LangGraph, browser-use, custom planner/executor), you can keep it and attach Sentience as a **verifier + trace layer**.
+
+Key idea: your agent still decides and executes actions — Sentience **snapshots and verifies outcomes**.
+
+```python
+from sentience import SentienceDebugger, create_tracer
+from sentience.verification import exists, url_contains
+
+
+async def run_existing_agent(page) -> None:
+    # page: playwright.async_api.Page (owned by your agent/framework)
+    tracer = create_tracer(run_id="run-123")  # local JSONL by default
+    dbg = SentienceDebugger.attach(page, tracer=tracer)
+
+    async with dbg.step("agent_step: navigate + verify"):
+        # 1) Let your framework do whatever it does
+        await your_agent.step()
+
+        # 2) Snapshot what the agent produced
+        await dbg.snapshot()
+
+        # 3) Verify outcomes (with bounded retries)
+        await dbg.check(url_contains("example.com"), label="on_domain", required=True).eventually(timeout_s=10)
+        await dbg.check(exists("role=heading"), label="has_heading").eventually(timeout_s=10)
+```
+
+## SDK-driven full loop (snapshots + actions)
+
+If you want Sentience to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
+
+```python
+from sentience import SentienceBrowser, snapshot, find, click, type_text, wait_for
+
+
+def login_example() -> None:
+    with SentienceBrowser() as browser:
+        browser.page.goto("https://example.com/login")
+
+        snap = snapshot(browser)
+        email = find(snap, "role=textbox text~'email'")
+        password = find(snap, "role=textbox text~'password'")
+        submit = find(snap, "role=button text~'sign in'")
+
+        if not (email and password and submit):
+            raise RuntimeError("login form not found")
+
+        type_text(browser, email.id, "user@example.com")
+        type_text(browser, password.id, "password123")
+        click(browser, submit.id)
+
+        # Verify success
+        ok = wait_for(browser, "role=heading text~'Dashboard'", timeout=10.0)
+        if not ok.found:
+            raise RuntimeError("login failed")
+```
+
 ## Capabilities (lifecycle guarantees)
 
 ### Controlled perception
