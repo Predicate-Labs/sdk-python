@@ -24,7 +24,9 @@ async def test_attach_uses_runtime_factory() -> None:
     tracer = MockTracer()
     runtime = MockRuntime()
 
-    with patch("sentience.debugger.AgentRuntime.from_playwright_page", return_value=runtime) as mock_factory:
+    with patch(
+        "sentience.debugger.AgentRuntime.from_playwright_page", return_value=runtime
+    ) as mock_factory:
         from sentience.debugger import SentienceDebugger
 
         debugger = SentienceDebugger.attach(page=mock_page, tracer=tracer)

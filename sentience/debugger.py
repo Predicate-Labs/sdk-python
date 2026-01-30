@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from .agent_runtime import AgentRuntime
 from .models import SnapshotOptions
@@ -9,6 +10,7 @@ from .tools import ToolRegistry
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from playwright.async_api import Page
+
     from .tracing import Tracer
 else:  # pragma: no cover - avoid optional runtime imports
     Page = Any  # type: ignore
@@ -32,7 +34,7 @@ class SentienceDebugger:
         snapshot_options: SnapshotOptions | None = None,
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
-    ) -> "SentienceDebugger":
+    ) -> SentienceDebugger:
         runtime = AgentRuntime.from_playwright_page(
             page=page,
             tracer=tracer,

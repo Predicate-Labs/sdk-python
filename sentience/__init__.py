@@ -32,7 +32,6 @@ from .actions import (
 from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime, AssertionHandle
-from .debugger import SentienceDebugger
 
 # Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
@@ -64,6 +63,7 @@ from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 from .cloud_tracing import CloudTraceSink, SentienceLogger
 from .conversational_agent import ConversationalAgent
 from .cursor_policy import CursorPolicy
+from .debugger import SentienceDebugger
 from .expect import expect
 from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
