@@ -99,7 +99,8 @@ class TestAgentRuntimeInit:
         assert runtime.backend is backend
         assert runtime.tracer is tracer
         assert runtime.step_id is None
-        assert runtime.step_index == 0
+        # 0-based step ids: first begin_step() will produce "step-0"
+        assert runtime.step_index == -1
         assert runtime.last_snapshot is None
         assert runtime.is_task_done is False
 
