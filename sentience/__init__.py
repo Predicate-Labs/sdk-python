@@ -63,6 +63,7 @@ from .captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 from .cloud_tracing import CloudTraceSink, SentienceLogger
 from .conversational_agent import ConversationalAgent
 from .cursor_policy import CursorPolicy
+from .debugger import SentienceDebugger
 from .expect import expect
 from .generator import ScriptGenerator, generate
 from .inspector import Inspector, inspect
@@ -286,6 +287,7 @@ __all__ = [
     "AgentAction",
     # Verification (agent assertion loop)
     "AgentRuntime",
+    "SentienceDebugger",
     "AssertContext",
     "AssertOutcome",
     "Predicate",

@@ -186,6 +186,59 @@ class AgentRuntime:
         self._captcha_retry_count: int = 0
 
     @classmethod
+    def from_playwright_page(
+        cls,
+        page: Page,
+        tracer: Tracer,
+        snapshot_options: SnapshotOptions | None = None,
+        sentience_api_key: str | None = None,
+        tool_registry: ToolRegistry | None = None,
+    ) -> AgentRuntime:
+        """
+        Create AgentRuntime from a raw Playwright Page (sidecar mode).
+
+        Args:
+            page: Playwright Page for browser interaction
+            tracer: Tracer for emitting verification events
+            snapshot_options: Default options for snapshots
+            sentience_api_key: API key for Pro/Enterprise tier
+            tool_registry: Optional ToolRegistry for LLM-callable tools
+
+        Returns:
+            AgentRuntime instance
+        """
+        from .backends.playwright_backend import PlaywrightBackend
+
+        backend = PlaywrightBackend(page)
+        return cls(
+            backend=backend,
+            tracer=tracer,
+            snapshot_options=snapshot_options,
+            sentience_api_key=sentience_api_key,
+            tool_registry=tool_registry,
+        )
+
+    @classmethod
+    def attach(
+        cls,
+        page: Page,
+        tracer: Tracer,
+        snapshot_options: SnapshotOptions | None = None,
+        sentience_api_key: str | None = None,
+        tool_registry: ToolRegistry | None = None,
+    ) -> AgentRuntime:
+        """
+        Sidecar alias for from_playwright_page().
+        """
+        return cls.from_playwright_page(
+            page=page,
+            tracer=tracer,
+            snapshot_options=snapshot_options,
+            sentience_api_key=sentience_api_key,
+            tool_registry=tool_registry,
+        )
+
+    @classmethod
     async def from_sentience_browser(
         cls,
         browser: AsyncSentienceBrowser,
