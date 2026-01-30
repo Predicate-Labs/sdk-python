@@ -221,7 +221,7 @@ class TestAgentRuntimeBeginStep:
         step_id = runtime.begin_step(goal="Test step")
 
         assert step_id is not None
-        assert step_id == "step-1"  # First step should be step-1
+        assert step_id == "step-0"  # First step should be step-0
 
     def test_begin_step_id_matches_index(self) -> None:
         """Test step_id format matches step_index for Studio compatibility."""
@@ -230,12 +230,12 @@ class TestAgentRuntimeBeginStep:
         runtime = AgentRuntime(backend=backend, tracer=tracer)
 
         step_id_1 = runtime.begin_step(goal="Step 1")
-        assert step_id_1 == "step-1"
-        assert runtime.step_index == 1
+        assert step_id_1 == "step-0"
+        assert runtime.step_index == 0
 
         step_id_2 = runtime.begin_step(goal="Step 2")
-        assert step_id_2 == "step-2"
-        assert runtime.step_index == 2
+        assert step_id_2 == "step-1"
+        assert runtime.step_index == 1
 
         # With explicit index
         step_id_10 = runtime.begin_step(goal="Step 10", step_index=10)
@@ -249,10 +249,10 @@ class TestAgentRuntimeBeginStep:
         runtime = AgentRuntime(backend=backend, tracer=tracer)
 
         runtime.begin_step(goal="Step 1")
-        assert runtime.step_index == 1
+        assert runtime.step_index == 0
 
         runtime.begin_step(goal="Step 2")
-        assert runtime.step_index == 2
+        assert runtime.step_index == 1
 
     def test_begin_step_explicit_index(self) -> None:
         """Test begin_step with explicit step_index."""

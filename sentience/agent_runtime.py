@@ -154,7 +154,8 @@ class AgentRuntime:
 
         # Step tracking
         self.step_id: str | None = None
-        self.step_index: int = 0
+        # 0-based step indexing (first auto-generated step_id is "step-0")
+        self.step_index: int = -1
 
         # Snapshot state
         self.last_snapshot: Snapshot | None = None

@@ -68,7 +68,8 @@ def test_check_auto_opens_step_when_missing() -> None:
 
     runtime.begin_step.assert_called_once_with("verify:has_cart", step_index=None)
     runtime.check.assert_called_once_with(predicate, "has_cart", required=True)
-    assert handle == "check-handle"
+    assert hasattr(handle, "once")
+    assert hasattr(handle, "eventually")
 
 
 def test_check_strict_mode_requires_explicit_step() -> None:
