@@ -621,6 +621,15 @@ async def _snapshot_via_api(
         # Re-raise validation errors as-is
         raise
     except Exception as e:
+        # Preserve structured gateway details when available.
+        try:
+            from ..snapshot import SnapshotGatewayError  # type: ignore
+
+            if isinstance(e, SnapshotGatewayError):
+                raise
+        except Exception:
+            pass
+
         # Fallback to local extension on API error
         # This matches the behavior of the main snapshot function
         raise RuntimeError(

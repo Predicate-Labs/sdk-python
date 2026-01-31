@@ -96,6 +96,16 @@ class SnapshotGatewayError(RuntimeError):
         body_snip = cls._snip(body)
         if body_snip:
             bits.append(f"body={body_snip}")
+        # If we don't have an HTTP status/response body, this is usually a transport error
+        # (timeout, DNS, connection reset). Preserve at least the exception type + message.
+        if status_code is None and not body_snip:
+            try:
+                err_s = cls._snip(str(e), 220)
+            except Exception:
+                err_s = None
+            bits.append(f"err_type={type(e).__name__}")
+            if err_s:
+                bits.append(f"err={err_s}")
         if bits:
             msg = f"{msg}: " + " ".join(bits)
         msg = msg + ". Try using use_api=False to use local extension instead."
@@ -144,6 +154,14 @@ class SnapshotGatewayError(RuntimeError):
         body_snip = cls._snip(body)
         if body_snip:
             bits.append(f"body={body_snip}")
+        if status_code is None and not body_snip:
+            try:
+                err_s = cls._snip(str(e), 220)
+            except Exception:
+                err_s = None
+            bits.append(f"err_type={type(e).__name__}")
+            if err_s:
+                bits.append(f"err={err_s}")
         if bits:
             msg = f"{msg}: " + " ".join(bits)
         msg = msg + ". Try using use_api=False to use local extension instead."
