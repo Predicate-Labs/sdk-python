@@ -358,6 +358,50 @@ class AgentRuntime:
             await self._handle_captcha_if_needed(self.last_snapshot, source="gateway")
         return self.last_snapshot
 
+    async def sampled_snapshot(
+        self,
+        *,
+        samples: int = 4,
+        scroll_delta_y: float | None = None,
+        settle_ms: int = 250,
+        union_limit: int | None = None,
+        restore_scroll: bool = True,
+        **kwargs: Any,
+    ) -> Snapshot:
+        """
+        Take multiple snapshots while scrolling and merge them into a "union snapshot".
+
+        Intended for analysis/extraction on long / virtualized pages where a single
+        viewport snapshot is insufficient.
+
+        IMPORTANT:
+        - The returned snapshot's element bboxes may not correspond to the current viewport.
+          Do NOT use it for clicking unless you also scroll to the right position.
+        - This method does NOT update `self.last_snapshot` (to avoid confusing verification
+          loops that depend on the current viewport).
+        """
+        # Legacy browser path: fall back to a single snapshot (we can't rely on backend ops).
+        if hasattr(self, "_legacy_browser") and hasattr(self, "_legacy_page"):
+            return await self.snapshot(**kwargs)
+
+        from .backends.snapshot import sampled_snapshot as backend_sampled_snapshot
+
+        # Merge default options with call-specific kwargs
+        options_dict = self._snapshot_options.model_dump(exclude_none=True)
+        options_dict.update(kwargs)
+        options = SnapshotOptions(**options_dict)
+
+        snap = await backend_sampled_snapshot(
+            self.backend,
+            options=options,
+            samples=samples,
+            scroll_delta_y=scroll_delta_y,
+            settle_ms=settle_ms,
+            union_limit=union_limit,
+            restore_scroll=restore_scroll,
+        )
+        return snap
+
     async def evaluate_js(self, request: EvaluateJsRequest) -> EvaluateJsResult:
         """
         Evaluate JavaScript expression in the active backend.

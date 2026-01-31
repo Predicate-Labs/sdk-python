@@ -26,7 +26,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from ..constants import SENTIENCE_API_URL
-from ..models import Snapshot, SnapshotOptions
+from ..models import Element, Snapshot, SnapshotOptions
 from ..snapshot import (
     _build_snapshot_payload,
     _merge_api_result_with_local,
@@ -259,6 +259,182 @@ async def snapshot(
         return await _snapshot_via_extension(backend, options)
 
 
+def _normalize_ws(text: str) -> str:
+    return " ".join((text or "").split()).strip()
+
+
+def _dedupe_key(el: Element) -> tuple:
+    """
+    Best-effort stable dedupe key across scroll-sampled snapshots.
+
+    Notes:
+    - IDs are not reliable across snapshots (virtualization can remount nodes).
+    - BBox coordinates are viewport-relative and depend on scroll position.
+    - Prefer href/name/text + approximate document position when available.
+    """
+    href = (el.href or "").strip()
+    if href:
+        return ("href", href)
+
+    name = _normalize_ws(el.name or "")
+    if name:
+        return ("role_name", el.role, name)
+
+    text = _normalize_ws(el.text or "")
+    doc_y = el.doc_y
+    if text:
+        # Use doc_y when present (more stable across scroll positions than bbox.y).
+        if isinstance(doc_y, (int, float)):
+            return ("role_text_docy", el.role, text[:120], int(float(doc_y) // 10))
+        return ("role_text", el.role, text[:120])
+
+    # Fallback: role + approximate position
+    if isinstance(doc_y, (int, float)):
+        return ("role_docy", el.role, int(float(doc_y) // 10))
+
+    # Last resort (can still dedupe within a single snapshot)
+    return ("id", int(el.id))
+
+
+def merge_snapshots(
+    snaps: list[Snapshot],
+    *,
+    union_limit: int | None = None,
+) -> Snapshot:
+    """
+    Merge multiple snapshots into a single "union snapshot" for analysis/extraction.
+
+    CRITICAL:
+    - Element bboxes are viewport-relative to the scroll position at the time each snapshot
+      was taken. Do NOT use merged elements for direct clicking unless you also scroll
+      back to their position.
+    """
+    if not snaps:
+        raise ValueError("merge_snapshots requires at least one snapshot")
+
+    base = snaps[0]
+    best_by_key: dict[tuple, Element] = {}
+    first_seen_idx: dict[tuple, int] = {}
+
+    # Keep the "best" representative per key:
+    # - Prefer higher importance (usually means in-viewport at that sampling moment)
+    # - Prefer having href/text/name (more useful for extraction)
+    def _quality_score(e: Element) -> tuple:
+        has_href = 1 if (e.href or "").strip() else 0
+        has_text = 1 if _normalize_ws(e.text or "") else 0
+        has_name = 1 if _normalize_ws(e.name or "") else 0
+        has_docy = 1 if isinstance(e.doc_y, (int, float)) else 0
+        return (e.importance, has_href, has_text, has_name, has_docy)
+
+    idx = 0
+    for snap in snaps:
+        for el in list(getattr(snap, "elements", []) or []):
+            k = _dedupe_key(el)
+            if k not in first_seen_idx:
+                first_seen_idx[k] = idx
+            prev = best_by_key.get(k)
+            if prev is None or _quality_score(el) > _quality_score(prev):
+                best_by_key[k] = el
+            idx += 1
+
+    merged: list[Element] = list(best_by_key.values())
+
+    # Deterministic ordering: prefer document order when doc_y is available,
+    # then fall back to "first seen" (stable for a given sampling sequence).
+    def _sort_key(e: Element) -> tuple:
+        doc_y = e.doc_y
+        if isinstance(doc_y, (int, float)):
+            return (0, float(doc_y), -int(e.importance))
+        return (1, float("inf"), first_seen_idx.get(_dedupe_key(e), 10**9))
+
+    merged.sort(key=_sort_key)
+
+    if union_limit is not None:
+        try:
+            lim = max(1, int(union_limit))
+        except (TypeError, ValueError):
+            lim = None
+        if lim is not None:
+            merged = merged[:lim]
+
+    # Construct a new Snapshot object with merged elements.
+    # Keep base url/viewport/diagnostics, and drop screenshot by default to avoid confusion.
+    data = base.model_dump()
+    data["elements"] = [e.model_dump() for e in merged]
+    data["screenshot"] = None
+    return Snapshot(**data)
+
+
+async def sampled_snapshot(
+    backend: "BrowserBackend",
+    *,
+    options: SnapshotOptions | None = None,
+    samples: int = 4,
+    scroll_delta_y: float | None = None,
+    settle_ms: int = 250,
+    union_limit: int | None = None,
+    restore_scroll: bool = True,
+) -> Snapshot:
+    """
+    Take multiple snapshots while scrolling downward and return a merged union snapshot.
+
+    Designed for long / virtualized results pages where a single viewport snapshot
+    cannot cover enough relevant items.
+    """
+    if options is None:
+        options = SnapshotOptions()
+
+    k = max(1, int(samples))
+    if k <= 1:
+        return await snapshot(backend, options=options)
+
+    # Baseline scroll position
+    try:
+        info = await backend.refresh_page_info()
+        base_scroll_y = float(getattr(info, "scroll_y", 0.0) or 0.0)
+        vh = float(getattr(info, "height", 800) or 800)
+    except Exception:  # pylint: disable=broad-exception-caught
+        base_scroll_y = 0.0
+        vh = 800.0
+
+    # Choose a conservative scroll delta if not provided.
+    delta = float(scroll_delta_y) if scroll_delta_y is not None else (vh * 0.9)
+    if delta <= 0:
+        delta = max(200.0, vh * 0.9)
+
+    snaps: list[Snapshot] = []
+    try:
+        # Snapshot at current position.
+        snaps.append(await snapshot(backend, options=options))
+
+        for _i in range(1, k):
+            try:
+                # Scroll by wheel delta (plays nicer with sites that hook scroll events).
+                await backend.wheel(delta_y=delta)
+            except Exception:  # pylint: disable=broad-exception-caught
+                # Fallback: direct scrollTo
+                try:
+                    cur = await backend.eval("window.scrollY")
+                    await backend.call("(y) => window.scrollTo(0, y)", [float(cur) + delta])
+                except Exception:  # pylint: disable=broad-exception-caught
+                    break
+
+            if settle_ms > 0:
+                await asyncio.sleep(float(settle_ms) / 1000.0)
+
+            snaps.append(await snapshot(backend, options=options))
+    finally:
+        if restore_scroll:
+            try:
+                await backend.call("(y) => window.scrollTo(0, y)", [float(base_scroll_y)])
+                if settle_ms > 0:
+                    await asyncio.sleep(min(0.2, float(settle_ms) / 1000.0))
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
+
+    return merge_snapshots(snaps, union_limit=union_limit)
+
+
 async def _wait_for_extension(
     backend: "BrowserBackend",
     timeout_ms: int = 5000,
@@ -273,7 +449,6 @@ async def _wait_for_extension(
     Raises:
         RuntimeError: If extension not injected within timeout
     """
-    import asyncio
     import logging
 
     logger = logging.getLogger("sentience.backends.snapshot")
