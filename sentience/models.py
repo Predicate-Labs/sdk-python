@@ -836,6 +836,62 @@ class ActionTokenUsage(BaseModel):
     model: str
 
 
+class LLMUsage(BaseModel):
+    """Token usage for a single LLM call"""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+class LLMStepData(BaseModel):
+    """
+    LLM interaction data for a single step in agent traces.
+
+    This structure is used in step_end trace events to capture LLM response
+    details for debugging and analysis in Sentience Studio.
+    """
+
+    response_text: str | None = Field(
+        None,
+        description="The LLM's response text for this step",
+    )
+    response_hash: str | None = Field(
+        None,
+        description="SHA256 hash of response_text for deduplication/indexing",
+    )
+    usage: LLMUsage | None = Field(
+        None,
+        description="Token usage statistics for this LLM call",
+    )
+    model: str | None = Field(
+        None,
+        description="Model identifier used for this call (e.g., 'gpt-4o', 'claude-3-5-sonnet')",
+    )
+
+    def to_trace_dict(self) -> dict[str, Any]:
+        """
+        Convert to dictionary format expected by TraceEventBuilder.
+
+        Returns:
+            Dict with response_text, response_hash, and usage fields
+        """
+        result: dict[str, Any] = {}
+        if self.response_text is not None:
+            result["response_text"] = self.response_text
+        if self.response_hash is not None:
+            result["response_hash"] = self.response_hash
+        if self.usage is not None:
+            result["usage"] = {
+                "prompt_tokens": self.usage.prompt_tokens,
+                "completion_tokens": self.usage.completion_tokens,
+                "total_tokens": self.usage.total_tokens,
+            }
+        if self.model is not None:
+            result["model"] = self.model
+        return result
+
+
 class TokenStats(BaseModel):
     """Token usage statistics for an agent session"""
 

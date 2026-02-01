@@ -81,6 +81,7 @@ from .failure_artifacts import FailureArtifactBuffer, FailureArtifactsOptions
 from .models import (
     EvaluateJsRequest,
     EvaluateJsResult,
+    LLMStepData,
     Snapshot,
     SnapshotOptions,
     TabInfo,
@@ -792,9 +793,26 @@ class AgentRuntime:
         verify_signals: dict[str, Any] | None = None,
         post_url: str | None = None,
         post_snapshot_digest: str | None = None,
+        llm_data: dict[str, Any] | LLMStepData | None = None,
     ) -> dict[str, Any]:
         """
         Emit a step_end event using TraceEventBuilder.
+
+        Args:
+            action: Action name/type executed in this step
+            success: Whether the action execution succeeded
+            error: Error message if action failed
+            outcome: Outcome description of the action
+            duration_ms: Duration of action execution in milliseconds
+            attempt: Attempt number (0-based)
+            verify_passed: Whether verification passed
+            verify_signals: Additional verification signals
+            post_url: URL after action execution
+            post_snapshot_digest: Digest of post-action snapshot
+            llm_data: LLM interaction data for this step. Can be:
+                - LLMStepData: Structured model with response_text, response_hash, usage, model
+                - dict: Raw dict with response_text, response_hash, usage keys
+                - None: No LLM data (defaults to empty dict)
         """
         goal = self._step_goal or ""
         pre_snap = self._step_pre_snapshot or self.last_snapshot
@@ -850,6 +868,15 @@ class AgentRuntime:
             "signals": signals,
         }
 
+        # Convert LLMStepData to dict if needed
+        llm_data_dict: dict[str, Any]
+        if llm_data is None:
+            llm_data_dict = {}
+        elif isinstance(llm_data, LLMStepData):
+            llm_data_dict = llm_data.to_trace_dict()
+        else:
+            llm_data_dict = llm_data
+
         step_end_data = TraceEventBuilder.build_step_end_event(
             step_id=self.step_id or "",
             step_index=int(self.step_index),
@@ -858,7 +885,7 @@ class AgentRuntime:
             pre_url=str(pre_url or ""),
             post_url=str(post_url or ""),
             snapshot_digest=pre_digest,
-            llm_data={},
+            llm_data=llm_data_dict,
             exec_data=exec_data,
             verify_data=verify_data,
             pre_elements=None,
