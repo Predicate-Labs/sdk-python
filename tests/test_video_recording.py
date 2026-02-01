@@ -10,6 +10,10 @@ import pytest
 
 from sentience import SentienceBrowser
 
+# Use a data URL to avoid network dependency (DNS resolution can fail in CI)
+# This is a minimal valid HTML page
+TEST_PAGE_URL = "data:text/html,<html><head><title>Test</title></head><body><h1>Video Recording Test</h1></body></html>"
+
 
 def test_video_recording_basic():
     """Test basic video recording functionality"""
@@ -20,7 +24,7 @@ def test_video_recording_basic():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             # Small delay to ensure page is fully loaded and video recording is stable
@@ -76,7 +80,7 @@ def test_video_recording_custom_resolution():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close()
@@ -98,7 +102,7 @@ def test_video_recording_custom_output_path():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=str(custom_path))
@@ -121,7 +125,7 @@ def test_video_recording_nested_output_path():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=str(nested_path))
@@ -141,7 +145,7 @@ def test_no_video_recording_when_disabled():
     browser.start()
 
     try:
-        browser.page.goto("https://example.com")
+        browser.page.goto(TEST_PAGE_URL)
         browser.page.wait_for_load_state("networkidle", timeout=30000)
 
         video_path = browser.close()
@@ -163,7 +167,7 @@ def test_video_recording_directory_auto_created():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close()
@@ -187,7 +191,7 @@ def test_video_recording_with_pathlib():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
 
             video_path = browser.close(output_path=output_path)  # Pass Path object
@@ -212,7 +216,7 @@ def test_video_recording_multiple_sessions():
             browser.start()
 
             try:
-                browser.page.goto("https://example.com")
+                browser.page.goto(TEST_PAGE_URL)
                 browser.page.wait_for_load_state("networkidle", timeout=30000)
 
                 output_path = video_dir / f"video_{i}.webm"
@@ -240,7 +244,7 @@ def test_video_recording_default_resolution():
         browser.start()
 
         try:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
             browser.close()
         except Exception:
@@ -255,7 +259,7 @@ def test_video_recording_with_context_manager():
 
         # Use context manager WITHOUT calling close() manually
         with SentienceBrowser(headless=True, record_video_dir=str(video_dir)) as browser:
-            browser.page.goto("https://example.com")
+            browser.page.goto(TEST_PAGE_URL)
             browser.page.wait_for_load_state("domcontentloaded")
             # Don't call browser.close() - let context manager handle it
 

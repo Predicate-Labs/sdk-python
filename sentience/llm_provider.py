@@ -353,6 +353,21 @@ class DeepInfraProvider(OpenAIProvider):
             )
         super().__init__(api_key=api_key, model=model, base_url=base_url)
 
+    def supports_vision(self) -> bool:
+        """
+        DeepInfra hosts many non-OpenAI multimodal models.
+
+        Their OpenAI-compatible API supports the same `image_url` message format:
+        `{"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}`
+
+        We therefore allow vision for common DeepInfra model naming patterns.
+        """
+        model_lower = self._model_name.lower()
+        if any(x in model_lower for x in ["vision", "llava", "qvq", "ocr"]):
+            return True
+        # Preserve OpenAI-style vision detection for GPT models served via DeepInfra.
+        return super().supports_vision()
+
 
 class AnthropicProvider(LLMProvider):
     """

@@ -20,6 +20,161 @@ from .sentience_methods import SentienceMethod
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
+class SnapshotGatewayError(RuntimeError):
+    """
+    Structured error for server-side (gateway) snapshot failures.
+
+    Keeps HTTP status/URL/response details available to callers for better logging/debugging.
+    Subclasses RuntimeError for backward compatibility.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        url: str | None = None,
+        request_id: str | None = None,
+        response_text: str | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.url = url
+        self.request_id = request_id
+        self.response_text = response_text
+        # Note: callers should use `raise ... from cause` to preserve chaining.
+        _ = cause
+
+    @staticmethod
+    def _snip(s: str | None, n: int = 400) -> str | None:
+        if not s:
+            return None
+        t = str(s).replace("\n", " ").replace("\r", " ").strip()
+        return t[:n]
+
+    @classmethod
+    def from_httpx(cls, e: Exception) -> "SnapshotGatewayError":
+        status_code = None
+        url = None
+        request_id = None
+        body = None
+        try:
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                status_code = getattr(resp, "status_code", None)
+                try:
+                    url = str(getattr(resp, "url", None) or "")
+                except Exception:
+                    url = None
+                try:
+                    headers = getattr(resp, "headers", None) or {}
+                    request_id = headers.get("x-request-id") or headers.get("x-trace-id")
+                except Exception:
+                    request_id = None
+                try:
+                    body = getattr(resp, "text", None)
+                except Exception:
+                    body = None
+            req = getattr(e, "request", None)
+            if url is None and req is not None:
+                try:
+                    url = str(getattr(req, "url", None) or "")
+                except Exception:
+                    url = None
+        except Exception:
+            pass
+
+        msg = "Server-side snapshot API failed"
+        bits = []
+        if status_code is not None:
+            bits.append(f"status={status_code}")
+        if url:
+            bits.append(f"url={url}")
+        if request_id:
+            bits.append(f"request_id={request_id}")
+        body_snip = cls._snip(body)
+        if body_snip:
+            bits.append(f"body={body_snip}")
+        # If we don't have an HTTP status/response body, this is usually a transport error
+        # (timeout, DNS, connection reset). Preserve at least the exception type + message.
+        if status_code is None and not body_snip:
+            try:
+                err_s = cls._snip(str(e), 220)
+            except Exception:
+                err_s = None
+            bits.append(f"err_type={type(e).__name__}")
+            if err_s:
+                bits.append(f"err={err_s}")
+        if bits:
+            msg = f"{msg}: " + " ".join(bits)
+        msg = msg + ". Try using use_api=False to use local extension instead."
+        return cls(
+            msg,
+            status_code=int(status_code) if status_code is not None else None,
+            url=url,
+            request_id=str(request_id) if request_id else None,
+            response_text=body_snip,
+            cause=e,
+        )
+
+    @classmethod
+    def from_requests(cls, e: Exception) -> "SnapshotGatewayError":
+        status_code = None
+        url = None
+        request_id = None
+        body = None
+        try:
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                status_code = getattr(resp, "status_code", None)
+                try:
+                    url = str(getattr(resp, "url", None) or "")
+                except Exception:
+                    url = None
+                try:
+                    headers = getattr(resp, "headers", None) or {}
+                    request_id = headers.get("x-request-id") or headers.get("x-trace-id")
+                except Exception:
+                    request_id = None
+                try:
+                    body = getattr(resp, "text", None)
+                except Exception:
+                    body = None
+        except Exception:
+            pass
+        msg = "Server-side snapshot API failed"
+        bits = []
+        if status_code is not None:
+            bits.append(f"status={status_code}")
+        if url:
+            bits.append(f"url={url}")
+        if request_id:
+            bits.append(f"request_id={request_id}")
+        body_snip = cls._snip(body)
+        if body_snip:
+            bits.append(f"body={body_snip}")
+        if status_code is None and not body_snip:
+            try:
+                err_s = cls._snip(str(e), 220)
+            except Exception:
+                err_s = None
+            bits.append(f"err_type={type(e).__name__}")
+            if err_s:
+                bits.append(f"err={err_s}")
+        if bits:
+            msg = f"{msg}: " + " ".join(bits)
+        msg = msg + ". Try using use_api=False to use local extension instead."
+        return cls(
+            msg,
+            status_code=int(status_code) if status_code is not None else None,
+            url=url,
+            request_id=str(request_id) if request_id else None,
+            response_text=body_snip,
+            cause=e,
+        )
+
+
 def _is_execution_context_destroyed_error(e: Exception) -> bool:
     """
     Playwright can throw while a navigation is in-flight, invalidating the JS execution context.
@@ -170,14 +325,20 @@ def _post_snapshot_to_gateway_sync(
         "Content-Type": "application/json",
     }
 
-    response = requests.post(
-        f"{api_url}/v1/snapshot",
-        data=payload_json,
-        headers=headers,
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = requests.post(
+            f"{api_url}/v1/snapshot",
+            data=payload_json,
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        raise SnapshotGatewayError.from_requests(e) from e
+    except requests.exceptions.RequestException as e:
+        # Network/timeouts/etc (no status code available)
+        raise SnapshotGatewayError.from_requests(e) from e
 
 
 async def _post_snapshot_to_gateway_async(
@@ -202,13 +363,21 @@ async def _post_snapshot_to_gateway_async(
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{api_url}/v1/snapshot",
-            content=payload_json,
-            headers=headers,
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = await client.post(
+                f"{api_url}/v1/snapshot",
+                content=payload_json,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise SnapshotGatewayError.from_httpx(e) from e
+        except httpx.RequestError as e:
+            raise SnapshotGatewayError.from_httpx(e) from e
+        except Exception as e:
+            # JSON decode or other unexpected issues — keep details if possible.
+            raise SnapshotGatewayError.from_httpx(e) from e
 
 
 def _merge_api_result_with_local(
