@@ -754,6 +754,87 @@ class TestTracerFactory:
                 os.remove(orphaned_path)
 
 
+class TestCreateTracerAutoEmitRunStart:
+    """Tests for create_tracer auto_emit_run_start functionality."""
+
+    def test_create_tracer_auto_emits_run_start_by_default(self):
+        """Test create_tracer automatically emits run_start event."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Use local tracing (no API key) for simplicity
+            with patch("sentience.tracer_factory.Path") as mock_path_cls:
+                # Make traces dir point to temp dir
+                mock_path_cls.return_value.mkdir = Mock()
+                mock_path_cls.return_value.__truediv__ = lambda self, x: Path(tmpdir) / x
+
+                tracer = create_tracer(
+                    run_id="test-run",
+                    agent_type="TestAgent",
+                    llm_model="gpt-4o",
+                    goal="Test goal",
+                    start_url="https://example.com",
+                )
+
+                # Close and read the trace file
+                tracer.close()
+
+                # Find the trace file
+                trace_files = list(Path(tmpdir).glob("*.jsonl"))
+                if not trace_files:
+                    # Check traces subdir
+                    traces_dir = Path("traces")
+                    if traces_dir.exists():
+                        trace_files = list(traces_dir.glob("test-run.jsonl"))
+
+                # The tracer should have emitted at least one event (run_start)
+                assert tracer.seq >= 1, "run_start should be auto-emitted"
+
+    def test_create_tracer_auto_emit_disabled(self):
+        """Test create_tracer with auto_emit_run_start=False."""
+        tracer = create_tracer(
+            run_id="test-run-no-emit",
+            agent_type="TestAgent",
+            auto_emit_run_start=False,
+        )
+
+        # With auto-emit disabled, seq should still be 0
+        assert tracer.seq == 0, "run_start should NOT be emitted when auto_emit_run_start=False"
+
+        tracer.close()
+
+    def test_create_tracer_auto_emit_with_metadata(self):
+        """Test create_tracer auto-emits run_start with correct metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_path = Path(tmpdir) / "test-run.jsonl"
+            sink = JsonlTraceSink(str(trace_path))
+
+            # Directly test the helper function behavior
+            tracer = Tracer(run_id="test-run", sink=sink)
+
+            # Import and call the helper directly
+            from sentience.tracer_factory import _emit_run_start
+
+            _emit_run_start(
+                tracer,
+                agent_type="CustomAgent",
+                llm_model="claude-3",
+                goal="Test goal",
+                start_url="https://test.com",
+            )
+
+            tracer.close()
+
+            # Read and verify the emitted event
+            lines = trace_path.read_text().strip().split("\n")
+            assert len(lines) == 1
+
+            event = json.loads(lines[0])
+            assert event["type"] == "run_start"
+            assert event["data"]["agent"] == "CustomAgent"
+            assert event["data"]["llm_model"] == "claude-3"
+            assert event["data"]["config"]["goal"] == "Test goal"
+            assert event["data"]["config"]["start_url"] == "https://test.com"
+
+
 class TestRegressionTests:
     """Regression tests to ensure cloud tracing doesn't break existing functionality."""
 

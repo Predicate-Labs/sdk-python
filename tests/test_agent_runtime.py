@@ -75,6 +75,8 @@ class MockTracer:
 
     def __init__(self) -> None:
         self.events: list[dict] = []
+        self.emit_step_start_called: bool = False
+        self.emit_step_start_args: dict = {}
 
     def emit(self, event_type: str, data: dict, step_id: str | None = None) -> None:
         self.events.append(
@@ -84,6 +86,23 @@ class MockTracer:
                 "step_id": step_id,
             }
         )
+
+    def emit_step_start(
+        self,
+        step_id: str,
+        step_index: int,
+        goal: str,
+        attempt: int = 0,
+        pre_url: str | None = None,
+    ) -> None:
+        self.emit_step_start_called = True
+        self.emit_step_start_args = {
+            "step_id": step_id,
+            "step_index": step_index,
+            "goal": goal,
+            "attempt": attempt,
+            "pre_url": pre_url,
+        }
 
 
 class TestAgentRuntimeInit:
@@ -276,6 +295,31 @@ class TestAgentRuntimeBeginStep:
         runtime.begin_step(goal="New step")
 
         assert runtime._assertions_this_step == []
+
+    def test_begin_step_emits_step_start_event(self) -> None:
+        """Test begin_step emits step_start trace event by default."""
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        runtime.begin_step(goal="Test step", step_index=1)
+
+        # Check that emit_step_start was called
+        assert tracer.emit_step_start_called is True
+        assert tracer.emit_step_start_args["step_id"] == "step-1"
+        assert tracer.emit_step_start_args["step_index"] == 1
+        assert tracer.emit_step_start_args["goal"] == "Test step"
+
+    def test_begin_step_emit_trace_false(self) -> None:
+        """Test begin_step with emit_trace=False skips trace event."""
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        runtime.begin_step(goal="Test step", step_index=1, emit_trace=False)
+
+        # Check that emit_step_start was NOT called
+        assert tracer.emit_step_start_called is False
 
 
 class TestAgentRuntimeAssertions:

@@ -568,3 +568,146 @@ def test_tracer_context_manager():
         # Verify file is closed and flushed
         lines = trace_path.read_text().strip().split("\n")
         assert len(lines) == 1
+
+
+# ============================================================================
+# Tests for emit_snapshot() helper method
+# ============================================================================
+
+
+class MockSnapshot:
+    """Mock snapshot object for testing emit_snapshot()."""
+
+    def __init__(
+        self,
+        url: str = "https://example.com",
+        screenshot: str | None = None,
+        timestamp: str = "2024-01-01T00:00:00.000Z",
+    ):
+        self.url = url
+        self.screenshot = screenshot
+        self.timestamp = timestamp
+        self.elements = []
+
+
+def test_tracer_emit_snapshot_basic():
+    """Test Tracer.emit_snapshot() emits snapshot event."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            snapshot = MockSnapshot(url="https://example.com")
+            tracer.emit_snapshot(
+                snapshot=snapshot,
+                step_id="step-456",
+                step_index=1,
+            )
+
+        lines = trace_path.read_text().strip().split("\n")
+        event = json.loads(lines[0])
+
+        assert event["type"] == "snapshot"
+        assert event["step_id"] == "step-456"
+        assert event["data"]["url"] == "https://example.com"
+        assert event["data"]["step_index"] == 1
+        assert event["data"]["element_count"] == 0
+
+
+def test_tracer_emit_snapshot_with_screenshot():
+    """Test Tracer.emit_snapshot() includes screenshot_base64."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            # Raw base64 string (no data URL prefix)
+            snapshot = MockSnapshot(
+                url="https://example.com",
+                screenshot="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ",
+            )
+            tracer.emit_snapshot(snapshot=snapshot, step_id="step-456")
+
+        lines = trace_path.read_text().strip().split("\n")
+        event = json.loads(lines[0])
+
+        assert event["type"] == "snapshot"
+        assert event["data"]["screenshot_base64"] == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+        assert event["data"]["screenshot_format"] == "jpeg"
+
+
+def test_tracer_emit_snapshot_with_data_url():
+    """Test Tracer.emit_snapshot() extracts base64 from data URL."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            # Data URL format (common from browser screenshot APIs)
+            snapshot = MockSnapshot(
+                url="https://example.com",
+                screenshot="data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ",
+            )
+            tracer.emit_snapshot(snapshot=snapshot, step_id="step-456")
+
+        lines = trace_path.read_text().strip().split("\n")
+        event = json.loads(lines[0])
+
+        # Should extract just the base64 part (strip data URL prefix)
+        assert event["data"]["screenshot_base64"] == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+        assert event["data"]["screenshot_format"] == "jpeg"
+
+
+def test_tracer_emit_snapshot_without_step_id():
+    """Test Tracer.emit_snapshot() works without step_id."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            snapshot = MockSnapshot(url="https://example.com")
+            tracer.emit_snapshot(snapshot=snapshot)
+
+        lines = trace_path.read_text().strip().split("\n")
+        event = json.loads(lines[0])
+
+        assert event["type"] == "snapshot"
+        assert "step_id" not in event
+        assert event["data"]["url"] == "https://example.com"
+
+
+def test_tracer_emit_snapshot_none_snapshot():
+    """Test Tracer.emit_snapshot() handles None snapshot gracefully."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            tracer.emit_snapshot(snapshot=None)
+
+        # Should not emit anything for None snapshot
+        content = trace_path.read_text().strip()
+        assert content == ""
+
+
+def test_tracer_emit_snapshot_custom_format():
+    """Test Tracer.emit_snapshot() with custom screenshot format."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trace_path = Path(tmpdir) / "trace.jsonl"
+
+        with JsonlTraceSink(trace_path) as sink:
+            tracer = Tracer(run_id="test-run-123", sink=sink)
+            snapshot = MockSnapshot(
+                url="https://example.com",
+                screenshot="iVBORw0KGgo...",
+            )
+            tracer.emit_snapshot(
+                snapshot=snapshot,
+                step_id="step-456",
+                screenshot_format="png",
+            )
+
+        lines = trace_path.read_text().strip().split("\n")
+        event = json.loads(lines[0])
+
+        assert event["data"]["screenshot_format"] == "png"

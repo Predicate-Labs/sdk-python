@@ -312,13 +312,17 @@ class AgentRuntime:
         self._cached_url = url
         return url
 
-    async def snapshot(self, **kwargs: Any) -> Snapshot:
+    async def snapshot(self, emit_trace: bool = True, **kwargs: Any) -> Snapshot:
         """
         Take a snapshot of the current page state.
 
         This updates last_snapshot which is used as context for assertions.
+        When emit_trace=True (default), automatically emits a 'snapshot' trace event
+        with screenshot_base64 for Sentience Studio visualization.
 
         Args:
+            emit_trace: If True (default), emit a 'snapshot' trace event with screenshot.
+                       Set to False to disable automatic trace emission.
             **kwargs: Override default snapshot options for this call.
                      Common options:
                      - limit: Maximum elements to return
@@ -328,6 +332,15 @@ class AgentRuntime:
 
         Returns:
             Snapshot of current page state
+
+        Example:
+            >>> # Default: snapshot with auto-emit trace event
+            >>> snapshot = await runtime.snapshot()
+
+            >>> # Disable auto-emit for manual control
+            >>> snapshot = await runtime.snapshot(emit_trace=False)
+            >>> # Later, manually emit if needed:
+            >>> tracer.emit_snapshot(snapshot, step_id=runtime.step_id)
         """
         # Check if using legacy browser (backward compat)
         if hasattr(self, "_legacy_browser") and hasattr(self, "_legacy_page"):
@@ -337,6 +350,9 @@ class AgentRuntime:
                 if self._step_pre_snapshot is None:
                     self._step_pre_snapshot = self.last_snapshot
                     self._step_pre_url = self.last_snapshot.url
+            # Auto-emit trace for legacy path too
+            if emit_trace and self.last_snapshot is not None:
+                self._emit_snapshot_trace(self.last_snapshot)
             return self.last_snapshot
 
         # Use backend-agnostic snapshot
@@ -356,7 +372,32 @@ class AgentRuntime:
                 self._step_pre_url = self.last_snapshot.url
         if not skip_captcha_handling:
             await self._handle_captcha_if_needed(self.last_snapshot, source="gateway")
+
+        # Auto-emit snapshot trace event for Studio visualization
+        if emit_trace and self.last_snapshot is not None:
+            self._emit_snapshot_trace(self.last_snapshot)
+
         return self.last_snapshot
+
+    def _emit_snapshot_trace(self, snapshot: Snapshot) -> None:
+        """
+        Emit a snapshot trace event with screenshot for Studio visualization.
+
+        This is called automatically by snapshot() when emit_trace=True.
+        """
+        if self.tracer is None:
+            return
+
+        try:
+            self.tracer.emit_snapshot(
+                snapshot=snapshot,
+                step_id=self.step_id,
+                step_index=self.step_index,
+                screenshot_format="jpeg",
+            )
+        except Exception:
+            # Best-effort: don't let trace emission errors break snapshot
+            pass
 
     async def sampled_snapshot(
         self,
@@ -903,7 +944,13 @@ class AgentRuntime:
             "url": url,
         }
 
-    def begin_step(self, goal: str, step_index: int | None = None) -> str:
+    def begin_step(
+        self,
+        goal: str,
+        step_index: int | None = None,
+        emit_trace: bool = True,
+        pre_url: str | None = None,
+    ) -> str:
         """
         Begin a new step in the verification loop.
 
@@ -911,10 +958,13 @@ class AgentRuntime:
         - Generates a new step_id
         - Clears assertions from previous step
         - Increments step_index (or uses provided value)
+        - Emits step_start trace event (optional)
 
         Args:
             goal: Description of what this step aims to achieve
             step_index: Optional explicit step index (otherwise auto-increments)
+            emit_trace: If True (default), emit step_start trace event for Studio timeline
+            pre_url: Optional URL to record in step_start event (otherwise uses cached URL)
 
         Returns:
             Generated step_id in format 'step-N' where N is the step index
@@ -938,6 +988,20 @@ class AgentRuntime:
 
         # Generate step_id in 'step-N' format for Studio compatibility
         self.step_id = f"step-{self.step_index}"
+
+        # Emit step_start trace event for Studio timeline display
+        if emit_trace and self.tracer:
+            try:
+                url = pre_url or self._cached_url or ""
+                self.tracer.emit_step_start(
+                    step_id=self.step_id,
+                    step_index=self.step_index,
+                    goal=goal,
+                    attempt=0,
+                    pre_url=url,
+                )
+            except Exception:
+                pass  # Tracing must be non-fatal
 
         return self.step_id
 

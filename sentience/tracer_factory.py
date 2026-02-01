@@ -18,6 +18,32 @@ from sentience.constants import SENTIENCE_API_URL
 from sentience.tracing import JsonlTraceSink, Tracer
 
 
+def _emit_run_start(
+    tracer: Tracer,
+    agent_type: str | None,
+    llm_model: str | None,
+    goal: str | None,
+    start_url: str | None,
+) -> None:
+    """
+    Helper to emit run_start event with available metadata.
+    """
+    try:
+        config: dict[str, Any] = {}
+        if goal:
+            config["goal"] = goal
+        if start_url:
+            config["start_url"] = start_url
+
+        tracer.emit_run_start(
+            agent=agent_type or "SentienceAgent",
+            llm_model=llm_model,
+            config=config if config else None,
+        )
+    except Exception:
+        pass  # Tracing must be non-fatal
+
+
 def create_tracer(
     api_key: str | None = None,
     run_id: str | None = None,
@@ -29,6 +55,7 @@ def create_tracer(
     llm_model: str | None = None,
     start_url: str | None = None,
     screenshot_processor: Callable[[str], str] | None = None,
+    auto_emit_run_start: bool = True,
 ) -> Tracer:
     """
     Create tracer with automatic tier detection.
@@ -56,6 +83,9 @@ def create_tracer(
         screenshot_processor: Optional function to process screenshots before upload.
                             Takes base64 string, returns processed base64 string.
                             Useful for PII redaction or custom image processing.
+        auto_emit_run_start: If True (default), automatically emit run_start event
+                            with the provided metadata. This ensures traces have
+                            complete structure for Studio visualization.
 
     Returns:
         Tracer configured with appropriate sink
@@ -71,6 +101,7 @@ def create_tracer(
         ...     start_url="https://amazon.com"
         ... )
         >>> # Returns: Tracer with CloudTraceSink
+        >>> # run_start event is automatically emitted
         >>>
         >>> # With screenshot processor for PII redaction
         >>> def redact_pii(screenshot_base64: str) -> str:
@@ -86,6 +117,10 @@ def create_tracer(
         >>> # Free tier user
         >>> tracer = create_tracer(run_id="demo")
         >>> # Returns: Tracer with JsonlTraceSink (local-only)
+        >>>
+        >>> # Disable auto-emit for manual control
+        >>> tracer = create_tracer(run_id="demo", auto_emit_run_start=False)
+        >>> tracer.emit_run_start("MyAgent", "gpt-4o")  # Manual emit
         >>>
         >>> # Use with agent
         >>> agent = SentienceAgent(browser, llm, tracer=tracer)
@@ -136,7 +171,7 @@ def create_tracer(
 
                 if upload_url:
                     print("☁️  [Sentience] Cloud tracing enabled (Pro tier)")
-                    return Tracer(
+                    tracer = Tracer(
                         run_id=run_id,
                         sink=CloudTraceSink(
                             upload_url=upload_url,
@@ -147,6 +182,10 @@ def create_tracer(
                         ),
                         screenshot_processor=screenshot_processor,
                     )
+                    # Auto-emit run_start for complete trace structure
+                    if auto_emit_run_start:
+                        _emit_run_start(tracer, agent_type, llm_model, goal, start_url)
+                    return tracer
                 else:
                     print("⚠️  [Sentience] Cloud init response missing upload_url")
                     print(f"   Response data: {data}")
@@ -204,11 +243,17 @@ def create_tracer(
     local_path = traces_dir / f"{run_id}.jsonl"
     print(f"💾 [Sentience] Local tracing: {local_path}")
 
-    return Tracer(
+    tracer = Tracer(
         run_id=run_id,
         sink=JsonlTraceSink(str(local_path)),
         screenshot_processor=screenshot_processor,
     )
+
+    # Auto-emit run_start for complete trace structure
+    if auto_emit_run_start:
+        _emit_run_start(tracer, agent_type, llm_model, goal, start_url)
+
+    return tracer
 
 
 def _recover_orphaned_traces(api_key: str, api_url: str = SENTIENCE_API_URL) -> None:
