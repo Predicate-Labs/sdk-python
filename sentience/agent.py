@@ -188,6 +188,25 @@ class SentienceAgent(BaseAgent):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+    async def _best_effort_post_snapshot_digest(self, goal: str) -> str | None:
+        """
+        Best-effort post-action snapshot digest for tracing (async).
+        """
+        try:
+            snap_opts = SnapshotOptions(
+                limit=min(10, self.default_snapshot_limit),
+                goal=f"{goal} (post)",
+            )
+            snap_opts.screenshot = False
+            snap_opts.show_overlay = self.config.show_overlay if self.config else None
+            post_snap = await snapshot_async(self.browser, snap_opts)
+            if post_snap.status != "success":
+                return None
+            digest_input = f"{post_snap.url}{post_snap.timestamp}"
+            return f"sha256:{self._compute_hash(digest_input)}"
+        except Exception:
+            return None
+
     def _best_effort_post_snapshot_digest(self, goal: str) -> str | None:
         """
         Best-effort post-action snapshot digest for tracing.
