@@ -358,6 +358,68 @@ class Tracer:
         }
         self.emit("error", data, step_id=step_id)
 
+    def emit_snapshot(
+        self,
+        snapshot: Any,
+        step_id: str | None = None,
+        step_index: int | None = None,
+        screenshot_format: str = "jpeg",
+    ) -> None:
+        """
+        Emit snapshot event with screenshot for Studio visualization.
+
+        This method builds and emits a 'snapshot' trace event that includes:
+        - Page URL and element data
+        - Screenshot (if present in snapshot)
+        - Step correlation info
+
+        Use this when you want screenshots to appear in the Sentience Studio timeline.
+
+        Args:
+            snapshot: Snapshot object (must have 'screenshot' attribute for images)
+            step_id: Step UUID (for correlating snapshot with a step)
+            step_index: Step index (0-based) for Studio timeline ordering
+            screenshot_format: Format of screenshot ("jpeg" or "png", default: "jpeg")
+
+        Example:
+            >>> # After taking a snapshot with AgentRuntime
+            >>> snapshot = await runtime.snapshot(screenshot=True)
+            >>> tracer.emit_snapshot(snapshot, step_id=runtime.step_id, step_index=runtime.step_index)
+
+            >>> # Or use auto-emit (default in AgentRuntime.snapshot())
+            >>> snapshot = await runtime.snapshot()  # Auto-emits snapshot event
+        """
+        if snapshot is None:
+            return
+
+        try:
+            # Import TraceEventBuilder here to avoid circular imports
+            from .trace_event_builder import TraceEventBuilder
+
+            # Build the snapshot event data
+            data = TraceEventBuilder.build_snapshot_event(snapshot, step_index=step_index)
+
+            # Extract and add screenshot if present
+            screenshot_raw = getattr(snapshot, "screenshot", None)
+            if screenshot_raw:
+                # Extract base64 string from data URL if needed
+                # Format: "data:image/jpeg;base64,{base64_string}"
+                if isinstance(screenshot_raw, str) and screenshot_raw.startswith("data:image"):
+                    screenshot_base64 = (
+                        screenshot_raw.split(",", 1)[1]
+                        if "," in screenshot_raw
+                        else screenshot_raw
+                    )
+                else:
+                    screenshot_base64 = screenshot_raw
+                data["screenshot_base64"] = screenshot_base64
+                data["screenshot_format"] = screenshot_format
+
+            self.emit("snapshot", data=data, step_id=step_id)
+        except Exception:
+            # Best-effort: don't let trace emission errors break the caller
+            pass
+
     def set_final_status(self, status: str) -> None:
         """
         Set the final status of the trace run.
