@@ -755,10 +755,29 @@ class CloudTraceSink(TraceSink):
             try:
                 screenshot_data = screenshots[seq]
                 base64_str = screenshot_data["base64"]
-                format_str = screenshot_data.get("format", "jpeg")
+                format_str = str(screenshot_data.get("format", "jpeg") or "jpeg").lower()
+                content_type = "image/jpeg"
 
                 # Decode base64 to image bytes
                 image_bytes = base64.b64decode(base64_str)
+                if format_str not in ("jpeg", "jpg"):
+                    # Convert to JPEG to match presigned content-type.
+                    try:
+                        from io import BytesIO
+
+                        from PIL import Image
+
+                        with Image.open(BytesIO(image_bytes)) as img:
+                            rgb = img.convert("RGB")
+                            out = BytesIO()
+                            rgb.save(out, format="JPEG", quality=80)
+                            image_bytes = out.getvalue()
+                            format_str = "jpeg"
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.warning(
+                                f"Screenshot {seq} format '{format_str}' could not be converted to JPEG: {e}"
+                            )
                 image_size = len(image_bytes)
 
                 # Update total size
@@ -769,7 +788,7 @@ class CloudTraceSink(TraceSink):
                     url,
                     data=image_bytes,  # Binary image data
                     headers={
-                        "Content-Type": f"image/{format_str}",
+                        "Content-Type": content_type,
                     },
                     timeout=30,  # 30 second timeout per screenshot
                 )
