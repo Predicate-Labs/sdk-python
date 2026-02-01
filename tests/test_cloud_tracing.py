@@ -401,34 +401,32 @@ class TestCloudTraceSink:
 
         sink = CloudTraceSink(upload_url, run_id=run_id)
 
-        # Test JPEG data URL
-        jpeg_data_url = "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
-        base64_str, fmt = sink._normalize_screenshot_data(jpeg_data_url)
-        assert base64_str == "/9j/4AAQSkZJRg..."
-        assert fmt == "jpeg"
+        try:
+            # Test JPEG data URL
+            jpeg_data_url = "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+            base64_str, fmt = sink._normalize_screenshot_data(jpeg_data_url)
+            assert base64_str == "/9j/4AAQSkZJRg..."
+            assert fmt == "jpeg"
 
-        # Test PNG data URL
-        png_data_url = "data:image/png;base64,iVBORw0KGgoAAAA..."
-        base64_str, fmt = sink._normalize_screenshot_data(png_data_url)
-        assert base64_str == "iVBORw0KGgoAAAA..."
-        assert fmt == "png"
+            # Test PNG data URL
+            png_data_url = "data:image/png;base64,iVBORw0KGgoAAAA..."
+            base64_str, fmt = sink._normalize_screenshot_data(png_data_url)
+            assert base64_str == "iVBORw0KGgoAAAA..."
+            assert fmt == "png"
 
-        # Test pure base64 (should pass through unchanged)
-        pure_base64 = "/9j/4AAQSkZJRg..."
-        base64_str, fmt = sink._normalize_screenshot_data(pure_base64, "jpeg")
-        assert base64_str == "/9j/4AAQSkZJRg..."
-        assert fmt == "jpeg"
+            # Test pure base64 (should pass through unchanged)
+            pure_base64 = "/9j/4AAQSkZJRg..."
+            base64_str, fmt = sink._normalize_screenshot_data(pure_base64, "jpeg")
+            assert base64_str == "/9j/4AAQSkZJRg..."
+            assert fmt == "jpeg"
 
-        # Test empty string
-        base64_str, fmt = sink._normalize_screenshot_data("")
-        assert base64_str == ""
-        assert fmt == "jpeg"
-
-        # Cleanup
-        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
-        trace_path = cache_dir / f"{run_id}.jsonl"
-        if trace_path.exists():
-            os.remove(trace_path)
+            # Test empty string
+            base64_str, fmt = sink._normalize_screenshot_data("")
+            assert base64_str == ""
+            assert fmt == "jpeg"
+        finally:
+            # Close the sink to release file handle (required on Windows)
+            sink.close()
 
     def test_cloud_trace_sink_handles_data_url_in_screenshot(self):
         """Test that CloudTraceSink properly extracts screenshots from data URLs."""
