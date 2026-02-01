@@ -581,6 +581,56 @@ class CloudTraceSink(TraceSink):
             if self.logger:
                 self.logger.warning(f"Error reporting trace completion: {e}")
 
+    def _normalize_screenshot_data(
+        self, screenshot_raw: str, default_format: str = "jpeg"
+    ) -> tuple[str, str]:
+        """
+        Normalize screenshot data by extracting base64 from data URL if needed.
+
+        Handles both formats:
+        - Data URL: "data:image/jpeg;base64,/9j/4AAQ..."
+        - Pure base64: "/9j/4AAQ..."
+
+        Args:
+            screenshot_raw: Raw screenshot data (data URL or base64)
+            default_format: Default format if not detected from data URL
+
+        Returns:
+            Tuple of (base64_string, format_string)
+        """
+        if not screenshot_raw:
+            return "", default_format
+
+        # Check if it's a data URL
+        if screenshot_raw.startswith("data:image"):
+            # Extract format from "data:image/jpeg;base64,..." or "data:image/png;base64,..."
+            try:
+                # Split on comma to get the base64 part
+                if "," in screenshot_raw:
+                    header, base64_data = screenshot_raw.split(",", 1)
+                    # Extract format from header: "data:image/jpeg;base64"
+                    if "/" in header and ";" in header:
+                        format_part = header.split("/")[1].split(";")[0]
+                        if format_part in ("jpeg", "jpg"):
+                            return base64_data, "jpeg"
+                        elif format_part == "png":
+                            return base64_data, "png"
+                    return base64_data, default_format
+                else:
+                    # Malformed data URL - return as-is with warning
+                    if self.logger:
+                        self.logger.warning(
+                            "Malformed data URL in screenshot_base64 (missing comma)"
+                        )
+                    return screenshot_raw, default_format
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Error parsing screenshot data URL: {e}")
+                return screenshot_raw, default_format
+
+        # Already pure base64
+        return screenshot_raw, default_format
+
     def _extract_screenshots_from_trace(self) -> dict[int, dict[str, Any]]:
         """
         Extract screenshots from trace events.
@@ -604,15 +654,22 @@ class CloudTraceSink(TraceSink):
                 # Check if this is a snapshot event with screenshot
                 if event.get("type") == "snapshot":
                     data = event.get("data", {})
-                    screenshot_base64 = data.get("screenshot_base64")
+                    screenshot_raw = data.get("screenshot_base64")
 
-                    if screenshot_base64:
-                        sequence += 1
-                        screenshots[sequence] = {
-                            "base64": screenshot_base64,
-                            "format": data.get("screenshot_format", "jpeg"),
-                            "step_id": event.get("step_id"),
-                        }
+                    if screenshot_raw:
+                        # Normalize: extract base64 from data URL if needed
+                        # Handles both "data:image/jpeg;base64,..." and pure base64
+                        screenshot_base64, screenshot_format = self._normalize_screenshot_data(
+                            screenshot_raw,
+                            data.get("screenshot_format", "jpeg"),
+                        )
+                        if screenshot_base64:
+                            sequence += 1
+                            screenshots[sequence] = {
+                                "base64": screenshot_base64,
+                                "format": screenshot_format,
+                                "step_id": event.get("step_id"),
+                            }
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Error extracting screenshots: {e}")

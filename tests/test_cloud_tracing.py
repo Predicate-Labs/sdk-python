@@ -394,6 +394,92 @@ class TestCloudTraceSink:
         if cleaned_trace_path.exists():
             os.remove(cleaned_trace_path)
 
+    def test_normalize_screenshot_data_handles_data_url(self):
+        """Test that _normalize_screenshot_data extracts base64 from data URLs."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+
+        sink = CloudTraceSink(upload_url, run_id=run_id)
+
+        # Test JPEG data URL
+        jpeg_data_url = "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+        base64_str, fmt = sink._normalize_screenshot_data(jpeg_data_url)
+        assert base64_str == "/9j/4AAQSkZJRg..."
+        assert fmt == "jpeg"
+
+        # Test PNG data URL
+        png_data_url = "data:image/png;base64,iVBORw0KGgoAAAA..."
+        base64_str, fmt = sink._normalize_screenshot_data(png_data_url)
+        assert base64_str == "iVBORw0KGgoAAAA..."
+        assert fmt == "png"
+
+        # Test pure base64 (should pass through unchanged)
+        pure_base64 = "/9j/4AAQSkZJRg..."
+        base64_str, fmt = sink._normalize_screenshot_data(pure_base64, "jpeg")
+        assert base64_str == "/9j/4AAQSkZJRg..."
+        assert fmt == "jpeg"
+
+        # Test empty string
+        base64_str, fmt = sink._normalize_screenshot_data("")
+        assert base64_str == ""
+        assert fmt == "jpeg"
+
+        # Cleanup
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        if trace_path.exists():
+            os.remove(trace_path)
+
+    def test_cloud_trace_sink_handles_data_url_in_screenshot(self):
+        """Test that CloudTraceSink properly extracts screenshots from data URLs."""
+        upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
+        run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+        api_key = "sk_test_123"
+
+        # Create test screenshot as a data URL (how langchain-debugging was sending it)
+        test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        data_url = f"data:image/png;base64,{test_image_base64}"
+
+        sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
+
+        # Emit trace event with screenshot as data URL (not pure base64)
+        sink.emit(
+            {
+                "v": 1,
+                "type": "snapshot",
+                "ts": "2026-01-01T00:00:00.000Z",
+                "run_id": run_id,
+                "seq": 1,
+                "step_id": "step-1",
+                "data": {
+                    "url": "https://example.com",
+                    "element_count": 10,
+                    "screenshot_base64": data_url,  # Data URL, not pure base64
+                    "screenshot_format": "png",
+                },
+            }
+        )
+
+        # Extract screenshots - should normalize data URL to pure base64
+        screenshots = sink._extract_screenshots_from_trace()
+
+        assert len(screenshots) == 1
+        assert 1 in screenshots
+        # Verify the base64 was extracted from data URL (no "data:image" prefix)
+        assert screenshots[1]["base64"] == test_image_base64
+        assert not screenshots[1]["base64"].startswith("data:")
+        assert screenshots[1]["format"] == "png"
+
+        # Cleanup
+        sink.close()
+        cache_dir = Path.home() / ".sentience" / "traces" / "pending"
+        trace_path = cache_dir / f"{run_id}.jsonl"
+        cleaned_trace_path = cache_dir / f"{run_id}.cleaned.jsonl"
+        if trace_path.exists():
+            os.remove(trace_path)
+        if cleaned_trace_path.exists():
+            os.remove(cleaned_trace_path)
+
 
 class TestTracerFactory:
     """Test create_tracer factory function."""
