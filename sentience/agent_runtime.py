@@ -612,8 +612,51 @@ class AgentRuntime:
             iframe_hits = _list("iframe_src_hits")
             url_hits = _list("url_hits")
             text_hits = _list("text_hits")
+            selector_hits = _list("selector_hits")
+
             # If we only saw selector/script hints, treat as non-blocking.
             if not iframe_hits and not url_hits and not text_hits:
+                return False
+
+            # Heuristic: many sites include a passive reCAPTCHA badge (v3) that should NOT block.
+            # We only want to block when there's evidence of an interactive challenge.
+            hits_all = [*iframe_hits, *url_hits, *text_hits, *selector_hits]
+            hits_l = [str(x).lower() for x in hits_all if x]
+
+            strong_text = any(
+                k in " ".join(hits_l)
+                for k in (
+                    "i'm not a robot",
+                    "verify you are human",
+                    "human verification",
+                    "complete the security check",
+                    "please verify",
+                )
+            )
+            strong_iframe = any(
+                any(k in h for k in ("api2/bframe", "hcaptcha", "turnstile"))
+                for h in hits_l
+            )
+            strong_selector = any(
+                any(
+                    k in h
+                    for k in (
+                        "g-recaptcha-response",
+                        "h-captcha-response",
+                        "cf-turnstile-response",
+                        "recaptcha-checkbox",
+                        "hcaptcha-checkbox",
+                    )
+                )
+                for h in hits_l
+            )
+            only_generic = (
+                not strong_text
+                and not strong_iframe
+                and not strong_selector
+                and all(("captcha" in h or "recaptcha" in h) for h in hits_l)
+            )
+            if only_generic:
                 return False
         confidence = getattr(captcha, "confidence", 0.0)
         return confidence >= self._captcha_options.min_confidence

@@ -1,0 +1,5 @@
+{"v": 1, "type": "run_start", "ts": "2026-02-05T06:20:59.000Z", "run_id": "test-run", "seq": 1, "data": {"agent": "SentienceAgent"}, "ts_ms": 1770272459843}
+{"v": 1, "type": "run_start", "ts": "2026-02-05T06:20:59.000Z", "run_id": "test-run", "seq": 1, "data": {"agent": "SentienceAgent"}, "ts_ms": 1770272459845}
+{"v": 1, "type": "run_start", "ts": "2026-02-05T06:20:59.000Z", "run_id": "test-run", "seq": 1, "data": {"agent": "SentienceAgent"}, "ts_ms": 1770272459846}
+{"v": 1, "type": "run_start", "ts": "2026-02-05T06:20:59.000Z", "run_id": "test-run", "seq": 1, "data": {"agent": "SentienceAgent"}, "ts_ms": 1770272459848}
+{"v": 1, "type": "run_start", "ts": "2026-02-05T06:20:59.000Z", "run_id": "test-run", "seq": 1, "data": {"agent": "SentienceAgent"}, "ts_ms": 1770272459855}

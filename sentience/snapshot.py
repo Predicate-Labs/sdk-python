@@ -106,6 +106,13 @@ class SnapshotGatewayError(RuntimeError):
             bits.append(f"err_type={type(e).__name__}")
             if err_s:
                 bits.append(f"err={err_s}")
+            else:
+                # Some transport errors (e.g. httpx.ReadError) can stringify to "".
+                # Include repr() so callers can still see the exception type/shape.
+                try:
+                    bits.append(f"err_repr={cls._snip(repr(e), 220)}")
+                except Exception:
+                    pass
         if bits:
             msg = f"{msg}: " + " ".join(bits)
         msg = msg + ". Try using use_api=False to use local extension instead."
@@ -162,6 +169,11 @@ class SnapshotGatewayError(RuntimeError):
             bits.append(f"err_type={type(e).__name__}")
             if err_s:
                 bits.append(f"err={err_s}")
+            else:
+                try:
+                    bits.append(f"err_repr={cls._snip(repr(e), 220)}")
+                except Exception:
+                    pass
         if bits:
             msg = f"{msg}: " + " ".join(bits)
         msg = msg + ". Try using use_api=False to use local extension instead."
@@ -311,6 +323,8 @@ def _post_snapshot_to_gateway_sync(
     payload: dict[str, Any],
     api_key: str,
     api_url: str = SENTIENCE_API_URL,
+    *,
+    timeout_s: float | None = None,
 ) -> dict[str, Any]:
     """
     Post snapshot payload to gateway (synchronous).
@@ -326,11 +340,12 @@ def _post_snapshot_to_gateway_sync(
     }
 
     try:
+        timeout = 30 if timeout_s is None else float(timeout_s)
         response = requests.post(
             f"{api_url}/v1/snapshot",
             data=payload_json,
             headers=headers,
-            timeout=30,
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()
@@ -345,6 +360,8 @@ async def _post_snapshot_to_gateway_async(
     payload: dict[str, Any],
     api_key: str,
     api_url: str = SENTIENCE_API_URL,
+    *,
+    timeout_s: float | None = None,
 ) -> dict[str, Any]:
     """
     Post snapshot payload to gateway (asynchronous).
@@ -362,7 +379,8 @@ async def _post_snapshot_to_gateway_async(
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    timeout = 30.0 if timeout_s is None else float(timeout_s)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             response = await client.post(
                 f"{api_url}/v1/snapshot",
@@ -604,7 +622,12 @@ def _snapshot_via_api(
     payload = _build_snapshot_payload(raw_result, options)
 
     try:
-        api_result = _post_snapshot_to_gateway_sync(payload, api_key, api_url)
+        api_result = _post_snapshot_to_gateway_sync(
+            payload,
+            api_key,
+            api_url,
+            timeout_s=options.gateway_timeout_s,
+        )
 
         # Merge API result with local data (screenshot, etc.)
         snapshot_data = _merge_api_result_with_local(api_result, raw_result)
@@ -923,7 +946,8 @@ async def _snapshot_via_api_async(
         # Lazy import httpx - only needed for async API calls
         import httpx
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        timeout = 30.0 if options.gateway_timeout_s is None else float(options.gateway_timeout_s)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{api_url}/v1/snapshot",
                 content=payload_json,

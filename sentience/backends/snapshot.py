@@ -595,7 +595,10 @@ async def _snapshot_via_api(
 
     try:
         api_result = await _post_snapshot_to_gateway_async(
-            payload, options.sentience_api_key, api_url
+            payload,
+            options.sentience_api_key,
+            api_url,
+            timeout_s=options.gateway_timeout_s,
         )
 
         # Merge API result with local data (screenshot, etc.)
