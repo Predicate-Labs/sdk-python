@@ -776,6 +776,7 @@ class SnapshotOptions(BaseModel):
     limit: int = Field(50, ge=1, le=500)
     filter: SnapshotFilter | None = None
     use_api: bool | None = None  # Force API vs extension
+    gateway_timeout_s: float | None = None  # Gateway snapshot timeout (seconds)
     save_trace: bool = False  # Save raw_elements to JSON for benchmarking/training
     trace_path: str | None = None  # Path to save trace (default: "trace_{timestamp}.json")
     goal: str | None = None  # Optional goal/task description for the snapshot
