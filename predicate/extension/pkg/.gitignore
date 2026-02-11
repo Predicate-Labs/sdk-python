@@ -1,0 +1,4 @@
+*
+!.gitignore
+!sentience_core.js
+!sentience_core_bg.wasm

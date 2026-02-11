@@ -156,9 +156,24 @@ jobs:
         # Copy files from temp directory
         cp -r extension-temp/* "$TARGET_DIR/"
 
-        # Verify copy
-        if [ ! -f "$TARGET_DIR/manifest.json" ]; then
-          echo "❌ Failed to copy manifest.json to $TARGET_DIR"
+        # Verify required files were copied (including WASM pkg artifacts)
+        REQUIRED_FILES=(
+          "$TARGET_DIR/manifest.json"
+          "$TARGET_DIR/content.js"
+          "$TARGET_DIR/background.js"
+          "$TARGET_DIR/injected_api.js"
+          "$TARGET_DIR/pkg/sentience_core.js"
+          "$TARGET_DIR/pkg/sentience_core_bg.wasm"
+        )
+        MISSING_FILES=()
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            MISSING_FILES+=("$file")
+          fi
+        done
+        if [ ${#MISSING_FILES[@]} -ne 0 ]; then
+          echo "❌ Extension sync incomplete. Missing required files:"
+          printf '  - %s\n' "${MISSING_FILES[@]}"
           exit 1
         fi
 
