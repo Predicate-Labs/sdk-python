@@ -270,13 +270,28 @@ class SentienceBrowser:
         self.playwright = sync_playwright().start()
 
         # Build launch arguments
+        #
+        # NOTE: Prefer a single --disable-features=... flag; Chrome's behavior with
+        # multiple flags is easy to get wrong (last-one-wins vs merge).
+        #
+        # - WebRtcHideLocalIpsWithMdns: WebRTC leak protection
+        # - TranslateUI: reduce UI popups / noise in automation
+        # - EnableTLS13EarlyData: avoid intermittent HTTP 425 "too early" responses
+        #   from some CDNs/origins when Chrome uses TLS 1.3 0-RTT early data.
+        disabled_features = [
+            "WebRtcHideLocalIpsWithMdns",
+            "TranslateUI",
+            "EnableTLS13EarlyData",
+        ]
         args = [
             f"--disable-extensions-except={self._extension_path}",
             f"--load-extension={self._extension_path}",
             "--disable-blink-features=AutomationControlled",  # Hides 'navigator.webdriver'
             "--disable-infobars",
-            # WebRTC leak protection (prevents real IP exposure when using proxies/VPNs)
-            "--disable-features=WebRtcHideLocalIpsWithMdns",
+            # HTTP/3 (QUIC) can surface intermittent edge/CDN weirdness in automation
+            # (including minimal error pages like "too early"). Prefer stability.
+            "--disable-quic",
+            f"--disable-features={','.join(disabled_features)}",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
 
@@ -302,7 +317,6 @@ class SentienceBrowser:
                     "--disable-background-timer-throttling",  # Disable background throttling
                     "--disable-backgrounding-occluded-windows",  # Disable backgrounding
                     "--disable-renderer-backgrounding",  # Disable renderer backgrounding
-                    "--disable-features=TranslateUI",  # Disable translate UI
                     "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
                     "--disable-logging",  # Disable logging to reduce stderr noise
                     "--log-level=3",  # Set log level to fatal only (suppresses warnings)
@@ -902,12 +916,21 @@ class AsyncSentienceBrowser:
         self.playwright = await async_playwright().start()
 
         # Build launch arguments
+        #
+        # NOTE: Prefer a single --disable-features=... flag; Chrome's behavior with
+        # multiple flags is easy to get wrong (last-one-wins vs merge).
+        disabled_features = [
+            "WebRtcHideLocalIpsWithMdns",
+            "TranslateUI",
+            "EnableTLS13EarlyData",
+        ]
         args = [
             f"--disable-extensions-except={self._extension_path}",
             f"--load-extension={self._extension_path}",
             "--disable-blink-features=AutomationControlled",
             "--disable-infobars",
-            "--disable-features=WebRtcHideLocalIpsWithMdns",
+            "--disable-quic",
+            f"--disable-features={','.join(disabled_features)}",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         ]
 
@@ -933,7 +956,6 @@ class AsyncSentienceBrowser:
                     "--disable-background-timer-throttling",  # Disable background throttling
                     "--disable-backgrounding-occluded-windows",  # Disable backgrounding
                     "--disable-renderer-backgrounding",  # Disable renderer backgrounding
-                    "--disable-features=TranslateUI",  # Disable translate UI
                     "--disable-ipc-flooding-protection",  # Disable IPC flooding protection
                     "--disable-logging",  # Disable logging to reduce stderr noise
                     "--log-level=3",  # Set log level to fatal only (suppresses warnings)
