@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sentience.trace_file_manager import TraceFileManager
+from predicate.trace_file_manager import TraceFileManager
 
 
 class TestTraceFileManager:

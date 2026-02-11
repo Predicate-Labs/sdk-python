@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from sentience.agent_runtime import AgentRuntime
-from sentience.captcha import PageControlHook
-from sentience.models import CaptchaDiagnostics, CaptchaEvidence, Snapshot, SnapshotDiagnostics
+from predicate.agent_runtime import AgentRuntime
+from predicate.captcha import PageControlHook
+from predicate.models import CaptchaDiagnostics, CaptchaEvidence, Snapshot, SnapshotDiagnostics
 
 
 class EvalBackend:

@@ -10,7 +10,7 @@ import os
 
 from markdownify import markdownify
 
-from sentience.async_api import AsyncSentienceBrowser, read_async
+from predicate.async_api import AsyncSentienceBrowser, read_async
 
 
 async def main():

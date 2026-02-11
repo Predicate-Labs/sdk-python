@@ -4,7 +4,7 @@ Example: Wait for element and click
 
 import os
 
-from sentience import SentienceBrowser, click, expect, find, snapshot, wait_for
+from predicate import SentienceBrowser, click, expect, find, snapshot, wait_for
 
 
 def main():

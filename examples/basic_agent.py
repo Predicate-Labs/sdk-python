@@ -4,7 +4,7 @@ Example: Basic snapshot functionality
 
 import os
 
-from sentience import SentienceBrowser, snapshot
+from predicate import SentienceBrowser, snapshot
 
 
 def main():

@@ -4,7 +4,7 @@ Example: Query engine demonstration
 
 import os
 
-from sentience import SentienceBrowser, find, query, snapshot
+from predicate import SentienceBrowser, find, query, snapshot
 
 
 def main():

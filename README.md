@@ -28,7 +28,7 @@ The core loop is:
 ## Install
 
 ```bash
-pip install sentienceapi
+pip install predicatelabs
 playwright install chromium
 ```
 
@@ -47,9 +47,9 @@ This is the smallest useful pattern: snapshot → assert → act → assert-done
 ```python
 import asyncio
 
-from sentience import AgentRuntime, AsyncSentienceBrowser
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import exists, url_contains
+from predicate import AgentRuntime, AsyncSentienceBrowser
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import exists, url_contains
 
 
 async def main() -> None:
@@ -85,8 +85,8 @@ If you already have an agent loop (LangGraph, browser-use, custom planner/execut
 Key idea: your agent still decides and executes actions — Sentience **snapshots and verifies outcomes**.
 
 ```python
-from sentience import SentienceDebugger, create_tracer
-from sentience.verification import exists, url_contains
+from predicate import SentienceDebugger, create_tracer
+from predicate.verification import exists, url_contains
 
 
 async def run_existing_agent(page) -> None:
@@ -111,7 +111,7 @@ async def run_existing_agent(page) -> None:
 If you want Sentience to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
 
 ```python
-from sentience import SentienceBrowser, snapshot, find, click, type_text, wait_for
+from predicate import SentienceBrowser, snapshot, find, click, type_text, wait_for
 
 
 def login_example() -> None:
@@ -171,7 +171,7 @@ def login_example() -> None:
 Sentience can expose a **typed tool surface** for agents (with tool-call tracing).
 
 ```python
-from sentience.tools import ToolRegistry, register_default_tools
+from predicate.tools import ToolRegistry, register_default_tools
 
 registry = ToolRegistry()
 register_default_tools(registry, runtime)  # or pass a ToolContext
@@ -185,7 +185,7 @@ tools_for_llm = registry.llm_tools()
 Chrome permission prompts are outside the DOM and can be invisible to snapshots. Prefer setting a policy **before navigation**.
 
 ```python
-from sentience import AsyncSentienceBrowser, PermissionPolicy
+from predicate import AsyncSentienceBrowser, PermissionPolicy
 
 policy = PermissionPolicy(
     default="clear",
@@ -205,7 +205,7 @@ If your backend supports it, you can also use ToolRegistry permission tools (`gr
 If a flow is expected to download a file, assert it explicitly:
 
 ```python
-from sentience.verification import download_completed
+from predicate.verification import download_completed
 
 runtime.assert_(download_completed("report.csv"), label="download_ok", required=True)
 ```

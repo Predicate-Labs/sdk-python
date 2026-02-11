@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.read import extract
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.read import extract
 
 
 class LLMStub(LLMProvider):
@@ -88,7 +88,7 @@ def test_extract_schema_invalid_json() -> None:
 async def test_extract_async_schema_success() -> None:
     browser = AsyncBrowserStub("Product: Widget")
     llm = LLMStub('{"name":"Widget","price":"$10"}')
-    from sentience.read import extract_async
+    from predicate.read import extract_async
 
     result = await extract_async(browser, llm, query="Extract item", schema=ItemSchema)
     assert result.ok is True

@@ -1,7 +1,7 @@
 """
 Unit-test-only stubs.
 
-The core Sentience SDK imports Playwright at module import time (`sentience.browser`),
+The core Sentience SDK imports Playwright at module import time (`predicate.browser`),
 but many unit tests don't actually need a real browser. In CI and developer envs,
 Playwright is usually installed; however in constrained environments it may not be.
 
@@ -45,7 +45,7 @@ def _ensure_playwright_stubs() -> None:
     class _Dummy:
         """Placeholder type used for Playwright classes in unit tests."""
 
-    # Minimal symbols imported by `sentience.browser`
+    # Minimal symbols imported by `predicate.browser`
     async_api_mod.BrowserContext = _Dummy
     async_api_mod.Browser = _Dummy
     async_api_mod.Page = _Dummy

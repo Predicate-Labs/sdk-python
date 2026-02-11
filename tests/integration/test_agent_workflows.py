@@ -9,10 +9,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sentience.agent import SentienceAgent
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.protocols import BrowserProtocol, PageProtocol
+from predicate.agent import SentienceAgent
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.protocols import BrowserProtocol, PageProtocol
 
 
 class MockLLMProvider(LLMProvider):
@@ -146,11 +146,11 @@ class TestAgentMultiStepWorkflows:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
-            patch("sentience.action_executor.type_text") as mock_type,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
+            patch("predicate.action_executor.type_text") as mock_type,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(
@@ -183,10 +183,10 @@ class TestAgentMultiStepWorkflows:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # First call raises exception (triggers retry), second succeeds
@@ -209,10 +209,10 @@ class TestAgentMultiStepWorkflows:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(
@@ -232,7 +232,7 @@ class TestAgentMultiStepWorkflows:
         llm = MockLLMProvider(responses=["FINISH()"])
         agent = SentienceAgent(browser, llm, verbose=False)
 
-        with patch("sentience.agent.snapshot") as mock_snapshot:
+        with patch("predicate.agent.snapshot") as mock_snapshot:
             mock_snapshot.return_value = create_mock_snapshot()
 
             result = agent.act("Task is complete", max_retries=0)
@@ -249,10 +249,10 @@ class TestAgentMultiStepWorkflows:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(
@@ -282,10 +282,10 @@ class TestAgentErrorRecovery:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult, Snapshot
+            from predicate.models import ActionResult, Snapshot
 
             # First snapshot fails, second succeeds
             failed_snapshot = Snapshot(
@@ -319,10 +319,10 @@ class TestAgentErrorRecovery:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # First action fails, second succeeds
@@ -345,10 +345,10 @@ class TestAgentErrorRecovery:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # Raise exception to trigger retry logic (agent only retries on exceptions, not failed results)
@@ -375,10 +375,10 @@ class TestAgentStateManagement:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(
@@ -404,10 +404,10 @@ class TestAgentStateManagement:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.agent.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.agent.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(

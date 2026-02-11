@@ -5,7 +5,7 @@ Demonstrates waiting for elements using semantic selectors
 
 import os
 
-from sentience import SentienceBrowser, click, wait_for
+from predicate import SentienceBrowser, click, wait_for
 
 
 def main():

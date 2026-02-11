@@ -1,4 +1,4 @@
-"""Tests for sentience.cloud_tracing module"""
+"""Tests for predicate.cloud_tracing module"""
 
 import base64
 import gzip
@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from sentience.cloud_tracing import CloudTraceSink
-from sentience.tracer_factory import create_tracer
-from sentience.tracing import JsonlTraceSink, Tracer
+from predicate.cloud_tracing import CloudTraceSink
+from predicate.tracer_factory import create_tracer
+from predicate.tracing import JsonlTraceSink, Tracer
 
 
 class TestCloudTraceSink:
@@ -30,7 +30,7 @@ class TestCloudTraceSink:
             mock_home = Path(tmp_dir)
 
             # Patch Path.home in the cloud_tracing module
-            with patch("sentience.cloud_tracing.Path.home", return_value=mock_home):
+            with patch("predicate.cloud_tracing.Path.home", return_value=mock_home):
                 # Also patch it in the current test module if used directly
                 with patch("pathlib.Path.home", return_value=mock_home):
                     yield mock_home
@@ -40,7 +40,7 @@ class TestCloudTraceSink:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
         run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             # Mock successful response
             mock_response = Mock()
             mock_response.status_code = 200
@@ -87,7 +87,7 @@ class TestCloudTraceSink:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
         run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             # Mock failed response
             mock_response = Mock()
             mock_response.status_code = 500
@@ -130,7 +130,7 @@ class TestCloudTraceSink:
 
     def test_cloud_trace_sink_context_manager(self):
         """Test CloudTraceSink works as context manager."""
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
@@ -146,7 +146,7 @@ class TestCloudTraceSink:
         upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
         run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             # Simulate network error
             mock_put.side_effect = Exception("Network error")
 
@@ -167,7 +167,7 @@ class TestCloudTraceSink:
 
     def test_cloud_trace_sink_multiple_close_safe(self):
         """Test CloudTraceSink.close() is idempotent."""
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
 
             upload_url = "https://test.com/upload"
@@ -207,7 +207,7 @@ class TestCloudTraceSink:
         upload_url = "https://test.com/upload"
         run_id = f"test-run-{uuid.uuid4().hex[:8]}"
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
 
             sink = CloudTraceSink(upload_url, run_id=run_id)
@@ -236,7 +236,7 @@ class TestCloudTraceSink:
         def progress_callback(uploaded: int, total: int):
             progress_calls.append((uploaded, total))
 
-        with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.cloud_tracing.requests.put") as mock_put:
             mock_put.return_value = Mock(status_code=200)
 
             sink = CloudTraceSink(upload_url, run_id=run_id)
@@ -284,8 +284,8 @@ class TestCloudTraceSink:
         }
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
         ):
             # Mock trace upload (first PUT)
             mock_trace_response = Mock()
@@ -485,9 +485,9 @@ class TestTracerFactory:
     def test_create_tracer_pro_tier_success(self, capsys):
         """Test create_tracer returns CloudTraceSink for Pro tier."""
         # Patch orphaned trace recovery to avoid extra API calls
-        with patch("sentience.tracer_factory._recover_orphaned_traces"):
-            with patch("sentience.tracer_factory.requests.post") as mock_post:
-                with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.tracer_factory._recover_orphaned_traces"):
+            with patch("predicate.tracer_factory.requests.post") as mock_post:
+                with patch("predicate.cloud_tracing.requests.put") as mock_put:
                     # Mock API response
                     mock_response = Mock()
                     mock_response.status_code = 200
@@ -547,7 +547,7 @@ class TestTracerFactory:
 
     def test_create_tracer_api_forbidden_fallback(self, capsys):
         """Test create_tracer falls back when API returns 403 Forbidden."""
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
             # Mock API response with 403
             mock_response = Mock()
             mock_response.status_code = 403
@@ -572,7 +572,7 @@ class TestTracerFactory:
         """Test create_tracer falls back on timeout."""
         import requests
 
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
             # Mock timeout
             mock_post.side_effect = requests.exceptions.Timeout("Connection timeout")
 
@@ -593,7 +593,7 @@ class TestTracerFactory:
         """Test create_tracer falls back on connection error."""
         import requests
 
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
             # Mock connection error
             mock_post.side_effect = requests.exceptions.ConnectionError("Connection refused")
 
@@ -621,11 +621,11 @@ class TestTracerFactory:
             tracer.close()
 
     def test_create_tracer_uses_constant_api_url(self):
-        """Test create_tracer uses constant SENTIENCE_API_URL."""
-        from sentience.tracer_factory import SENTIENCE_API_URL
+        """Test create_tracer uses canonical PREDICATE_API_URL."""
+        from predicate.constants import PREDICATE_API_URL
 
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
-            with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
+            with patch("predicate.cloud_tracing.requests.put") as mock_put:
                 # Mock API response
                 mock_response = Mock()
                 mock_response.status_code = 200
@@ -638,8 +638,8 @@ class TestTracerFactory:
                 # Verify correct API URL was used (constant)
                 assert mock_post.called
                 call_args = mock_post.call_args
-                assert call_args[0][0] == f"{SENTIENCE_API_URL}/v1/traces/init"
-                assert SENTIENCE_API_URL == "https://api.sentienceapi.com"
+                assert call_args[0][0] == f"{PREDICATE_API_URL}/v1/traces/init"
+                assert PREDICATE_API_URL == "https://api.sentienceapi.com"
 
                 tracer.close()
 
@@ -647,8 +647,8 @@ class TestTracerFactory:
         """Test create_tracer accepts custom api_url parameter."""
         custom_api_url = "https://custom.api.example.com"
 
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
-            with patch("sentience.cloud_tracing.requests.put") as mock_put:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
+            with patch("predicate.cloud_tracing.requests.put") as mock_put:
                 # Mock API response
                 mock_response = Mock()
                 mock_response.status_code = 200
@@ -672,7 +672,7 @@ class TestTracerFactory:
 
     def test_create_tracer_missing_upload_url_in_response(self, capsys):
         """Test create_tracer handles missing upload_url gracefully."""
-        with patch("sentience.tracer_factory.requests.post") as mock_post:
+        with patch("predicate.tracer_factory.requests.post") as mock_post:
             # Mock API response without upload_url
             mock_response = Mock()
             mock_response.status_code = 200
@@ -707,8 +707,8 @@ class TestTracerFactory:
             f.write('{"v": 1, "type": "run_start", "seq": 1}\n')
 
         try:
-            with patch("sentience.tracer_factory.requests.post") as mock_post:
-                with patch("sentience.tracer_factory.requests.put") as mock_put:
+            with patch("predicate.tracer_factory.requests.post") as mock_post:
+                with patch("predicate.tracer_factory.requests.put") as mock_put:
                     # Mock API response for orphaned trace recovery
                     mock_recovery_response = Mock()
                     mock_recovery_response.status_code = 200
@@ -761,7 +761,7 @@ class TestCreateTracerAutoEmitRunStart:
         """Test create_tracer automatically emits run_start event."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use local tracing (no API key) for simplicity
-            with patch("sentience.tracer_factory.Path") as mock_path_cls:
+            with patch("predicate.tracer_factory.Path") as mock_path_cls:
                 # Make traces dir point to temp dir
                 mock_path_cls.return_value.mkdir = Mock()
                 mock_path_cls.return_value.__truediv__ = lambda self, x: Path(tmpdir) / x
@@ -811,7 +811,7 @@ class TestCreateTracerAutoEmitRunStart:
             tracer = Tracer(run_id="test-run", sink=sink)
 
             # Import and call the helper directly
-            from sentience.tracer_factory import _emit_run_start
+            from predicate.tracer_factory import _emit_run_start
 
             _emit_run_start(
                 tracer,
@@ -884,8 +884,8 @@ class TestRegressionTests:
         run_id = "test-index-upload"
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
         ):
             # Mock successful trace upload
             trace_response = Mock()
@@ -952,8 +952,8 @@ class TestRegressionTests:
         run_id = "test-no-api-key"
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
         ):
             # Mock successful trace upload
             mock_put.return_value = Mock(status_code=200)
@@ -985,8 +985,8 @@ class TestRegressionTests:
         run_id = "test-index-fail"
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
         ):
             # Mock successful trace upload
             trace_response = Mock()
@@ -1029,9 +1029,9 @@ class TestRegressionTests:
         run_id = "test-missing-index"
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
-            patch("sentience.trace_indexing.write_trace_index") as mock_write_index,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.trace_indexing.write_trace_index") as mock_write_index,
         ):
             # Mock index generation to fail (simulating missing index)
             mock_write_index.side_effect = Exception("Index generation failed")
@@ -1119,8 +1119,8 @@ class TestRegressionTests:
         )
 
         with (
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
         ):
             # Mock successful trace upload
             mock_put.return_value = Mock(status_code=200)

@@ -4,8 +4,8 @@ Tests for verification module - assertion predicates for agent loops.
 
 import pytest
 
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.verification import (
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.verification import (
     AssertContext,
     AssertOutcome,
     all_of,
@@ -26,7 +26,7 @@ from sentience.verification import (
     value_contains,
     value_equals,
 )
-from sentience.vision_executor import parse_vision_executor_action
+from predicate.vision_executor import parse_vision_executor_action
 
 
 def make_element(

@@ -5,7 +5,7 @@ Example: Verify extension bridge is loaded (Async version)
 import asyncio
 import os
 
-from sentience.async_api import AsyncSentienceBrowser
+from predicate.async_api import AsyncSentienceBrowser
 
 
 async def main():

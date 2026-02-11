@@ -25,9 +25,9 @@ async def test_attach_uses_runtime_factory() -> None:
     runtime = MockRuntime()
 
     with patch(
-        "sentience.debugger.AgentRuntime.from_playwright_page", return_value=runtime
+        "predicate.debugger.AgentRuntime.from_playwright_page", return_value=runtime
     ) as mock_factory:
-        from sentience.debugger import SentienceDebugger
+        from predicate.debugger import SentienceDebugger
 
         debugger = SentienceDebugger.attach(page=mock_page, tracer=tracer)
 
@@ -45,7 +45,7 @@ async def test_attach_uses_runtime_factory() -> None:
 async def test_step_context_calls_begin_and_emit() -> None:
     runtime = MockRuntime()
 
-    from sentience.debugger import SentienceDebugger
+    from predicate.debugger import SentienceDebugger
 
     debugger = SentienceDebugger(runtime=runtime)
 
@@ -59,7 +59,7 @@ async def test_step_context_calls_begin_and_emit() -> None:
 def test_check_auto_opens_step_when_missing() -> None:
     runtime = MockRuntime()
 
-    from sentience.debugger import SentienceDebugger
+    from predicate.debugger import SentienceDebugger
 
     debugger = SentienceDebugger(runtime=runtime)
     predicate = MagicMock()
@@ -75,7 +75,7 @@ def test_check_auto_opens_step_when_missing() -> None:
 def test_check_strict_mode_requires_explicit_step() -> None:
     runtime = MockRuntime()
 
-    from sentience.debugger import SentienceDebugger
+    from predicate.debugger import SentienceDebugger
 
     debugger = SentienceDebugger(runtime=runtime, auto_step=False)
 

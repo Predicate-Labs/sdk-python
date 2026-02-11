@@ -1,11 +1,11 @@
-"""Tests for sentience.llm_provider_utils module"""
+"""Tests for predicate.llm_provider_utils module"""
 
 import os
 from unittest.mock import patch
 
 import pytest
 
-from sentience.llm_provider_utils import (
+from predicate.llm_provider_utils import (
     get_api_key_from_env,
     handle_provider_error,
     require_package,

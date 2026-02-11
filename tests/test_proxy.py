@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sentience.browser import SentienceBrowser
-from sentience.models import ProxyConfig
+from predicate.browser import SentienceBrowser
+from predicate.models import ProxyConfig
 
 
 class TestProxyConfig:
@@ -175,8 +175,8 @@ class TestBrowserProxyInitialization:
 class TestBrowserProxyIntegration:
     """Test proxy integration in browser start() method"""
 
-    @patch("sentience.browser.shutil.copytree")
-    @patch("sentience.browser.sync_playwright")
+    @patch("predicate.browser.shutil.copytree")
+    @patch("predicate.browser.sync_playwright")
     def test_start_without_proxy(self, mock_playwright, mock_copytree):
         """Test browser start without proxy"""
         # Mock Playwright
@@ -189,7 +189,7 @@ class TestBrowserProxyIntegration:
         mock_playwright.return_value.start.return_value = mock_pw_instance
 
         # Mock extension path check
-        with patch("sentience.browser.Path") as mock_path:
+        with patch("predicate.browser.Path") as mock_path:
             mock_ext_path = MagicMock()
             mock_ext_path.exists.return_value = True
             (mock_ext_path / "manifest.json").exists.return_value = True
@@ -203,8 +203,8 @@ class TestBrowserProxyIntegration:
             call_kwargs = mock_pw_instance.chromium.launch_persistent_context.call_args[1]
             assert "proxy" not in call_kwargs
 
-    @patch("sentience.browser.shutil.copytree")
-    @patch("sentience.browser.sync_playwright")
+    @patch("predicate.browser.shutil.copytree")
+    @patch("predicate.browser.sync_playwright")
     def test_start_with_proxy(self, mock_playwright, mock_copytree, caplog):
         """Test browser start with proxy"""
         # Mock Playwright
@@ -217,7 +217,7 @@ class TestBrowserProxyIntegration:
         mock_playwright.return_value.start.return_value = mock_pw_instance
 
         # Mock extension path check
-        with patch("sentience.browser.Path") as mock_path:
+        with patch("predicate.browser.Path") as mock_path:
             mock_ext_path = MagicMock()
             mock_ext_path.exists.return_value = True
             (mock_ext_path / "manifest.json").exists.return_value = True
@@ -240,8 +240,8 @@ class TestBrowserProxyIntegration:
                 # Verify log message
                 assert "Using proxy: http://proxy.example.com:8080" in caplog.text
 
-    @patch("sentience.browser.shutil.copytree")
-    @patch("sentience.browser.sync_playwright")
+    @patch("predicate.browser.shutil.copytree")
+    @patch("predicate.browser.sync_playwright")
     def test_start_with_webrtc_flags(self, mock_playwright, mock_copytree):
         """Test that WebRTC leak protection flags are always included"""
         # Mock Playwright
@@ -254,7 +254,7 @@ class TestBrowserProxyIntegration:
         mock_playwright.return_value.start.return_value = mock_pw_instance
 
         # Mock extension path check
-        with patch("sentience.browser.Path") as mock_path:
+        with patch("predicate.browser.Path") as mock_path:
             mock_ext_path = MagicMock()
             mock_ext_path.exists.return_value = True
             (mock_ext_path / "manifest.json").exists.return_value = True
@@ -270,8 +270,8 @@ class TestBrowserProxyIntegration:
             assert "--disable-features=WebRtcHideLocalIpsWithMdns" in args
             assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in args
 
-    @patch("sentience.browser.shutil.copytree")
-    @patch("sentience.browser.sync_playwright")
+    @patch("predicate.browser.shutil.copytree")
+    @patch("predicate.browser.sync_playwright")
     def test_start_with_proxy_ignores_https_errors(self, mock_playwright, mock_copytree):
         """Test that ignore_https_errors is set when using proxy (for self-signed certs)"""
         # Mock Playwright
@@ -284,7 +284,7 @@ class TestBrowserProxyIntegration:
         mock_playwright.return_value.start.return_value = mock_pw_instance
 
         # Mock extension path check
-        with patch("sentience.browser.Path") as mock_path:
+        with patch("predicate.browser.Path") as mock_path:
             mock_ext_path = MagicMock()
             mock_ext_path.exists.return_value = True
             (mock_ext_path / "manifest.json").exists.return_value = True
@@ -298,8 +298,8 @@ class TestBrowserProxyIntegration:
             call_kwargs = mock_pw_instance.chromium.launch_persistent_context.call_args[1]
             assert call_kwargs["ignore_https_errors"] is True
 
-    @patch("sentience.browser.shutil.copytree")
-    @patch("sentience.browser.sync_playwright")
+    @patch("predicate.browser.shutil.copytree")
+    @patch("predicate.browser.sync_playwright")
     def test_start_without_proxy_does_not_ignore_https_errors(self, mock_playwright, mock_copytree):
         """Test that ignore_https_errors is NOT set when not using proxy"""
         # Mock Playwright
@@ -312,7 +312,7 @@ class TestBrowserProxyIntegration:
         mock_playwright.return_value.start.return_value = mock_pw_instance
 
         # Mock extension path check
-        with patch("sentience.browser.Path") as mock_path:
+        with patch("predicate.browser.Path") as mock_path:
             mock_ext_path = MagicMock()
             mock_ext_path.exists.return_value = True
             (mock_ext_path / "manifest.json").exists.return_value = True

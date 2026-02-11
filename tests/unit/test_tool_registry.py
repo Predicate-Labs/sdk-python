@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from sentience.tools import (
+from predicate.tools import (
     ToolContext,
     ToolRegistry,
     ToolSpec,

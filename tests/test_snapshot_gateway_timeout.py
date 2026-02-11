@@ -2,8 +2,8 @@ import asyncio
 import importlib
 import sys
 
-snapshot_module = importlib.import_module("sentience.snapshot")
-from sentience.snapshot import _post_snapshot_to_gateway_async, _post_snapshot_to_gateway_sync
+snapshot_module = importlib.import_module("predicate.snapshot")
+from predicate.snapshot import _post_snapshot_to_gateway_async, _post_snapshot_to_gateway_sync
 
 
 class _DummyResponse:

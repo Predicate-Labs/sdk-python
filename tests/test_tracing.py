@@ -1,10 +1,10 @@
-"""Tests for sentience.tracing module"""
+"""Tests for predicate.tracing module"""
 
 import json
 import tempfile
 from pathlib import Path
 
-from sentience.tracing import JsonlTraceSink, TraceEvent, Tracer
+from predicate.tracing import JsonlTraceSink, TraceEvent, Tracer
 
 
 def test_trace_event_to_dict():
@@ -472,7 +472,7 @@ def test_tracer_close_with_cloud_sink_includes_final_status_in_completion():
     """Test that CloudTraceSink includes auto-inferred final_status in completion request."""
     from unittest.mock import Mock, patch
 
-    from sentience.cloud_tracing import CloudTraceSink
+    from predicate.cloud_tracing import CloudTraceSink
 
     upload_url = "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/trace.jsonl.gz"
     run_id = "test-close-status"
@@ -491,8 +491,8 @@ def test_tracer_close_with_cloud_sink_includes_final_status_in_completion():
     assert tracer.final_status == "unknown"
 
     with (
-        patch("sentience.cloud_tracing.requests.put") as mock_put,
-        patch("sentience.cloud_tracing.requests.post") as mock_post,
+        patch("predicate.cloud_tracing.requests.put") as mock_put,
+        patch("predicate.cloud_tracing.requests.post") as mock_post,
     ):
         # Mock successful trace upload
         mock_put.return_value = Mock(status_code=200)

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sentience import SentienceBrowser, snapshot
-from sentience.models import Snapshot as SnapshotModel
+from predicate import SentienceBrowser, snapshot
+from predicate.models import Snapshot as SnapshotModel
 
 
 def load_schema():

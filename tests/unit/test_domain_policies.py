@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sentience.browser import _domain_matches, _extract_host, _is_domain_allowed
+from predicate.browser import _domain_matches, _extract_host, _is_domain_allowed
 
 
 def test_domain_matches_suffix() -> None:
@@ -26,7 +26,7 @@ def test_extract_host_handles_ports() -> None:
 
 
 def test_keep_alive_skips_close() -> None:
-    from sentience.browser import SentienceBrowser
+    from predicate.browser import SentienceBrowser
 
     class Dummy:
         def __init__(self) -> None:

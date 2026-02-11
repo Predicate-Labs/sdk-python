@@ -5,7 +5,7 @@ Tests for SentienceBrowser functionality
 import pytest
 from playwright.sync_api import sync_playwright
 
-from sentience import SentienceBrowser
+from predicate import SentienceBrowser
 
 
 @pytest.mark.requires_extension

@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from sentience.models import TraceStats
-from sentience.trace_file_manager import TraceFileManager
+from predicate.models import TraceStats
+from predicate.trace_file_manager import TraceFileManager
 
 
 def test_extract_stats_empty_events():

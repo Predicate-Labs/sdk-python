@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sentience.agent_runtime import AgentRuntime
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.verification import (
+from predicate.agent_runtime import AgentRuntime
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.verification import (
     AssertContext,
     AssertOutcome,
     is_checked,

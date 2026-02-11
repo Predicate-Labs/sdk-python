@@ -48,7 +48,7 @@ jobs:
     - name: Update version in __init__.py
       run: |
         VERSION="${{ steps.version.outputs.version }}"
-        sed -i "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" sentience/__init__.py
+        sed -i "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" predicate/__init__.py
 
     - name: Verify extension files are present
       run: |
@@ -56,12 +56,12 @@ jobs:
 
         # Check required extension files exist
         REQUIRED_FILES=(
-          "sentience/extension/manifest.json"
-          "sentience/extension/content.js"
-          "sentience/extension/background.js"
-          "sentience/extension/injected_api.js"
-          "sentience/extension/pkg/sentience_core.js"
-          "sentience/extension/pkg/sentience_core_bg.wasm"
+          "predicate/extension/manifest.json"
+          "predicate/extension/content.js"
+          "predicate/extension/background.js"
+          "predicate/extension/injected_api.js"
+          "predicate/extension/pkg/sentience_core.js"
+          "predicate/extension/pkg/sentience_core_bg.wasm"
         )
 
         MISSING_FILES=()
@@ -81,7 +81,7 @@ jobs:
         fi
 
         # Verify findTextRect function exists in injected_api.js
-        if ! grep -q "findTextRect:" sentience/extension/injected_api.js; then
+        if ! grep -q "findTextRect:" predicate/extension/injected_api.js; then
           echo "❌ Error: findTextRect function not found in injected_api.js"
           echo "The extension may be out of date. Please sync the extension before releasing."
           exit 1
@@ -89,7 +89,7 @@ jobs:
 
         echo "✅ All extension files verified"
         echo "📦 Extension files that will be included:"
-        find sentience/extension -type f | sort
+        find predicate/extension -type f | sort
 
     - name: Build package
       run: |
@@ -117,10 +117,10 @@ jobs:
 
         # Check for required extension files in the wheel
         REQUIRED_IN_WHEEL=(
-          "sentience/extension/manifest.json"
-          "sentience/extension/injected_api.js"
-          "sentience/extension/pkg/sentience_core.js"
-          "sentience/extension/pkg/sentience_core_bg.wasm"
+          "predicate/extension/manifest.json"
+          "predicate/extension/injected_api.js"
+          "predicate/extension/pkg/sentience_core.js"
+          "predicate/extension/pkg/sentience_core_bg.wasm"
         )
 
         MISSING_IN_WHEEL=()
@@ -140,14 +140,14 @@ jobs:
         fi
 
         # Verify findTextRect is in the packaged injected_api.js
-        if ! grep -q "findTextRect:" sentience/extension/injected_api.js; then
+        if ! grep -q "findTextRect:" predicate/extension/injected_api.js; then
           echo "❌ Error: findTextRect not found in packaged injected_api.js"
           exit 1
         fi
 
         echo "✅ All extension files verified in built package"
         echo "📦 Extension files found in wheel:"
-        find sentience/extension -type f | sort
+        find predicate/extension -type f | sort
 
         # Cleanup
         rm -rf "$TEMP_DIR"
@@ -166,11 +166,11 @@ jobs:
         tag_name: v${{ steps.version.outputs.version }}
         name: Release v${{ steps.version.outputs.version }}
         body: |
-          Release v${{ steps.version.outputs.version }} of sentienceapi
+          Release v${{ steps.version.outputs.version }} of predicatelabs
 
           ## Installation
           ```bash
-          pip install sentienceapi==${{ steps.version.outputs.version }}
+          pip install predicatelabs==${{ steps.version.outputs.version }}
           ```
         draft: false
         prerelease: false

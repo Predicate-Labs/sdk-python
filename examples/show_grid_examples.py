@@ -8,8 +8,8 @@ on a webpage, including highlighting specific grids and identifying the dominant
 import os
 import time
 
-from sentience import SentienceBrowser, snapshot
-from sentience.models import SnapshotOptions
+from predicate import SentienceBrowser, snapshot
+from predicate.models import SnapshotOptions
 
 
 def main():
@@ -18,7 +18,9 @@ def main():
 
     # Use VPS IP directly if domain is not configured
     # Replace with your actual domain once DNS is set up: api_url="https://api.sentienceapi.com"
-    api_url = os.environ.get("SENTIENCE_API_URL", "http://15.204.243.91:9000")
+    api_url = os.environ.get("PREDICATE_API_URL") or os.environ.get(
+        "SENTIENCE_API_URL", "http://15.204.243.91:9000"
+    )
 
     try:
         with SentienceBrowser(api_key=api_key, api_url=api_url, headless=False) as browser:

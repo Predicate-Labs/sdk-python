@@ -2,7 +2,7 @@
 Example: Build Sentience LangChain tools (async-only).
 
 Install:
-  pip install sentienceapi[langchain]
+  pip install predicatelabs[langchain]
 
 Run:
   python examples/lang-chain/langchain_tools_demo.py
@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import asyncio
 
-from sentience import AsyncSentienceBrowser
-from sentience.integrations.langchain import (
+from predicate import AsyncSentienceBrowser
+from predicate.integrations.langchain import (
     SentienceLangChainContext,
     build_sentience_langchain_tools,
 )

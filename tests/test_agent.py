@@ -7,9 +7,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sentience.agent import SentienceAgent
-from sentience.llm_provider import AnthropicProvider, LLMProvider, LLMResponse, OpenAIProvider
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.agent import SentienceAgent
+from predicate.llm_provider import AnthropicProvider, LLMProvider, LLMResponse, OpenAIProvider
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
 
 
 class MockLLMProvider(LLMProvider):
@@ -197,8 +197,8 @@ def test_agent_execute_click_action():
     snap = create_mock_snapshot()
 
     # Mock click function via ActionExecutor
-    with patch("sentience.action_executor.click") as mock_click:
-        from sentience.models import ActionResult
+    with patch("predicate.action_executor.click") as mock_click:
+        from predicate.models import ActionResult
 
         mock_click.return_value = ActionResult(
             success=True, duration_ms=150, outcome="dom_updated", url_changed=False
@@ -221,8 +221,8 @@ def test_agent_execute_type_action():
     snap = create_mock_snapshot()
 
     # Mock type_text function via ActionExecutor
-    with patch("sentience.action_executor.type_text") as mock_type:
-        from sentience.models import ActionResult
+    with patch("predicate.action_executor.type_text") as mock_type:
+        from predicate.models import ActionResult
 
         mock_type.return_value = ActionResult(success=True, duration_ms=200, outcome="dom_updated")
 
@@ -244,8 +244,8 @@ def test_agent_execute_press_action():
     snap = create_mock_snapshot()
 
     # Mock press function via ActionExecutor
-    with patch("sentience.action_executor.press") as mock_press:
-        from sentience.models import ActionResult
+    with patch("predicate.action_executor.press") as mock_press:
+        from predicate.models import ActionResult
 
         mock_press.return_value = ActionResult(success=True, duration_ms=50, outcome="dom_updated")
 
@@ -290,10 +290,10 @@ def test_agent_act_full_cycle():
 
     # Mock snapshot and click
     with (
-        patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.action_executor.click") as mock_click,
+        patch("predicate.agent.snapshot") as mock_snapshot,
+        patch("predicate.action_executor.click") as mock_click,
     ):
-        from sentience.models import ActionResult
+        from predicate.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
         mock_click.return_value = ActionResult(success=True, duration_ms=150, outcome="dom_updated")
@@ -388,8 +388,8 @@ def test_agent_retry_on_failure():
 
     # Mock snapshot and click (click will fail)
     with (
-        patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.action_executor.click") as mock_click,
+        patch("predicate.agent.snapshot") as mock_snapshot,
+        patch("predicate.action_executor.click") as mock_click,
     ):
         mock_snapshot.return_value = create_mock_snapshot()
         # Simulate click failure
@@ -411,11 +411,11 @@ def test_agent_action_parsing_variations():
     snap = create_mock_snapshot()
 
     with (
-        patch("sentience.action_executor.click") as mock_click,
-        patch("sentience.action_executor.type_text") as mock_type,
-        patch("sentience.action_executor.press") as mock_press,
+        patch("predicate.action_executor.click") as mock_click,
+        patch("predicate.action_executor.type_text") as mock_type,
+        patch("predicate.action_executor.press") as mock_press,
     ):
-        from sentience.models import ActionResult
+        from predicate.models import ActionResult
 
         mock_result = ActionResult(success=True, duration_ms=100, outcome="dom_updated")
         mock_click.return_value = mock_result

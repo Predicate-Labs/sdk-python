@@ -2,9 +2,9 @@ import types
 
 import pytest
 
-from sentience.integrations.pydanticai.deps import SentiencePydanticDeps
-from sentience.integrations.pydanticai.toolset import register_sentience_tools
-from sentience.models import BBox, Element, Snapshot
+from predicate.integrations.pydanticai.deps import SentiencePydanticDeps
+from predicate.integrations.pydanticai.toolset import register_sentience_tools
+from predicate.models import BBox, Element, Snapshot
 
 
 class _FakeAgent:
@@ -110,7 +110,7 @@ async def test_snapshot_state_passes_limit_and_summarizes(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "sentience.integrations.pydanticai.toolset.snapshot_async", _fake_snapshot_async
+        "predicate.integrations.pydanticai.toolset.snapshot_async", _fake_snapshot_async
     )
 
     deps = SentiencePydanticDeps(browser=_FakeAsyncBrowser())  # type: ignore[arg-type]
@@ -185,7 +185,7 @@ async def test_type_text_passes_delay_ms(monkeypatch):
         return {"success": True}
 
     monkeypatch.setattr(
-        "sentience.integrations.pydanticai.toolset.type_text_async",
+        "predicate.integrations.pydanticai.toolset.type_text_async",
         _fake_type_text_async,
     )
 
@@ -212,7 +212,7 @@ async def test_click_rect_is_registered(monkeypatch):
         return {"success": True}
 
     monkeypatch.setattr(
-        "sentience.integrations.pydanticai.toolset.click_rect_async", _fake_click_rect_async
+        "predicate.integrations.pydanticai.toolset.click_rect_async", _fake_click_rect_async
     )
 
     deps = SentiencePydanticDeps(browser=_FakeAsyncBrowser())  # type: ignore[arg-type]
@@ -240,7 +240,7 @@ async def test_tracing_emits_error_on_exception(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "sentience.integrations.pydanticai.toolset.read_async",
+        "predicate.integrations.pydanticai.toolset.read_async",
         lambda *args, **kwargs: _boom(),
     )
 

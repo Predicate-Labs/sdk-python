@@ -27,7 +27,7 @@ def demo_layer1_direct_sdk():
     print("LAYER 1: Direct SDK Usage (Full Control)")
     print("=" * 70)
 
-    from sentience import SentienceBrowser, click, find, press, snapshot, type_text
+    from predicate import SentienceBrowser, click, find, press, snapshot, type_text
 
     with SentienceBrowser(headless=False) as browser:
         # Navigate
@@ -67,8 +67,8 @@ def demo_layer2_sentience_agent():
     print("LAYER 2: SentienceAgent (Technical Commands)")
     print("=" * 70)
 
-    from sentience import SentienceAgent, SentienceBrowser
-    from sentience.llm_provider import OpenAIProvider
+    from predicate import SentienceAgent, SentienceBrowser
+    from predicate.llm_provider import OpenAIProvider
 
     # Initialize
     browser = SentienceBrowser(headless=False)
@@ -103,8 +103,8 @@ def demo_layer3_conversational_agent():
     print("LAYER 3: ConversationalAgent (Natural Language)")
     print("=" * 70)
 
-    from sentience import ConversationalAgent, SentienceBrowser
-    from sentience.llm_provider import OpenAIProvider
+    from predicate import ConversationalAgent, SentienceBrowser
+    from predicate.llm_provider import OpenAIProvider
 
     # Initialize
     browser = SentienceBrowser(headless=False)
@@ -133,8 +133,8 @@ def demo_layer3_with_local_llm():
     print("LAYER 3: ConversationalAgent with Local LLM (Zero Cost)")
     print("=" * 70)
 
-    from sentience import ConversationalAgent, SentienceBrowser
-    from sentience.llm_provider import LocalLLMProvider
+    from predicate import ConversationalAgent, SentienceBrowser
+    from predicate.llm_provider import LocalLLMProvider
 
     # Initialize with local LLM
     browser = SentienceBrowser(headless=False)

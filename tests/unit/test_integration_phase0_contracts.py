@@ -1,9 +1,9 @@
 import pytest
 
-from sentience.models import SnapshotOptions
-from sentience.read import read
-from sentience.snapshot import snapshot
-from sentience.text_search import find_text_rect
+from predicate.models import SnapshotOptions
+from predicate.read import read
+from predicate.snapshot import snapshot
+from predicate.text_search import find_text_rect
 
 
 class _FakePage:
@@ -54,7 +54,7 @@ def test_snapshot_default_limit_not_sent_to_extension(monkeypatch):
     'limit' to the extension unless it differs from default.
     """
     # Avoid any real extension waiting logic
-    from sentience.browser_evaluator import BrowserEvaluator
+    from predicate.browser_evaluator import BrowserEvaluator
 
     monkeypatch.setattr(BrowserEvaluator, "wait_for_extension", lambda *args, **kwargs: None)
 
@@ -73,7 +73,7 @@ def test_snapshot_default_limit_not_sent_to_extension(monkeypatch):
 
 
 def test_snapshot_non_default_limit_is_sent_to_extension(monkeypatch):
-    from sentience.browser_evaluator import BrowserEvaluator
+    from predicate.browser_evaluator import BrowserEvaluator
 
     monkeypatch.setattr(BrowserEvaluator, "wait_for_extension", lambda *args, **kwargs: None)
 
@@ -108,7 +108,7 @@ def test_find_text_rect_unavailable_raises(monkeypatch):
     Contract: if the extension doesn't expose findTextRect, the SDK surfaces a clear error.
     """
     # Avoid any real extension waiting logic (and avoid sync/async page detection details)
-    from sentience.browser_evaluator import BrowserEvaluator
+    from predicate.browser_evaluator import BrowserEvaluator
 
     monkeypatch.setattr(BrowserEvaluator, "wait_for_extension", lambda *args, **kwargs: None)
 

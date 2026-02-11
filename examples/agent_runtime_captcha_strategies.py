@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from sentience import (
+from predicate import (
     AgentRuntime,
     AsyncSentienceBrowser,
     CaptchaOptions,
@@ -9,7 +9,7 @@ from sentience import (
     HumanHandoffSolver,
     VisionSolver,
 )
-from sentience.tracing import JsonlTraceSink, Tracer
+from predicate.tracing import JsonlTraceSink, Tracer
 
 
 async def notify_webhook(ctx) -> None:

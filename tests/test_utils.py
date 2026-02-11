@@ -1,10 +1,10 @@
 """
-Unit tests for sentience.utils module.
+Unit tests for predicate.utils module.
 
 Tests canonicalization and hashing functions for snapshot digests.
 """
 
-from sentience.utils import (
+from predicate.utils import (
     BBox,
     canonical_snapshot_loose,
     canonical_snapshot_strict,

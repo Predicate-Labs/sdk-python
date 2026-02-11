@@ -16,7 +16,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sentience.browser import SentienceBrowser  # noqa: E402
+from predicate.browser import SentienceBrowser  # noqa: E402
 
 
 def test_stealth_features():  # noqa: C901

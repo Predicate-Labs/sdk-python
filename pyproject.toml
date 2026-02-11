@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sentienceapi"
+name = "predicatelabs"
 version = "0.99.7"
 description = "Python SDK for Sentience AI Agent Browser Automation"
 readme = "README.md"
@@ -37,7 +37,7 @@ Repository = "https://github.com/SentienceAPI/sentience-python"
 Issues = "https://github.com/SentienceAPI/sentience-python/issues"
 
 [project.scripts]
-sentience = "sentience.cli:main"
+predicate = "predicate.cli:main"
 
 [project.optional-dependencies]
 browser-use = [
@@ -68,10 +68,10 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sentience*"]
+include = ["predicate*"]
 
 [tool.setuptools.package-data]
-sentience = ["schemas/*.json", "extension/**/*"]
+predicate = ["schemas/*.json", "extension/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -105,7 +105,7 @@ extend-exclude = '''
 profile = "black"
 line_length = 100
 skip_gitignore = true
-known_first_party = ["sentience"]
+known_first_party = ["predicate"]
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0

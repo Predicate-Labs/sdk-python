@@ -4,7 +4,7 @@ Tests for get_grid_bounds functionality
 
 import pytest
 
-from sentience.models import (
+from predicate.models import (
     BBox,
     Element,
     GridInfo,

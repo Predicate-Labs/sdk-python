@@ -2,7 +2,7 @@
 LangGraph reference example: Sentience observe → act → verify → branch (self-correcting).
 
 Install:
-  pip install sentienceapi[langchain]
+  pip install predicatelabs[langchain]
 
 Run:
   python examples/lang-chain/langgraph_self_correcting_graph.py
@@ -13,8 +13,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from sentience import AsyncSentienceBrowser
-from sentience.integrations.langchain import SentienceLangChainContext, SentienceLangChainCore
+from predicate import AsyncSentienceBrowser
+from predicate.integrations.langchain import SentienceLangChainContext, SentienceLangChainCore
 
 
 @dataclass

@@ -21,10 +21,10 @@ Usage:
 import asyncio
 import os
 
-from sentience import AsyncSentienceBrowser
-from sentience.agent_runtime import AgentRuntime
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import all_of, exists, not_exists, url_contains, url_matches
+from predicate import AsyncSentienceBrowser
+from predicate.agent_runtime import AgentRuntime
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import all_of, exists, not_exists, url_contains, url_matches
 
 
 async def main():

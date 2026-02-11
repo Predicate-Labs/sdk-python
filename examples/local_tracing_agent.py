@@ -14,10 +14,10 @@ Usage:
 
 import os
 
-from sentience import SentienceAgent, SentienceBrowser
-from sentience.agent_config import AgentConfig
-from sentience.llm_provider import OpenAIProvider
-from sentience.tracer_factory import create_tracer
+from predicate import SentienceAgent, SentienceBrowser
+from predicate.agent_config import AgentConfig
+from predicate.llm_provider import OpenAIProvider
+from predicate.tracer_factory import create_tracer
 
 
 def main():

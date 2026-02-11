@@ -1,7 +1,7 @@
-"""Tests for sentience.formatting module"""
+"""Tests for predicate.formatting module"""
 
-from sentience.formatting import format_snapshot_for_llm
-from sentience.models import BBox, Element, Snapshot, VisualCues
+from predicate.formatting import format_snapshot_for_llm
+from predicate.models import BBox, Element, Snapshot, VisualCues
 
 
 def test_format_snapshot_basic():

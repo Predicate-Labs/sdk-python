@@ -4,9 +4,9 @@ Tests for trace event builder functionality.
 
 import pytest
 
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.snapshot_diff import SnapshotDiff
-from sentience.trace_event_builder import TraceEventBuilder
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.snapshot_diff import SnapshotDiff
+from predicate.trace_event_builder import TraceEventBuilder
 
 
 def create_element(

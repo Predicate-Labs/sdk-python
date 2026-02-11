@@ -4,8 +4,8 @@ Tests for LLMResponseBuilder helper class.
 
 import pytest
 
-from sentience.llm_provider import LLMResponse
-from sentience.llm_response_builder import LLMResponseBuilder
+from predicate.llm_provider import LLMResponse
+from predicate.llm_response_builder import LLMResponseBuilder
 
 
 class TestLLMResponseBuilder:

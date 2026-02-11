@@ -16,13 +16,13 @@ This directory contains examples for integrating [Sentience](https://github.com/
 Install both packages together using the optional dependency:
 
 ```bash
-pip install "sentienceapi[browser-use]"
+pip install "predicatelabs[browser-use]"
 ```
 
 Or install separately:
 
 ```bash
-pip install sentienceapi browser-use
+pip install predicatelabs browser-use
 ```
 
 ## Quick Start
@@ -33,8 +33,8 @@ pip install sentienceapi browser-use
 
 ```python
 from browser_use import BrowserSession, BrowserProfile
-from sentience import get_extension_dir
-from sentience.backends import SentienceContext, TopElementSelector
+from predicate import get_extension_dir
+from predicate.backends import SentienceContext, TopElementSelector
 
 # Setup browser with Sentience extension
 profile = BrowserProfile(
@@ -72,8 +72,8 @@ if state:
 For fine-grained control over snapshots and actions:
 
 ```python
-from sentience import find, query, get_extension_dir
-from sentience.backends import BrowserUseAdapter, snapshot, click, type_text
+from predicate import find, query, get_extension_dir
+from predicate.backends import BrowserUseAdapter, snapshot, click, type_text
 
 # Create adapter and backend
 adapter = BrowserUseAdapter(session)

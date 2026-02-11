@@ -2,7 +2,7 @@
 Tests for smart selector inference
 """
 
-from sentience import SentienceBrowser, record, snapshot
+from predicate import SentienceBrowser, record, snapshot
 
 
 def test_smart_selector_inference():
@@ -68,7 +68,7 @@ def test_smart_selector_validation():
             # If selector was inferred and validated, it should match the element
             if step.selector:
                 # Verify selector would match the element
-                from sentience.query import query
+                from predicate.query import query
 
                 matches = query(snap, step.selector)
                 # Should match at least the original element

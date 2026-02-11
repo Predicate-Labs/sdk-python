@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from sentience.agent_runtime import AgentRuntime
-from sentience.models import EvaluateJsRequest, SnapshotOptions, TabInfo
-from sentience.verification import AssertContext, AssertOutcome
+from predicate.agent_runtime import AgentRuntime
+from predicate.models import EvaluateJsRequest, SnapshotOptions, TabInfo
+from predicate.verification import AssertContext, AssertOutcome
 
 
 class MockBackend:
@@ -706,7 +706,7 @@ class TestAgentRuntimeFromSentienceBrowser:
         mock_page.url = "https://example.com"
         tracer = MockTracer()
 
-        with patch("sentience.backends.playwright_backend.PlaywrightBackend") as MockPWBackend:
+        with patch("predicate.backends.playwright_backend.PlaywrightBackend") as MockPWBackend:
             mock_backend_instance = MagicMock()
             MockPWBackend.return_value = mock_backend_instance
 
@@ -728,7 +728,7 @@ class TestAgentRuntimeFromSentienceBrowser:
         mock_page = MagicMock()
         tracer = MockTracer()
 
-        with patch("sentience.backends.playwright_backend.PlaywrightBackend"):
+        with patch("predicate.backends.playwright_backend.PlaywrightBackend"):
             runtime = await AgentRuntime.from_sentience_browser(
                 browser=mock_browser,
                 page=mock_page,
@@ -748,7 +748,7 @@ class TestAgentRuntimeFromPlaywrightPage:
         mock_page = MagicMock()
         tracer = MockTracer()
 
-        with patch("sentience.backends.playwright_backend.PlaywrightBackend") as MockPWBackend:
+        with patch("predicate.backends.playwright_backend.PlaywrightBackend") as MockPWBackend:
             mock_backend_instance = MagicMock()
             MockPWBackend.return_value = mock_backend_instance
 
@@ -764,7 +764,7 @@ class TestAgentRuntimeFromPlaywrightPage:
         mock_page = MagicMock()
         tracer = MockTracer()
 
-        with patch("sentience.backends.playwright_backend.PlaywrightBackend"):
+        with patch("predicate.backends.playwright_backend.PlaywrightBackend"):
             runtime = AgentRuntime.from_playwright_page(
                 page=mock_page,
                 tracer=tracer,
@@ -824,7 +824,7 @@ class TestAgentRuntimeEndStep:
 
         mock_snapshot = MagicMock()
 
-        with patch("sentience.backends.snapshot.snapshot", new_callable=AsyncMock) as mock_snap_fn:
+        with patch("predicate.backends.snapshot.snapshot", new_callable=AsyncMock) as mock_snap_fn:
             mock_snap_fn.return_value = mock_snapshot
 
             result = await runtime.snapshot(goal="test goal")
@@ -848,7 +848,7 @@ class TestAgentRuntimeEndStep:
             snapshot_options=default_options,
         )
 
-        with patch("sentience.backends.snapshot.snapshot", new_callable=AsyncMock) as mock_snap_fn:
+        with patch("predicate.backends.snapshot.snapshot", new_callable=AsyncMock) as mock_snap_fn:
             mock_snap_fn.return_value = MagicMock()
 
             await runtime.snapshot(goal="override goal")

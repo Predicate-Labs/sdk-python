@@ -4,7 +4,7 @@ Example: Using click_rect for coordinate-based clicking with visual feedback
 
 import os
 
-from sentience import SentienceBrowser, click_rect, find, snapshot
+from predicate import SentienceBrowser, click_rect, find, snapshot
 
 
 def main():

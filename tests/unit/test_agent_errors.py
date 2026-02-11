@@ -10,10 +10,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sentience.agent import SentienceAgent
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.protocols import BrowserProtocol, PageProtocol
+from predicate.agent import SentienceAgent
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.protocols import BrowserProtocol, PageProtocol
 
 
 class MockLLMProvider(LLMProvider):
@@ -178,7 +178,7 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         # Mock snapshot to raise timeout
-        with patch("sentience.agent.snapshot") as mock_snapshot:
+        with patch("predicate.agent.snapshot") as mock_snapshot:
             from playwright._impl._errors import TimeoutError
 
             mock_snapshot.side_effect = TimeoutError("Snapshot timeout")
@@ -195,7 +195,7 @@ class TestAgentErrorHandling:
 
         # Mock snapshot to raise network error
         # Patch at the agent module level since that's where it's imported
-        with patch("sentience.agent.snapshot") as mock_snapshot:
+        with patch("predicate.agent.snapshot") as mock_snapshot:
             mock_snapshot.side_effect = ConnectionError("Network failure")
 
             with pytest.raises(RuntimeError, match="Failed after"):
@@ -218,10 +218,10 @@ class TestAgentErrorHandling:
         )
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = empty_snap
             mock_click.return_value = ActionResult(success=False, duration_ms=100, outcome="error")
@@ -237,7 +237,7 @@ class TestAgentErrorHandling:
         llm = MockLLMProvider(responses=["INVALID_RESPONSE_FORMAT"])
         agent = SentienceAgent(browser, llm, verbose=False)
 
-        with (patch("sentience.snapshot.snapshot") as mock_snapshot,):
+        with (patch("predicate.snapshot.snapshot") as mock_snapshot,):
             mock_snapshot.return_value = create_mock_snapshot()
 
             # Action executor should raise ValueError for invalid format
@@ -251,7 +251,7 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         # Snapshot should fail because browser.page is None
-        with patch("sentience.snapshot.snapshot") as mock_snapshot:
+        with patch("predicate.snapshot.snapshot") as mock_snapshot:
             mock_snapshot.side_effect = RuntimeError("Browser not started")
 
             with pytest.raises(RuntimeError, match="Failed after"):
@@ -265,8 +265,8 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
             from playwright._impl._errors import TimeoutError
 
@@ -284,10 +284,10 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # Simulate URL change after click
@@ -307,10 +307,10 @@ class TestAgentErrorHandling:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # First call fails, second succeeds
@@ -342,7 +342,7 @@ class TestAgentEdgeCases:
             elements=[],
         )
 
-        with patch("sentience.snapshot.snapshot") as mock_snapshot:
+        with patch("predicate.snapshot.snapshot") as mock_snapshot:
             mock_snapshot.return_value = empty_snap
 
             # Agent should handle empty snapshot and finish
@@ -358,10 +358,10 @@ class TestAgentEdgeCases:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.type_text") as mock_type,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.type_text") as mock_type,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_type.return_value = ActionResult(
@@ -380,10 +380,10 @@ class TestAgentEdgeCases:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(
@@ -402,10 +402,10 @@ class TestAgentEdgeCases:
         agent = SentienceAgent(browser, llm, verbose=False)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             # First attempt fails, second succeeds
@@ -432,10 +432,10 @@ class TestAgentEdgeCases:
         agent = SentienceAgent(browser, llm, verbose=False, tracer=mock_tracer)
 
         with (
-            patch("sentience.snapshot.snapshot") as mock_snapshot,
-            patch("sentience.action_executor.click") as mock_click,
+            patch("predicate.snapshot.snapshot") as mock_snapshot,
+            patch("predicate.action_executor.click") as mock_click,
         ):
-            from sentience.models import ActionResult
+            from predicate.models import ActionResult
 
             mock_snapshot.return_value = create_mock_snapshot()
             mock_click.return_value = ActionResult(

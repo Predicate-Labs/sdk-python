@@ -4,7 +4,7 @@ Tests for read functionality
 
 from typing import Any
 
-from sentience import SentienceBrowser, read
+from predicate import SentienceBrowser, read
 
 
 def test_read_text():

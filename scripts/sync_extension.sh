@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CHROME_DIR="${REPO_ROOT}/sentience-chrome"
-SDK_EXT_DIR="${REPO_ROOT}/sdk-python/sentience/extension"
+SDK_EXT_DIR="${REPO_ROOT}/sdk-python/predicate/extension"
 
 if [[ ! -d "${CHROME_DIR}" ]]; then
   echo "[sync_extension] sentience-chrome not found at ${CHROME_DIR}"

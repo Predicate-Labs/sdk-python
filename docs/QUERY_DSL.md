@@ -18,7 +18,7 @@ The Sentience Query DSL (Domain-Specific Language) allows you to find elements o
 ## Quick Start
 
 ```python
-from sentience import SentienceBrowser, snapshot, query, find
+from predicate import SentienceBrowser, snapshot, query, find
 
 with SentienceBrowser() as browser:
     browser.page.goto("https://example.com")
