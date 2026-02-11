@@ -47,7 +47,7 @@ This is the smallest useful pattern: snapshot → assert → act → assert-done
 ```python
 import asyncio
 
-from predicate import AgentRuntime, AsyncSentienceBrowser
+from predicate import AgentRuntime, AsyncPredicateBrowser
 from predicate.tracing import JsonlTraceSink, Tracer
 from predicate.verification import exists, url_contains
 
@@ -55,7 +55,7 @@ from predicate.verification import exists, url_contains
 async def main() -> None:
     tracer = Tracer(run_id="demo", sink=JsonlTraceSink("trace.jsonl"))
 
-    async with AsyncSentienceBrowser() as browser:
+    async with AsyncPredicateBrowser() as browser:
         page = await browser.new_page()
         await page.goto("https://example.com")
 
@@ -78,21 +78,21 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## SentienceDebugger: attach to your existing agent framework (sidecar mode)
+## PredicateDebugger: attach to your existing agent framework (sidecar mode)
 
 If you already have an agent loop (LangGraph, browser-use, custom planner/executor), you can keep it and attach Predicate as a **verifier + trace layer**.
 
 Key idea: your agent still decides and executes actions — Predicate **snapshots and verifies outcomes**.
 
 ```python
-from predicate import SentienceDebugger, create_tracer
+from predicate import PredicateDebugger, create_tracer
 from predicate.verification import exists, url_contains
 
 
 async def run_existing_agent(page) -> None:
     # page: playwright.async_api.Page (owned by your agent/framework)
     tracer = create_tracer(run_id="run-123")  # local JSONL by default
-    dbg = SentienceDebugger.attach(page, tracer=tracer)
+    dbg = PredicateDebugger.attach(page, tracer=tracer)
 
     async with dbg.step("agent_step: navigate + verify"):
         # 1) Let your framework do whatever it does
@@ -111,11 +111,11 @@ async def run_existing_agent(page) -> None:
 If you want Predicate to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
 
 ```python
-from predicate import SentienceBrowser, snapshot, find, click, type_text, wait_for
+from predicate import PredicateBrowser, snapshot, find, click, type_text, wait_for
 
 
 def login_example() -> None:
-    with SentienceBrowser() as browser:
+    with PredicateBrowser() as browser:
         browser.page.goto("https://example.com/login")
 
         snap = snapshot(browser)
@@ -185,7 +185,7 @@ tools_for_llm = registry.llm_tools()
 Chrome permission prompts are outside the DOM and can be invisible to snapshots. Prefer setting a policy **before navigation**.
 
 ```python
-from predicate import AsyncSentienceBrowser, PermissionPolicy
+from predicate import AsyncPredicateBrowser, PermissionPolicy
 
 policy = PermissionPolicy(
     default="clear",
@@ -194,7 +194,7 @@ policy = PermissionPolicy(
     origin="https://example.com",
 )
 
-async with AsyncSentienceBrowser(permission_policy=policy) as browser:
+async with AsyncPredicateBrowser(permission_policy=policy) as browser:
     ...
 ```
 
