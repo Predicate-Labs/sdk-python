@@ -1,8 +1,8 @@
-# Sentience Python SDK
+# Predicate Python SDK
 
 > **A verification & control layer for AI agents that operate browsers**
 
-Sentience is built for **AI agent developers** who already use Playwright / CDP / browser-use / LangGraph and care about **flakiness, cost, determinism, evals, and debugging**.
+Predicate is built for **AI agent developers** who already use Playwright / CDP / browser-use / LangGraph and care about **flakiness, cost, determinism, evals, and debugging**.
 
 Often described as *Jest for Browser AI Agents* - but applied to end-to-end agent runs (not unit tests).
 
@@ -10,7 +10,7 @@ The core loop is:
 
 > **Agent → Snapshot → Action → Verification → Artifact**
 
-## What Sentience is
+## What Predicate is
 
 - A **verification-first runtime** (`AgentRuntime`) for browser agents
 - Treats the browser as an adapter (Playwright / CDP / browser-use); **`AgentRuntime` is the product**
@@ -19,7 +19,7 @@ The core loop is:
 - Enables **local LLM small models (3B-7B)** for browser automation (privacy, compliance, and cost control)
 - Keeps vision models **optional** (use as a fallback when DOM/snapshot structure falls short, e.g. `<canvas>`)
 
-## What Sentience is not
+## What Predicate is not
 
 - Not a browser driver
 - Not a Playwright replacement
@@ -34,7 +34,7 @@ playwright install chromium
 
 ## Conceptual example (why this exists)
 
-In Sentience, agents don’t “hope” an action worked.
+In Predicate, agents don’t “hope” an action worked.
 
 - **Every step is gated by verifiable UI assertions**
 - If progress can’t be proven, the run **fails with evidence** (trace + artifacts)
@@ -80,9 +80,9 @@ if __name__ == "__main__":
 
 ## SentienceDebugger: attach to your existing agent framework (sidecar mode)
 
-If you already have an agent loop (LangGraph, browser-use, custom planner/executor), you can keep it and attach Sentience as a **verifier + trace layer**.
+If you already have an agent loop (LangGraph, browser-use, custom planner/executor), you can keep it and attach Predicate as a **verifier + trace layer**.
 
-Key idea: your agent still decides and executes actions — Sentience **snapshots and verifies outcomes**.
+Key idea: your agent still decides and executes actions — Predicate **snapshots and verifies outcomes**.
 
 ```python
 from predicate import SentienceDebugger, create_tracer
@@ -108,7 +108,7 @@ async def run_existing_agent(page) -> None:
 
 ## SDK-driven full loop (snapshots + actions)
 
-If you want Sentience to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
+If you want Predicate to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
 
 ```python
 from predicate import SentienceBrowser, snapshot, find, click, type_text, wait_for
@@ -168,7 +168,7 @@ def login_example() -> None:
 
 ## ToolRegistry (LLM-callable tools)
 
-Sentience can expose a **typed tool surface** for agents (with tool-call tracing).
+Predicate can expose a **typed tool surface** for agents (with tool-call tracing).
 
 ```python
 from predicate.tools import ToolRegistry, register_default_tools
@@ -215,16 +215,16 @@ runtime.assert_(download_completed("report.csv"), label="download_ok", required=
 - **Manual driver CLI** (inspect clickables, click/type/press quickly):
 
 ```bash
-sentience driver --url https://example.com
+predicate driver --url https://example.com
 ```
 
-- **Verification + artifacts + debugging with time-travel traces (Sentience Studio demo)**:
+- **Verification + artifacts + debugging with time-travel traces (Predicate Studio demo)**:
 
 <video src="https://github.com/user-attachments/assets/7ffde43b-1074-4d70-bb83-2eb8d0469307" controls muted playsinline></video>
 
 If the video tag doesn’t render in your GitHub README view, use this link: [`sentience-studio-demo.mp4`](https://github.com/user-attachments/assets/7ffde43b-1074-4d70-bb83-2eb8d0469307)
 
-- **Sentience SDK Documentation**: https://www.sentienceapi.com/docs
+- **Predicate SDK Documentation**: https://predicatelabs.dev/docs
 
 ## Integrations (examples)
 

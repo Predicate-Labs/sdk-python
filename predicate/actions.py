@@ -830,7 +830,12 @@ def search(
     url_before = browser.page.url
     url = _build_search_url(query, engine)
     browser.goto(url)
-    browser.page.wait_for_load_state("networkidle")
+    # Some public search engines keep long-lived connections open. Treat network-idle
+    # as best-effort so search() remains reliable in CI and constrained networks.
+    try:
+        browser.page.wait_for_load_state("networkidle", timeout=5000)
+    except Exception:
+        pass
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
@@ -1068,6 +1073,7 @@ def click_rect(
     center_x = x + w / 2
     center_y = y + h / 2
     cursor_meta: dict | None = None
+    error_msg = ""
 
     # Show highlight before clicking (if enabled)
     if highlight:
@@ -1906,7 +1912,12 @@ async def search_async(
     url_before = browser.page.url
     url = _build_search_url(query, engine)
     await browser.goto(url)
-    await browser.page.wait_for_load_state("networkidle")
+    # Some public search engines keep long-lived connections open. Treat network-idle
+    # as best-effort so search_async() remains reliable in CI and constrained networks.
+    try:
+        await browser.page.wait_for_load_state("networkidle", timeout=5000)
+    except Exception:
+        pass
 
     duration_ms = int((time.time() - start_time) * 1000)
     url_after = browser.page.url
@@ -2123,6 +2134,7 @@ async def click_rect_async(
     center_x = x + w / 2
     center_y = y + h / 2
     cursor_meta: dict | None = None
+    error_msg = ""
 
     # Show highlight before clicking
     if highlight:
