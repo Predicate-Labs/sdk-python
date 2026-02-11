@@ -168,6 +168,16 @@ from .vision_executor import (
 from .visual_agent import SentienceVisualAgent, SentienceVisualAgentAsync
 from .wait import wait_for
 
+# Predicate-named class counterparts (canonical moving forward).
+# Keep Sentience* names for backward compatibility.
+PredicateBrowser = SentienceBrowser
+AsyncPredicateBrowser = AsyncSentienceBrowser
+PredicateAgent = SentienceAgent
+PredicateAgentAsync = SentienceAgentAsync
+PredicateVisualAgent = SentienceVisualAgent
+PredicateVisualAgentAsync = SentienceVisualAgentAsync
+PredicateDebugger = SentienceDebugger
+
 __version__ = "0.99.8"
 
 __all__ = [
@@ -196,6 +206,8 @@ __all__ = [
     "backend_scroll_to_element",
     "backend_wait_for_stable",
     # Core SDK
+    "PredicateBrowser",
+    "AsyncPredicateBrowser",
     "SentienceBrowser",
     "AsyncSentienceBrowser",
     "Snapshot",
@@ -245,11 +257,15 @@ __all__ = [
     "LocalLLMProvider",
     "LocalVisionLLMProvider",
     "MLXVLMProvider",
+    "PredicateAgent",
+    "PredicateAgentAsync",
     "SentienceAgent",
     "SentienceAgentAsync",
     "RuntimeAgent",
     "RuntimeStep",
     "StepVerification",
+    "PredicateVisualAgent",
+    "PredicateVisualAgentAsync",
     "SentienceVisualAgent",
     "SentienceVisualAgentAsync",
     "ConversationalAgent",
@@ -293,6 +309,7 @@ __all__ = [
     "AgentAction",
     # Verification (agent assertion loop)
     "AgentRuntime",
+    "PredicateDebugger",
     "SentienceDebugger",
     "AssertContext",
     "AssertOutcome",
