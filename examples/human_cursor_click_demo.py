@@ -7,7 +7,7 @@ and how to read the returned cursor metadata for tracing/debugging.
 
 from __future__ import annotations
 
-from sentience import CursorPolicy, SentienceBrowser, click, find, snapshot
+from predicate import CursorPolicy, SentienceBrowser, click, find, snapshot
 
 
 def main() -> None:

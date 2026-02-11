@@ -13,9 +13,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from sentience.cloud_tracing import CloudTraceSink, SentienceLogger
-from sentience.tracer_factory import create_tracer
-from sentience.tracing import Tracer
+from predicate.cloud_tracing import CloudTraceSink, SentienceLogger
+from predicate.tracer_factory import create_tracer
+from predicate.tracing import Tracer
 
 
 class TestFileSizeTracking:
@@ -61,7 +61,7 @@ class TestFileSizeTracking:
         assert sink.trace_file_size_bytes == 0
         assert sink.screenshot_total_size_bytes == 0
 
-    @patch("sentience.cloud_tracing.requests")
+    @patch("predicate.cloud_tracing.requests")
     def test_cloud_sink_logs_file_sizes(self, mock_requests):
         """Test that CloudTraceSink logs file sizes when logger is provided."""
         # Create mock logger
@@ -94,7 +94,7 @@ class TestFileSizeTracking:
         assert any("Trace file size:" in call for call in info_calls)
         assert any("Screenshot total:" in call for call in info_calls)
 
-    @patch("sentience.cloud_tracing.requests")
+    @patch("predicate.cloud_tracing.requests")
     def test_complete_trace_called_after_upload(self, mock_requests):
         """Test that /v1/traces/complete is called after successful upload."""
         # Mock successful upload and complete
@@ -145,7 +145,7 @@ class TestFileSizeTracking:
         assert "trace_file_size_bytes" in payload["stats"]
         assert "screenshot_total_size_bytes" in payload["stats"]
 
-    @patch("sentience.cloud_tracing.requests")
+    @patch("predicate.cloud_tracing.requests")
     def test_complete_trace_not_called_without_api_key(self, mock_requests):
         """Test that /v1/traces/complete is not called without API key."""
         # Mock successful upload
@@ -168,7 +168,7 @@ class TestFileSizeTracking:
         # Verify POST was NOT called
         assert mock_requests.post.call_count == 0
 
-    @patch("sentience.tracer_factory.requests")
+    @patch("predicate.tracer_factory.requests")
     def test_create_tracer_passes_logger_to_cloud_sink(self, mock_requests):
         """Test that create_tracer passes logger to CloudTraceSink."""
         # Mock successful API response
@@ -181,7 +181,7 @@ class TestFileSizeTracking:
         mock_logger = Mock(spec=SentienceLogger)
 
         # Create tracer with logger
-        with patch("sentience.tracer_factory._recover_orphaned_traces"):
+        with patch("predicate.tracer_factory._recover_orphaned_traces"):
             tracer = create_tracer(
                 api_key="sk_test_key",
                 run_id="test-logger",
@@ -200,7 +200,7 @@ class TestFileSizeTracking:
 class TestBackwardCompatibility:
     """Test that existing code continues to work."""
 
-    @patch("sentience.tracer_factory.requests")
+    @patch("predicate.tracer_factory.requests")
     def test_create_tracer_without_logger_still_works(self, mock_requests):
         """Test that create_tracer works without logger parameter (backward compat)."""
         # Mock successful API response
@@ -210,7 +210,7 @@ class TestBackwardCompatibility:
         mock_requests.post.return_value = mock_response
 
         # Create tracer WITHOUT logger (old API)
-        with patch("sentience.tracer_factory._recover_orphaned_traces"):
+        with patch("predicate.tracer_factory._recover_orphaned_traces"):
             tracer = create_tracer(
                 api_key="sk_test_key",
                 run_id="test-compat",

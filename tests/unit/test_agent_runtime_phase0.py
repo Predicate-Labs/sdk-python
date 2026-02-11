@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from sentience.agent_runtime import AgentRuntime
-from sentience.models import BBox, Element, VisualCues
-from sentience.verification import is_disabled, is_enabled, value_equals
+from predicate.agent_runtime import AgentRuntime
+from predicate.models import BBox, Element, VisualCues
+from predicate.verification import is_disabled, is_enabled, value_equals
 
 
 class MockBackend:

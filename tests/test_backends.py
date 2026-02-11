@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sentience import CursorPolicy
-from sentience.backends import (
+from predicate import CursorPolicy
+from predicate.backends import (
     BrowserBackend,
     BrowserUseAdapter,
     BrowserUseCDPTransport,
@@ -28,7 +28,7 @@ from sentience.backends import (
     type_text,
     wait_for_stable,
 )
-from sentience.models import ActionResult, BBox
+from predicate.models import ActionResult, BBox
 
 
 class MockCDPTransport:
@@ -854,7 +854,7 @@ class TestCoordinateResolution:
     @pytest.mark.asyncio
     async def test_bbox_center_calculation(self) -> None:
         """Test BBox center calculation."""
-        from sentience.backends.actions import _resolve_coordinates
+        from predicate.backends.actions import _resolve_coordinates
 
         bbox = BBox(x=100, y=200, width=50, height=30)
         x, y = _resolve_coordinates(bbox)
@@ -865,7 +865,7 @@ class TestCoordinateResolution:
     @pytest.mark.asyncio
     async def test_dict_with_dimensions(self) -> None:
         """Test dict with width/height computes center."""
-        from sentience.backends.actions import _resolve_coordinates
+        from predicate.backends.actions import _resolve_coordinates
 
         target = {"x": 100, "y": 200, "width": 50, "height": 30}
         x, y = _resolve_coordinates(target)
@@ -876,7 +876,7 @@ class TestCoordinateResolution:
     @pytest.mark.asyncio
     async def test_dict_without_dimensions(self) -> None:
         """Test dict without width/height uses x/y directly."""
-        from sentience.backends.actions import _resolve_coordinates
+        from predicate.backends.actions import _resolve_coordinates
 
         target = {"x": 150, "y": 250}
         x, y = _resolve_coordinates(target)
@@ -887,7 +887,7 @@ class TestCoordinateResolution:
     @pytest.mark.asyncio
     async def test_tuple_passthrough(self) -> None:
         """Test tuple passes through unchanged."""
-        from sentience.backends.actions import _resolve_coordinates
+        from predicate.backends.actions import _resolve_coordinates
 
         x, y = _resolve_coordinates((300, 400))
 
@@ -900,7 +900,7 @@ class TestBackendExceptions:
 
     def test_extension_diagnostics_from_dict(self) -> None:
         """Test ExtensionDiagnostics.from_dict."""
-        from sentience.backends.exceptions import ExtensionDiagnostics
+        from predicate.backends.exceptions import ExtensionDiagnostics
 
         data = {
             "sentience_defined": True,
@@ -916,7 +916,7 @@ class TestBackendExceptions:
 
     def test_extension_diagnostics_to_dict(self) -> None:
         """Test ExtensionDiagnostics.to_dict."""
-        from sentience.backends.exceptions import ExtensionDiagnostics
+        from predicate.backends.exceptions import ExtensionDiagnostics
 
         diag = ExtensionDiagnostics(
             sentience_defined=True,
@@ -932,7 +932,7 @@ class TestBackendExceptions:
 
     def test_extension_not_loaded_error_from_timeout(self) -> None:
         """Test ExtensionNotLoadedError.from_timeout creates helpful message."""
-        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+        from predicate.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
 
         diag = ExtensionDiagnostics(
             sentience_defined=False,
@@ -949,7 +949,7 @@ class TestBackendExceptions:
 
     def test_extension_not_loaded_error_with_eval_error(self) -> None:
         """Test ExtensionNotLoadedError when diagnostics collection failed."""
-        from sentience.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
+        from predicate.backends.exceptions import ExtensionDiagnostics, ExtensionNotLoadedError
 
         diag = ExtensionDiagnostics(error="Could not evaluate JavaScript")
         error = ExtensionNotLoadedError.from_timeout(timeout_ms=3000, diagnostics=diag)
@@ -958,7 +958,7 @@ class TestBackendExceptions:
 
     def test_snapshot_error_from_null_result(self) -> None:
         """Test SnapshotError.from_null_result creates helpful message."""
-        from sentience.backends.exceptions import SnapshotError
+        from predicate.backends.exceptions import SnapshotError
 
         error = SnapshotError.from_null_result(url="https://example.com/page")
 
@@ -968,7 +968,7 @@ class TestBackendExceptions:
 
     def test_snapshot_error_from_null_result_no_url(self) -> None:
         """Test SnapshotError.from_null_result without URL."""
-        from sentience.backends.exceptions import SnapshotError
+        from predicate.backends.exceptions import SnapshotError
 
         error = SnapshotError.from_null_result(url=None)
 
@@ -977,7 +977,7 @@ class TestBackendExceptions:
 
     def test_action_error_message_format(self) -> None:
         """Test ActionError formats message correctly."""
-        from sentience.backends.exceptions import ActionError
+        from predicate.backends.exceptions import ActionError
 
         error = ActionError(
             action="click",
@@ -992,7 +992,7 @@ class TestBackendExceptions:
 
     def test_sentience_backend_error_inheritance(self) -> None:
         """Test all exceptions inherit from SentienceBackendError."""
-        from sentience.backends.exceptions import (
+        from predicate.backends.exceptions import (
             ActionError,
             BackendEvalError,
             ExtensionInjectionError,
@@ -1009,7 +1009,7 @@ class TestBackendExceptions:
 
     def test_extension_injection_error_from_page(self) -> None:
         """Test ExtensionInjectionError.from_page."""
-        from sentience.backends.exceptions import ExtensionInjectionError
+        from predicate.backends.exceptions import ExtensionInjectionError
 
         error = ExtensionInjectionError.from_page("https://secure-site.com")
 

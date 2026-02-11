@@ -1,8 +1,8 @@
 import pytest
 
-from sentience.integrations.langchain.context import SentienceLangChainContext
-from sentience.integrations.langchain.core import SentienceLangChainCore
-from sentience.models import BBox, Element, Snapshot
+from predicate.integrations.langchain.context import SentienceLangChainContext
+from predicate.integrations.langchain.core import SentienceLangChainCore
+from predicate.models import BBox, Element, Snapshot
 
 
 class _FakeAsyncPage:
@@ -87,7 +87,7 @@ async def test_core_snapshot_state_summarizes(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "sentience.integrations.langchain.core.snapshot_async", _fake_snapshot_async
+        "predicate.integrations.langchain.core.snapshot_async", _fake_snapshot_async
     )
 
     ctx = SentienceLangChainContext(browser=_FakeAsyncBrowser())  # type: ignore[arg-type]

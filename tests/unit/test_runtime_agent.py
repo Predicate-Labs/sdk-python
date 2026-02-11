@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from sentience.agent_runtime import AgentRuntime
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.models import (
+from predicate.agent_runtime import AgentRuntime
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.models import (
     BBox,
     Element,
     Snapshot,
@@ -15,8 +15,8 @@ from sentience.models import (
     Viewport,
     VisualCues,
 )
-from sentience.runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
-from sentience.verification import AssertContext, AssertOutcome
+from predicate.runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
+from predicate.verification import AssertContext, AssertOutcome
 
 
 class MockTracer:

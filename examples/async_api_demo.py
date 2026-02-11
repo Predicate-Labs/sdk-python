@@ -15,7 +15,7 @@ import asyncio
 import os
 
 # Import async API functions
-from sentience.async_api import (
+from predicate.async_api import (
     AsyncSentienceBrowser,
     click_async,
     find,
@@ -23,7 +23,7 @@ from sentience.async_api import (
     snapshot_async,
     type_text_async,
 )
-from sentience.models import SnapshotOptions, Viewport
+from predicate.models import SnapshotOptions, Viewport
 
 
 async def basic_async_example():

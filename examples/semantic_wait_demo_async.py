@@ -6,7 +6,7 @@ Demonstrates waiting for elements using semantic selectors
 import asyncio
 import os
 
-from sentience.async_api import AsyncSentienceBrowser, click_async, wait_for_async
+from predicate.async_api import AsyncSentienceBrowser, click_async, wait_for_async
 
 
 async def main():

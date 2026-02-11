@@ -10,12 +10,12 @@ Usage:
 
 import asyncio
 
-from sentience import AsyncSentienceBrowser
-from sentience.agent_runtime import AgentRuntime
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import AssertContext, AssertOutcome, exists, url_contains
+from predicate import AsyncSentienceBrowser
+from predicate.agent_runtime import AgentRuntime
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.runtime_agent import RuntimeAgent, RuntimeStep, StepVerification
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import AssertContext, AssertOutcome, exists, url_contains
 
 
 class FixedActionProvider(LLMProvider):

@@ -11,9 +11,9 @@ Env vars:
 import asyncio
 import os
 
-from sentience import AgentRuntime, AsyncSentienceBrowser
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import (
+from predicate import AgentRuntime, AsyncSentienceBrowser
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import (
     exists,
     is_checked,
     is_disabled,

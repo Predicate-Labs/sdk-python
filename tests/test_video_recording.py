@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sentience import SentienceBrowser
+from predicate import SentienceBrowser
 
 # Use a data URL to avoid network dependency (DNS resolution can fail in CI)
 # This is a minimal valid HTML page

@@ -10,22 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Agent Tracing & Debugging
-- **New Module: `sentience.tracing`** - Built-in tracing infrastructure for debugging and analyzing agent behavior
+- **New Module: `predicate.tracing`** - Built-in tracing infrastructure for debugging and analyzing agent behavior
   - `Tracer` class for recording agent execution
   - `TraceSink` abstract base class for custom trace storage
   - `JsonlTraceSink` for saving traces to JSONL files
   - `TraceEvent` dataclass for structured trace events
   - Trace events: `step_start`, `snapshot`, `llm_query`, `action`, `step_end`, `error`
-- **New Module: `sentience.agent_config`** - Centralized agent configuration
+- **New Module: `predicate.agent_config`** - Centralized agent configuration
   - `AgentConfig` dataclass with defaults for snapshot limits, LLM settings, screenshot options
-- **New Module: `sentience.utils`** - Snapshot digest utilities
+- **New Module: `predicate.utils`** - Snapshot digest utilities
   - `compute_snapshot_digests()` - Generate SHA256 fingerprints for loop detection
   - `canonical_snapshot_strict()` - Digest including element text
   - `canonical_snapshot_loose()` - Digest excluding text (layout only)
   - `sha256_digest()` - Hash computation helper
-- **New Module: `sentience.formatting`** - LLM prompt formatting
+- **New Module: `predicate.formatting`** - LLM prompt formatting
   - `format_snapshot_for_llm()` - Convert snapshots to LLM-friendly text format
-- **Schema File: `sentience/schemas/trace_v1.json`** - JSON Schema for trace events, bundled with package
+- **Schema File: `predicate/schemas/trace_v1.json`** - JSON Schema for trace events, bundled with package
 
 #### Enhanced SentienceAgent
 - Added optional `tracer` parameter to `SentienceAgent.__init__()` for execution tracking
@@ -40,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed linting errors across multiple files:
-  - `sentience/cli.py` - Removed unused variable `code` (F841)
-  - `sentience/inspector.py` - Removed unused imports (F401)
+  - `predicate/cli.py` - Removed unused variable `code` (F841)
+  - `predicate/inspector.py` - Removed unused imports (F401)
   - `tests/test_inspector.py` - Removed unused `pytest` import (F401)
   - `tests/test_recorder.py` - Removed unused imports (F401)
   - `tests/test_smart_selector.py` - Removed unused `pytest` import (F401)
@@ -87,13 +87,13 @@ agent.act("Click the button")  # Now traced!
 
 ```python
 # Tracing
-from sentience.tracing import Tracer, JsonlTraceSink, TraceEvent, TraceSink
+from predicate.tracing import Tracer, JsonlTraceSink, TraceEvent, TraceSink
 
 # Configuration
-from sentience.agent_config import AgentConfig
+from predicate.agent_config import AgentConfig
 
 # Utilities
-from sentience.utils import (
+from predicate.utils import (
     compute_snapshot_digests,
     canonical_snapshot_strict,
     canonical_snapshot_loose,
@@ -101,7 +101,7 @@ from sentience.utils import (
 )
 
 # Formatting
-from sentience.formatting import format_snapshot_for_llm
+from predicate.formatting import format_snapshot_for_llm
 ```
 
 ### Notes

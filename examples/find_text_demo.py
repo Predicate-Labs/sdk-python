@@ -8,7 +8,7 @@ This example demonstrates how to:
 4. Handle multiple matches and filter by viewport visibility
 """
 
-from sentience import SentienceBrowser, click_rect, find_text_rect
+from predicate import SentienceBrowser, click_rect, find_text_rect
 
 
 def main():

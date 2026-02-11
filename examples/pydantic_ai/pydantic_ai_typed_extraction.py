@@ -2,7 +2,7 @@
 Example: PydanticAI + Sentience typed extraction (Phase 1 integration).
 
 Run:
-  pip install sentienceapi[pydanticai]
+  pip install predicatelabs[pydanticai]
   python examples/pydantic_ai/pydantic_ai_typed_extraction.py
 """
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from sentience import AsyncSentienceBrowser
-from sentience.integrations.pydanticai import SentiencePydanticDeps, register_sentience_tools
+from predicate import AsyncSentienceBrowser
+from predicate.integrations.pydanticai import SentiencePydanticDeps, register_sentience_tools
 
 
 class ProductInfo(BaseModel):

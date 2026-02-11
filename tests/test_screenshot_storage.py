@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sentience.cloud_tracing import CloudTraceSink
+from predicate.cloud_tracing import CloudTraceSink
 
 
 class TestScreenshotExtraction:
@@ -260,7 +260,7 @@ class TestScreenshotUpload:
             "2": "https://sentience.nyc3.digitaloceanspaces.com/user123/run456/screenshots/step_0002.png?signature=...",
         }
 
-        with patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with patch("predicate.cloud_tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"upload_urls": mock_urls}
@@ -290,7 +290,7 @@ class TestScreenshotUpload:
 
         sink = CloudTraceSink(upload_url, run_id=run_id, api_key=api_key)
 
-        with patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with patch("predicate.cloud_tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 500
             mock_post.return_value = mock_response
@@ -323,8 +323,8 @@ class TestScreenshotUpload:
         }
 
         with (
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
         ):
             # Mock gateway response
             mock_gateway_response = Mock()
@@ -384,7 +384,7 @@ class TestScreenshotUpload:
         # Set screenshot count (normally set during extraction)
         sink.screenshot_count = 2
 
-        with patch("sentience.cloud_tracing.requests.post") as mock_post:
+        with patch("predicate.cloud_tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_post.return_value = mock_response
@@ -438,8 +438,8 @@ class TestScreenshotUpload:
         }
 
         with (
-            patch("sentience.cloud_tracing.requests.post") as mock_post,
-            patch("sentience.cloud_tracing.requests.put") as mock_put,
+            patch("predicate.cloud_tracing.requests.post") as mock_post,
+            patch("predicate.cloud_tracing.requests.put") as mock_put,
         ):
             # Mock gateway response for screenshot URLs
             mock_gateway_response = Mock()

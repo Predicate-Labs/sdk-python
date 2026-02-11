@@ -1,12 +1,12 @@
 """
-Tests for assertion DSL module (sentience.asserts).
+Tests for assertion DSL module (predicate.asserts).
 
 Tests the E() query builder, expect() fluent API, and in_dominant_list() operations.
 """
 
 import pytest
 
-from sentience.asserts import (
+from predicate.asserts import (
     E,
     ElementQuery,
     EventuallyConfig,
@@ -17,8 +17,8 @@ from sentience.asserts import (
     in_dominant_list,
     with_eventually,
 )
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.verification import AssertContext
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.verification import AssertContext
 
 
 def make_element(

@@ -10,9 +10,9 @@ This example shows:
 import asyncio
 import os
 
-from sentience import AgentRuntime, AsyncSentienceBrowser
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import exists
+from predicate import AgentRuntime, AsyncSentienceBrowser
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import exists
 
 
 async def main() -> None:

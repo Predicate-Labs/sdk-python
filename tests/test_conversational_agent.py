@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from sentience.conversational_agent import ConversationalAgent
-from sentience.llm_provider import LLMProvider, LLMResponse
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.conversational_agent import ConversationalAgent
+from predicate.llm_provider import LLMProvider, LLMResponse
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
 
 
 class MockLLMProvider(LLMProvider):
@@ -214,10 +214,10 @@ def test_execute_find_and_click_step():
 
     # Patch at the action_executor level where click is actually called
     with (
-        patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.action_executor.click") as mock_click,
+        patch("predicate.agent.snapshot") as mock_snapshot,
+        patch("predicate.action_executor.click") as mock_click,
     ):
-        from sentience.models import ActionResult
+        from predicate.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
         mock_click.return_value = ActionResult(success=True, duration_ms=150, outcome="dom_updated")
@@ -243,10 +243,10 @@ def test_execute_find_and_type_step():
 
     # Patch at the action_executor level where type_text is actually called
     with (
-        patch("sentience.agent.snapshot") as mock_snapshot,
-        patch("sentience.action_executor.type_text") as mock_type,
+        patch("predicate.agent.snapshot") as mock_snapshot,
+        patch("predicate.action_executor.type_text") as mock_type,
     ):
-        from sentience.models import ActionResult
+        from predicate.models import ActionResult
 
         mock_snapshot.return_value = create_mock_snapshot()
         mock_type.return_value = ActionResult(success=True, duration_ms=200, outcome="dom_updated")
@@ -293,7 +293,7 @@ def test_execute_extract_info_step():
         "parameters": {"info_type": "product price"},
     }
 
-    with patch("sentience.conversational_agent.snapshot") as mock_snapshot:
+    with patch("predicate.conversational_agent.snapshot") as mock_snapshot:
         mock_snapshot.return_value = create_mock_snapshot()
 
         result = agent._execute_step(step)
@@ -322,7 +322,7 @@ def test_execute_verify_step():
         "parameters": {"condition": "page contains search results"},
     }
 
-    with patch("sentience.conversational_agent.snapshot") as mock_snapshot:
+    with patch("predicate.conversational_agent.snapshot") as mock_snapshot:
         mock_snapshot.return_value = create_mock_snapshot()
 
         result = agent._execute_step(step)

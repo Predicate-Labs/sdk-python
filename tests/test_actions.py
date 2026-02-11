@@ -4,7 +4,7 @@ Tests for actions (click, type, press, click_rect)
 
 import pytest
 
-from sentience import (
+from predicate import (
     AsyncSentienceBrowser,
     SentienceBrowser,
     back,

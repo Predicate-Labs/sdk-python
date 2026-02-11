@@ -6,10 +6,10 @@ detection with browser-use, enabling accurate click/type/scroll operations
 using Sentience's snapshot-based grounding instead of coordinate estimation.
 
 Requirements:
-    pip install "sentienceapi[browser-use]" python-dotenv
+    pip install "predicatelabs[browser-use]" python-dotenv
 
     Or install separately:
-    pip install sentienceapi browser-use python-dotenv
+    pip install predicatelabs browser-use python-dotenv
 
 Usage:
     python examples/browser-use/integration.py
@@ -22,8 +22,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Sentience imports
-from sentience import find, get_extension_dir, query
-from sentience.backends import (
+from predicate import find, get_extension_dir, query
+from predicate.backends import (
     BrowserUseAdapter,
     CachedSnapshot,
     ExtensionNotLoadedError,
@@ -240,7 +240,7 @@ async def example_with_sentience_context() -> None:
     print("Extension path:", get_extension_dir())
     print()
     print("To run with a real browser:")
-    print('  1. pip install "sentienceapi[browser-use]" python-dotenv')
+    print('  1. pip install "predicatelabs[browser-use]" python-dotenv')
     print("  2. Uncomment the browser-use imports and code sections")
     print("  3. Run: python examples/browser-use/integration.py")
 

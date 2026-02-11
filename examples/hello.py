@@ -4,7 +4,7 @@ Example: Verify extension bridge is loaded
 
 import os
 
-from sentience import SentienceBrowser
+from predicate import SentienceBrowser
 
 
 def main():

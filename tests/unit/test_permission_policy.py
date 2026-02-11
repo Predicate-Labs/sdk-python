@@ -1,7 +1,7 @@
 import pytest
 
-from sentience import AsyncSentienceBrowser, SentienceBrowser
-from sentience.permissions import PermissionPolicy
+from predicate import AsyncSentienceBrowser, SentienceBrowser
+from predicate.permissions import PermissionPolicy
 
 
 class SyncContextStub:

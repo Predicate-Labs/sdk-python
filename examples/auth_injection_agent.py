@@ -30,8 +30,8 @@ Requirements:
 import argparse
 import os
 
-from sentience import SentienceAgent, SentienceBrowser, save_storage_state
-from sentience.llm_provider import OpenAIProvider
+from predicate import SentienceAgent, SentienceBrowser, save_storage_state
+from predicate.llm_provider import OpenAIProvider
 
 
 def example_inject_storage_state():
@@ -51,7 +51,7 @@ def example_inject_storage_state():
         print("   2. Use save_storage_state() to save the session")
         print("\n   Example code:")
         print("   ```python")
-        print("   from sentience import SentienceBrowser, save_storage_state")
+        print("   from predicate import SentienceBrowser, save_storage_state")
         print("   browser = SentienceBrowser()")
         print("   browser.start()")
         print("   browser.goto('https://example.com')")

@@ -5,7 +5,7 @@ Example: Query engine demonstration (Async version)
 import asyncio
 import os
 
-from sentience.async_api import AsyncSentienceBrowser, find, query, snapshot_async
+from predicate.async_api import AsyncSentienceBrowser, find, query, snapshot_async
 
 
 async def main():

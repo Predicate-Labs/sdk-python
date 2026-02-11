@@ -5,7 +5,7 @@ Tests for async API functionality
 import pytest
 from playwright.async_api import async_playwright
 
-from sentience.async_api import (
+from predicate.async_api import (
     AsyncSentienceBrowser,
     BaseAgentAsync,
     ExpectationAsync,
@@ -29,7 +29,7 @@ from sentience.async_api import (
     type_text_async,
     wait_for_async,
 )
-from sentience.models import BBox, SnapshotOptions
+from predicate.models import BBox, SnapshotOptions
 
 
 @pytest.mark.asyncio
@@ -510,7 +510,7 @@ async def test_base_agent_async_interface():
 @pytest.mark.requires_extension
 async def test_sentience_agent_async_initialization():
     """Test SentienceAgentAsync can be initialized"""
-    from sentience.llm_provider import LLMProvider, LLMResponse
+    from predicate.llm_provider import LLMProvider, LLMResponse
 
     # Create a simple mock LLM provider
     class MockLLMProvider(LLMProvider):

@@ -1,5 +1,5 @@
 """
-Unit tests for sentience.utils.browser module.
+Unit tests for predicate.utils.browser module.
 
 Tests browser storage state saving functionality.
 """
@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sentience.utils.browser import save_storage_state
+from predicate.utils.browser import save_storage_state
 
 
 class TestSaveStorageState:

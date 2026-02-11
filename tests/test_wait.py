@@ -2,7 +2,7 @@
 Tests for wait functionality
 """
 
-from sentience import SentienceBrowser, expect, wait_for
+from predicate import SentienceBrowser, expect, wait_for
 
 
 def test_wait_for():

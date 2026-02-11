@@ -61,6 +61,6 @@ Thumbs.db
 extension-temp/
 playground/
 
-# Allow bundled extension assets under sentience/extension/dist
-!sentience/extension/dist/
-!sentience/extension/dist/**
+# Allow bundled extension assets under predicate/extension/dist
+!predicate/extension/dist/
+!predicate/extension/dist/**

@@ -4,7 +4,7 @@ Tests for screenshot functionality
 
 import base64
 
-from sentience import SentienceBrowser, screenshot
+from predicate import SentienceBrowser, screenshot
 
 
 def test_screenshot_png():

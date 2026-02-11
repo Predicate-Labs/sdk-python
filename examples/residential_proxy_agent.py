@@ -35,9 +35,9 @@ Requirements:
 
 import os
 
-from sentience import SentienceAgent, SentienceBrowser
-from sentience.agent_config import AgentConfig
-from sentience.llm_provider import OpenAIProvider
+from predicate import SentienceAgent, SentienceBrowser
+from predicate.agent_config import AgentConfig
+from predicate.llm_provider import OpenAIProvider
 
 
 def example_proxy_direct_argument():
@@ -214,7 +214,7 @@ def example_proxy_with_cloud_tracing():
         print("❌ Error: OPENAI_API_KEY not set")
         return
 
-    from sentience.tracer_factory import create_tracer
+    from predicate.tracer_factory import create_tracer
 
     # Create tracer for cloud upload
     run_id = "proxy-with-tracing-demo"

@@ -1,4 +1,4 @@
-name: Sync Extension from sentience-chrome
+name: Sync Extension from predicate-chrome
 
 on:
   repository_dispatch:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag from sentience-chrome (e.g., v1.0.0)'
+        description: 'Release tag from predicate-chrome (e.g., v1.0.0)'
         required: true
         type: string
   schedule:
@@ -147,7 +147,7 @@ jobs:
       if: steps.release.outputs.skip != 'true'
       run: |
         # Target directory in sdk-python (inside the package source)
-        TARGET_DIR="sentience/extension"
+        TARGET_DIR="predicate/extension"
 
         # Ensure target directory exists and is clean
         rm -rf "$TARGET_DIR"
@@ -172,7 +172,7 @@ jobs:
       if: steps.release.outputs.skip != 'true'
       id: changes
       run: |
-        git add sentience/extension/
+        git add predicate/extension/
 
         if git diff --staged --quiet; then
           echo "No changes detected."
@@ -196,10 +196,10 @@ jobs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.PR_TOKEN || secrets.GITHUB_TOKEN }}
-        commit-message: "chore: sync extension files from sentience-chrome ${{ steps.release.outputs.tag }}"
+        commit-message: "chore: sync extension files from predicate-chrome ${{ steps.release.outputs.tag }}"
         title: "Sync Extension: ${{ steps.release.outputs.tag }}"
         body: |
-          This PR syncs extension files from sentience-chrome release ${{ steps.release.outputs.tag }}.
+          This PR syncs extension files from predicate-chrome release ${{ steps.release.outputs.tag }}.
 
           **Files updated:**
           - Extension manifest and scripts

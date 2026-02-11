@@ -6,7 +6,7 @@ import pytest
 def test_deepinfra_provider_supports_vision_for_common_multimodal_names() -> None:
     pytest.importorskip("openai")
 
-    from sentience.llm_provider import DeepInfraProvider
+    from predicate.llm_provider import DeepInfraProvider
 
     p1 = DeepInfraProvider(api_key="x", model="meta-llama/Llama-3.2-11B-Vision-Instruct")
     assert p1.supports_vision() is True

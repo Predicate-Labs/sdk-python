@@ -4,8 +4,8 @@ Tests for importance_score normalization in trace events.
 
 import pytest
 
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.trace_event_builder import TraceEventBuilder
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.trace_event_builder import TraceEventBuilder
 
 
 def create_element(element_id: int, importance: int) -> Element:

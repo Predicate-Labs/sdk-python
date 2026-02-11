@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from sentience.trace_indexing import (
+from predicate.trace_indexing import (
     StepIndex,
     TraceIndex,
     build_trace_index,

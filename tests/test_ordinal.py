@@ -6,8 +6,8 @@ Tests the detect_ordinal_intent, select_by_ordinal, and boost_ordinal_elements f
 
 import pytest
 
-from sentience.models import BBox, Element, VisualCues
-from sentience.ordinal import (
+from predicate.models import BBox, Element, VisualCues
+from predicate.ordinal import (
     OrdinalIntent,
     boost_ordinal_elements,
     detect_ordinal_intent,

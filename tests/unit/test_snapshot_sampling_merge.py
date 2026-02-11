@@ -1,7 +1,7 @@
 import pytest
 
-from sentience.backends.snapshot import merge_snapshots
-from sentience.models import BBox, Element, Snapshot, VisualCues
+from predicate.backends.snapshot import merge_snapshots
+from predicate.models import BBox, Element, Snapshot, VisualCues
 
 
 def _el(

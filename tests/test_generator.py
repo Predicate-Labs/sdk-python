@@ -7,9 +7,9 @@ import tempfile
 
 import pytest
 
-from sentience import SentienceBrowser, record
-from sentience.generator import ScriptGenerator, generate
-from sentience.recorder import Trace, TraceStep
+from predicate import SentienceBrowser, record
+from predicate.generator import ScriptGenerator, generate
+from predicate.recorder import Trace, TraceStep
 
 
 def test_generator_python():
@@ -28,7 +28,7 @@ def test_generator_python():
         code = generator.generate_python()
 
         # Verify code contains expected elements
-        assert "from sentience import" in code
+        assert "from predicate import" in code
         assert "def main():" in code
         assert "SentienceBrowser" in code
         assert "role=button text~'Click'" in code
@@ -77,7 +77,7 @@ def test_generator_save_python():
 
             with open(temp_path) as f:
                 code = f.read()
-                assert "from sentience import" in code
+                assert "from predicate import" in code
         finally:
             os.unlink(temp_path)
 
@@ -138,7 +138,7 @@ def test_generate_helper():
 
         # Test Python generation
         py_code = generate(rec.trace, "py")
-        assert "from sentience import" in py_code
+        assert "from predicate import" in py_code
 
         # Test TypeScript generation
         ts_code = generate(rec.trace, "ts")

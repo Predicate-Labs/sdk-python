@@ -2,7 +2,7 @@
 Tests for inspector functionality
 """
 
-from sentience import SentienceBrowser, inspect
+from predicate import SentienceBrowser, inspect
 
 
 def test_inspector_start_stop():

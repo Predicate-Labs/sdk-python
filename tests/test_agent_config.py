@@ -1,6 +1,6 @@
-"""Tests for sentience.agent_config module"""
+"""Tests for predicate.agent_config module"""
 
-from sentience.agent_config import AgentConfig
+from predicate.agent_config import AgentConfig
 
 
 def test_agent_config_defaults():

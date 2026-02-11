@@ -3,7 +3,7 @@ Test script for LocalLLMProvider with Qwen2.5-3B-Instruct
 Demonstrates using a local LLM with SentienceAgent
 """
 
-from sentience.llm_provider import LocalLLMProvider
+from predicate.llm_provider import LocalLLMProvider
 
 
 def test_local_llm_basic():

@@ -1,4 +1,4 @@
-from sentience.browser import SentienceBrowser
+from predicate.browser import SentienceBrowser
 
 
 def test_bot():

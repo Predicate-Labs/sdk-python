@@ -9,7 +9,7 @@ import os
 
 from markdownify import markdownify
 
-from sentience import SentienceBrowser, read
+from predicate import SentienceBrowser, read
 
 
 def main():

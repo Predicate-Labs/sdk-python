@@ -2,9 +2,9 @@
 Tests for query engine
 """
 
-from sentience import SentienceBrowser, find, query, snapshot
-from sentience.models import BBox, Element, VisualCues
-from sentience.query import match_element, parse_selector
+from predicate import SentienceBrowser, find, query, snapshot
+from predicate.models import BBox, Element, VisualCues
+from predicate.query import match_element, parse_selector
 
 
 def test_parse_selector():
@@ -263,7 +263,7 @@ def test_query_advanced_operators():
         ),
     ]
 
-    from sentience.models import Snapshot
+    from predicate.models import Snapshot
 
     snap = Snapshot(
         status="success",

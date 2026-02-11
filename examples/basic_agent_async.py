@@ -6,8 +6,8 @@ Demonstrates SentienceAgentAsync for natural language automation
 import asyncio
 import os
 
-from sentience.async_api import AsyncSentienceBrowser, SentienceAgentAsync
-from sentience.llm_provider import LLMProvider, LLMResponse
+from predicate.async_api import AsyncSentienceBrowser, SentienceAgentAsync
+from predicate.llm_provider import LLMProvider, LLMResponse
 
 
 # Simple mock LLM provider for demonstration

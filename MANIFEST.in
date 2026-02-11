@@ -1,2 +1,2 @@
-include sentience/schemas/*.json
-recursive-include sentience/extension *.js *.json *.wasm *.d.ts
+include predicate/schemas/*.json
+recursive-include predicate/extension *.js *.json *.wasm *.d.ts

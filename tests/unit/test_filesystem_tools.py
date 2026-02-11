@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sentience.tools import FileSandbox, ToolContext, ToolRegistry, register_filesystem_tools
+from predicate.tools import FileSandbox, ToolContext, ToolRegistry, register_filesystem_tools
 
 
 class RuntimeStub:

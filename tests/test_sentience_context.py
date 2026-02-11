@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from sentience.backends import SentienceContext, SentienceContextState, TopElementSelector
-from sentience.constants import SENTIENCE_API_URL
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.backends import SentienceContext, SentienceContextState, TopElementSelector
+from predicate.constants import PREDICATE_API_URL, SENTIENCE_API_URL
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
 
 
 def make_element(
@@ -93,7 +93,8 @@ class TestSentienceContextInit:
 
     def test_api_url_constant(self) -> None:
         """Test API URL is a class constant."""
-        assert SentienceContext.API_URL == SENTIENCE_API_URL
+        assert SentienceContext.API_URL == PREDICATE_API_URL
+        assert SENTIENCE_API_URL == PREDICATE_API_URL
 
     def test_top_element_selector_defaults(self) -> None:
         """Test TopElementSelector has correct defaults."""
@@ -511,7 +512,7 @@ class TestBuildMethod:
             ctx, "_format_snapshot_for_llm", return_value="1|button|Click|80|0|0|-|0|"
         ):
             # Patch the imports that happen inside build()
-            import sentience.backends.sentience_context as ctx_module
+            import predicate.backends.sentience_context as ctx_module
 
             original_build = ctx.build
 

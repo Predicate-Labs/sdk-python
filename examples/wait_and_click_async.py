@@ -5,7 +5,7 @@ Example: Wait for element and click (Async version)
 import asyncio
 import os
 
-from sentience.async_api import (
+from predicate.async_api import (
     AsyncSentienceBrowser,
     click_async,
     expect_async,

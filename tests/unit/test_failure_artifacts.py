@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
-from sentience.failure_artifacts import (
+from predicate.failure_artifacts import (
     ClipOptions,
     FailureArtifactBuffer,
     FailureArtifactsOptions,
@@ -116,7 +116,7 @@ def test_clip_mode_off_skips_generation(tmp_path) -> None:
 
 def test_clip_mode_auto_skips_when_ffmpeg_missing(tmp_path) -> None:
     """When clip.mode='auto' and ffmpeg is not available, skip silently."""
-    with patch("sentience.failure_artifacts._is_ffmpeg_available", return_value=False):
+    with patch("predicate.failure_artifacts._is_ffmpeg_available", return_value=False):
         opts = FailureArtifactsOptions(
             output_dir=str(tmp_path),
             clip=ClipOptions(mode="auto", fps=10),
@@ -133,7 +133,7 @@ def test_clip_mode_auto_skips_when_ffmpeg_missing(tmp_path) -> None:
 
 def test_clip_mode_on_warns_when_ffmpeg_missing(tmp_path) -> None:
     """When clip.mode='on' and ffmpeg is not available, log warning but don't fail."""
-    with patch("sentience.failure_artifacts._is_ffmpeg_available", return_value=False):
+    with patch("predicate.failure_artifacts._is_ffmpeg_available", return_value=False):
         opts = FailureArtifactsOptions(
             output_dir=str(tmp_path),
             clip=ClipOptions(mode="on"),
@@ -150,8 +150,8 @@ def test_clip_mode_on_warns_when_ffmpeg_missing(tmp_path) -> None:
 
 def test_clip_generation_with_mock_ffmpeg(tmp_path) -> None:
     """Test clip generation logic with mocked ffmpeg subprocess."""
-    with patch("sentience.failure_artifacts._is_ffmpeg_available", return_value=True):
-        with patch("sentience.failure_artifacts._generate_clip_from_frames") as mock_gen:
+    with patch("predicate.failure_artifacts._is_ffmpeg_available", return_value=True):
+        with patch("predicate.failure_artifacts._generate_clip_from_frames") as mock_gen:
             mock_gen.return_value = True  # Simulate successful clip generation
 
             opts = FailureArtifactsOptions(
@@ -177,8 +177,8 @@ def test_clip_generation_with_mock_ffmpeg(tmp_path) -> None:
 
 def test_clip_not_generated_when_frames_dropped(tmp_path) -> None:
     """Clip should not be generated when frames are dropped by redaction."""
-    with patch("sentience.failure_artifacts._is_ffmpeg_available", return_value=True):
-        with patch("sentience.failure_artifacts._generate_clip_from_frames") as mock_gen:
+    with patch("predicate.failure_artifacts._is_ffmpeg_available", return_value=True):
+        with patch("predicate.failure_artifacts._generate_clip_from_frames") as mock_gen:
             opts = FailureArtifactsOptions(
                 output_dir=str(tmp_path),
                 clip=ClipOptions(mode="on"),
@@ -199,7 +199,7 @@ def test_clip_not_generated_when_frames_dropped(tmp_path) -> None:
 
 def test_is_ffmpeg_available_with_missing_binary() -> None:
     """Test _is_ffmpeg_available returns False when ffmpeg is not found."""
-    with patch("sentience.failure_artifacts.subprocess.run") as mock_run:
+    with patch("predicate.failure_artifacts.subprocess.run") as mock_run:
         mock_run.side_effect = FileNotFoundError("ffmpeg not found")
         assert _is_ffmpeg_available() is False
 
@@ -208,7 +208,7 @@ def test_is_ffmpeg_available_with_timeout() -> None:
     """Test _is_ffmpeg_available returns False on timeout."""
     import subprocess
 
-    with patch("sentience.failure_artifacts.subprocess.run") as mock_run:
+    with patch("predicate.failure_artifacts.subprocess.run") as mock_run:
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="ffmpeg", timeout=5)
         assert _is_ffmpeg_available() is False
 
@@ -321,8 +321,8 @@ def test_upload_to_cloud_with_mocked_gateway(tmp_path) -> None:
     mock_response_complete = MagicMock()
     mock_response_complete.status_code = 200
 
-    with patch("sentience.failure_artifacts.requests.post") as mock_post:
-        with patch("sentience.failure_artifacts.requests.put") as mock_put:
+    with patch("predicate.failure_artifacts.requests.post") as mock_post:
+        with patch("predicate.failure_artifacts.requests.put") as mock_put:
             mock_post.side_effect = [mock_response_init, mock_response_complete]
             mock_put.return_value = mock_response_upload
 
@@ -353,7 +353,7 @@ def test_upload_to_cloud_handles_gateway_error(tmp_path) -> None:
     mock_response = MagicMock()
     mock_response.status_code = 500
 
-    with patch("sentience.failure_artifacts.requests.post") as mock_post:
+    with patch("predicate.failure_artifacts.requests.post") as mock_post:
         mock_post.return_value = mock_response
 
         result = buf.upload_to_cloud(api_key="test-key", persisted_dir=run_dir)
@@ -371,7 +371,7 @@ def test_upload_to_cloud_handles_network_error(tmp_path) -> None:
     run_dir = buf.persist(reason="fail", status="failure")
     assert run_dir is not None
 
-    with patch("sentience.failure_artifacts.requests.post") as mock_post:
+    with patch("predicate.failure_artifacts.requests.post") as mock_post:
         mock_post.side_effect = requests.exceptions.ConnectionError("Network error")
 
         result = buf.upload_to_cloud(api_key="test-key", persisted_dir=run_dir)

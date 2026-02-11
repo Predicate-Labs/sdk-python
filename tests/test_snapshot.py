@@ -4,8 +4,8 @@ Tests for snapshot functionality
 
 import pytest
 
-from sentience import SentienceBrowser, snapshot
-from sentience.models import SnapshotOptions
+from predicate import SentienceBrowser, snapshot
+from predicate.models import SnapshotOptions
 
 
 @pytest.mark.requires_extension
@@ -138,7 +138,7 @@ def test_snapshot_with_goal():
 
 def test_element_ml_fields_optional():
     """Test that Element model accepts optional ML reranking fields"""
-    from sentience.models import BBox, Element, VisualCues
+    from predicate.models import BBox, Element, VisualCues
 
     # Test element without ML fields
     element_without_ml = Element(
@@ -200,7 +200,7 @@ def test_element_ml_fields_optional():
 
 def test_snapshot_ml_rerank_metadata_optional():
     """Test snapshot ML rerank metadata model"""
-    from sentience.models import MlRerankInfo, MlRerankTags, Snapshot
+    from predicate.models import MlRerankInfo, MlRerankTags, Snapshot
 
     snap = Snapshot(
         status="success",

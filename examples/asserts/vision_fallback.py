@@ -13,10 +13,10 @@ Env vars:
 import asyncio
 import os
 
-from sentience import AgentRuntime, AsyncSentienceBrowser
-from sentience.llm_provider import OpenAIProvider
-from sentience.tracing import JsonlTraceSink, Tracer
-from sentience.verification import exists
+from predicate import AgentRuntime, AsyncSentienceBrowser
+from predicate.llm_provider import OpenAIProvider
+from predicate.tracing import JsonlTraceSink, Tracer
+from predicate.verification import exists
 
 
 async def main() -> None:

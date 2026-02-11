@@ -4,8 +4,8 @@ Tests for snapshot diff functionality (diff_status detection).
 
 import pytest
 
-from sentience.models import BBox, Element, Snapshot, Viewport, VisualCues
-from sentience.snapshot_diff import SnapshotDiff
+from predicate.models import BBox, Element, Snapshot, Viewport, VisualCues
+from predicate.snapshot_diff import SnapshotDiff
 
 
 def create_element(

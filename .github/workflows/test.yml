@@ -33,15 +33,15 @@ jobs:
       shell: bash
       run: |
         pip cache purge || true
-        pip uninstall -y sentienceapi || true
+        pip uninstall -y predicatelabs || true
         # Aggressively clean any bytecode cache (cross-platform Python approach)
         python -c "import pathlib; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]" || true
         python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('.').rglob('__pycache__') if p.is_dir()]" || true
-        # Also clean .pyc files in sentience package specifically
-        find sentience -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('sentience').rglob('__pycache__') if p.is_dir()]" || true
-        find sentience -name "*.pyc" -delete 2>/dev/null || python -c "import pathlib; [p.unlink() for p in pathlib.Path('sentience').rglob('*.pyc')]" || true
+        # Also clean .pyc files in predicate package specifically
+        find predicate -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('predicate').rglob('__pycache__') if p.is_dir()]" || true
+        find predicate -name "*.pyc" -delete 2>/dev/null || python -c "import pathlib; [p.unlink() for p in pathlib.Path('predicate').rglob('*.pyc')]" || true
         # Ensure source uses assert_ (no auto-rewrite).
-        python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('sentience/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue('; print('OK: Source file verified: uses self.assert_()')"
+        python -c "import sys; import io; sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace') if sys.platform == 'win32' else sys.stdout; content = open('predicate/agent_runtime.py', 'r', encoding='utf-8').read(); assert 'self.assertTrue(' not in content, 'Source file still has self.assertTrue('; print('OK: Source file verified: uses self.assert_()')"
 
         # Force reinstall to ensure latest code
         pip install --no-cache-dir --force-reinstall -e ".[dev]"
@@ -55,10 +55,10 @@ jobs:
         git branch --show-current || echo "Detached HEAD"
         echo ""
         echo "=== Verify editable install (should point to local source) ==="
-        python -c "import sentience; import os; fpath = sentience.__file__; print(f'Package location: {fpath}'); print(f'Is in current dir: {os.path.abspath(fpath).startswith(os.getcwd())}'); print(f'Points to source: {os.path.exists(fpath)}')"
+        python -c "import predicate; import os; fpath = predicate.__file__; print(f'Package location: {fpath}'); print(f'Is in current dir: {os.path.abspath(fpath).startswith(os.getcwd())}'); print(f'Points to source: {os.path.exists(fpath)}')"
         echo ""
         echo "=== Source file line 345 (from repo) ==="
-        sed -n '345p' sentience/agent_runtime.py || python -c "with open('sentience/agent_runtime.py', 'r') as f: lines = f.readlines(); print(lines[344] if len(lines) > 344 else 'NOT FOUND')"
+        sed -n '345p' predicate/agent_runtime.py || python -c "with open('predicate/agent_runtime.py', 'r') as f: lines = f.readlines(); print(lines[344] if len(lines) > 344 else 'NOT FOUND')"
         echo ""
         echo "=== Installed package assert_done (from imported module) ==="
         python << 'PYEOF'
@@ -72,11 +72,11 @@ jobs:
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-        from sentience.agent_runtime import AgentRuntime
+        from predicate.agent_runtime import AgentRuntime
 
         # Verify it's using local source
-        import sentience
-        pkg_path = os.path.abspath(sentience.__file__)
+        import predicate
+        pkg_path = os.path.abspath(predicate.__file__)
         cwd = os.getcwd()
         if not pkg_path.startswith(cwd):
             print(f'WARNING: Package is not from local source!')
@@ -120,13 +120,13 @@ jobs:
 
         # Check agent_runtime.py line 345
         print("=== Checking agent_runtime.py line 345 ===")
-        with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
+        with open('predicate/agent_runtime.py', 'r', encoding='utf-8') as f:
             lines = f.readlines()
             print(''.join(lines[339:350]))
 
         # Verify assert_ method exists
         print("\n=== Verifying assert_ method exists ===")
-        with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
+        with open('predicate/agent_runtime.py', 'r', encoding='utf-8') as f:
             lines = f.readlines()
             for i, line in enumerate(lines, 1):
                 if 'def assert_' in line:
@@ -135,7 +135,7 @@ jobs:
         # Check for problematic assertTrue patterns (should NOT exist)
         print("\n=== Checking for assertTrue patterns (should NOT exist) ===")
         import re
-        with open('sentience/agent_runtime.py', 'r', encoding='utf-8') as f:
+        with open('predicate/agent_runtime.py', 'r', encoding='utf-8') as f:
             content = f.read()
             # Check for self.assertTrue( - this is the bug
             if re.search(r'self\.assertTrue\s*\(', content):
@@ -156,14 +156,14 @@ jobs:
     - name: Type check with mypy
       continue-on-error: true
       run: |
-        mypy sentience --ignore-missing-imports --no-strict-optional
+        mypy predicate --ignore-missing-imports --no-strict-optional
 
     - name: Check code style
       continue-on-error: true
       run: |
-        black --check sentience tests --line-length=100
-        isort --check-only --profile black sentience tests
-        flake8 sentience tests --max-line-length=100 --extend-ignore=E203,W503,E501 --max-complexity=15
+        black --check predicate tests --line-length=100
+        isort --check-only --profile black predicate tests
+        flake8 predicate tests --max-line-length=100 --extend-ignore=E203,W503,E501 --max-complexity=15
 
     - name: Build extension (if needed)
       if: runner.os != 'Windows'
@@ -192,7 +192,7 @@ jobs:
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
         # Check the source file directly (not the installed package)
-        file_path = 'sentience/agent_runtime.py'
+        file_path = 'predicate/agent_runtime.py'
         if not os.path.exists(file_path):
             print(f'WARNING: {file_path} not found!')
             sys.exit(0)  # Don't fail if file doesn't exist
@@ -248,7 +248,7 @@ jobs:
         print("=== Final Pre-Test Verification ===")
 
         # First, verify the source file directly
-        source_file = 'sentience/agent_runtime.py'
+        source_file = 'predicate/agent_runtime.py'
         print(f"=== Checking source file: {source_file} ===")
         if not os.path.exists(source_file):
             print(f"ERROR: Source file {source_file} not found!")
@@ -282,11 +282,11 @@ jobs:
 
         # Now check the installed package
         print("\n=== Checking installed package ===")
-        import sentience.agent_runtime
+        import predicate.agent_runtime
 
         # Verify it's using local source (editable install)
-        import sentience
-        pkg_path = os.path.abspath(sentience.__file__)
+        import predicate
+        pkg_path = os.path.abspath(predicate.__file__)
         cwd = os.getcwd()
         if not pkg_path.startswith(cwd):
             print(f'WARNING: Package is not from local source!')
@@ -296,7 +296,7 @@ jobs:
         else:
             print(f'OK: Package is from local source: {pkg_path}')
 
-        src = inspect.getsource(sentience.agent_runtime.AgentRuntime.assert_done)
+        src = inspect.getsource(predicate.agent_runtime.AgentRuntime.assert_done)
 
         print("assert_done method source:")
         print(src)

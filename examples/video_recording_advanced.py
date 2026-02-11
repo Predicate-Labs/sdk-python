@@ -10,7 +10,7 @@ Demonstrates advanced video recording features:
 from datetime import datetime
 from pathlib import Path
 
-from sentience import SentienceBrowser
+from predicate import SentienceBrowser
 
 
 def main():
