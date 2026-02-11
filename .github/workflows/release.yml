@@ -9,6 +9,10 @@ on:
         description: 'Version to release (e.g., 0.1.0)'
         required: true
         type: string
+      extension_release_tag:
+        description: 'Optional extension release tag (e.g., v1.2.3). Defaults to latest if omitted.'
+        required: false
+        type: string
 
 jobs:
   build-and-publish:
@@ -49,6 +53,115 @@ jobs:
       run: |
         VERSION="${{ steps.version.outputs.version }}"
         sed -i "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" predicate/__init__.py
+
+    - name: Sync extension files if missing
+      run: |
+        set -euo pipefail
+
+        REQUIRED_FILES=(
+          "predicate/extension/manifest.json"
+          "predicate/extension/content.js"
+          "predicate/extension/background.js"
+          "predicate/extension/injected_api.js"
+          "predicate/extension/pkg/sentience_core.js"
+          "predicate/extension/pkg/sentience_core_bg.wasm"
+        )
+
+        has_all_required_files() {
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              return 1
+            fi
+          done
+          return 0
+        }
+
+        if has_all_required_files; then
+          echo "✅ Extension files already present in repository"
+          exit 0
+        fi
+
+        echo "⚠️ Extension files missing locally. Attempting auto-sync from extension release..."
+
+        REPO="${{ secrets.SENTIENCE_CHROME_REPO }}"
+        TOKEN="${{ secrets.SENTIENCE_CHROME_TOKEN }}"
+
+        if [ -z "$REPO" ] || [ -z "$TOKEN" ]; then
+          echo "❌ Cannot auto-sync extension files: SENTIENCE_CHROME_REPO or SENTIENCE_CHROME_TOKEN is not configured."
+          echo "Please run sync-extension workflow (or sync manually) before release."
+          exit 1
+        fi
+
+        TAG_INPUT="${{ github.event.inputs.extension_release_tag }}"
+        if [ -n "$TAG_INPUT" ]; then
+          TAG="$TAG_INPUT"
+          echo "Using extension release tag from input: $TAG"
+        else
+          echo "No extension_release_tag provided. Resolving latest release tag from $REPO..."
+          HTTP_CODE=$(curl -s -o latest_release.json -w "%{http_code}" \
+            -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$REPO/releases/latest")
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Failed to fetch latest extension release (HTTP $HTTP_CODE)"
+            cat latest_release.json
+            exit 1
+          fi
+
+          TAG=$(jq -r '.tag_name // empty' latest_release.json)
+          if [ -z "$TAG" ]; then
+            echo "❌ Could not determine latest extension release tag"
+            exit 1
+          fi
+          echo "Resolved latest extension tag: $TAG"
+        fi
+
+        mkdir -p extension-temp
+        cd extension-temp
+
+        HTTP_CODE=$(curl -s -w "%{http_code}" -o release.json \
+          -H "Authorization: token $TOKEN" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "❌ Failed to fetch extension release info for tag $TAG (HTTP $HTTP_CODE)"
+          cat release.json
+          exit 1
+        fi
+
+        ASSET_URL=$(jq -r '.assets[]? | select(.name == "extension-files.tar.gz") | .url' release.json)
+        if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+          echo "❌ extension-files.tar.gz not found on extension release $TAG"
+          echo "Available assets:"
+          jq -r '.assets[]?.name' release.json
+          exit 1
+        fi
+
+        HTTP_CODE=$(curl -L -s -w "%{http_code}" -o extension.tar.gz \
+          -H "Authorization: token $TOKEN" \
+          -H "Accept: application/octet-stream" \
+          "$ASSET_URL")
+
+        if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "302" ]; then
+          echo "❌ Failed to download extension tarball (HTTP $HTTP_CODE)"
+          exit 1
+        fi
+
+        tar -xzf extension.tar.gz
+        cd ..
+
+        TARGET_DIR="predicate/extension"
+        rm -rf "$TARGET_DIR"
+        mkdir -p "$TARGET_DIR"
+        cp -r extension-temp/* "$TARGET_DIR/"
+        rm -rf extension-temp latest_release.json
+
+        if has_all_required_files; then
+          echo "✅ Extension files synced successfully from $REPO@$TAG"
+        else
+          echo "❌ Extension sync completed but required files are still missing"
+          exit 1
+        fi
 
     - name: Verify extension files are present
       run: |
