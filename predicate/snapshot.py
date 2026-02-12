@@ -476,9 +476,9 @@ def snapshot(
     if options is None:
         options = SnapshotOptions()
 
-    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
-    # This allows browser-use users to pass api_key via options without SentienceBrowser
-    effective_api_key = options.sentience_api_key or browser.api_key
+    # Resolve API key: predicate_api_key is canonical, sentience_api_key kept for compatibility.
+    # This allows browser-use users to pass api_key via options without SentienceBrowser.
+    effective_api_key = options.predicate_api_key or options.sentience_api_key or browser.api_key
 
     # Determine if we should use server-side API
     should_use_api = (
@@ -710,9 +710,9 @@ async def snapshot_async(
     if options is None:
         options = SnapshotOptions()
 
-    # Resolve API key: options.sentience_api_key takes precedence, then browser.api_key
-    # This allows browser-use users to pass api_key via options without SentienceBrowser
-    effective_api_key = options.sentience_api_key or browser.api_key
+    # Resolve API key: predicate_api_key is canonical, sentience_api_key kept for compatibility.
+    # This allows browser-use users to pass api_key via options without SentienceBrowser.
+    effective_api_key = options.predicate_api_key or options.sentience_api_key or browser.api_key
 
     # Determine if we should use server-side API
     should_use_api = (

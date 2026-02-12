@@ -48,6 +48,7 @@ class SentienceDebugger:
         page: Page,
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> SentienceDebugger:
@@ -55,6 +56,7 @@ class SentienceDebugger:
             page=page,
             tracer=tracer,
             snapshot_options=snapshot_options,
+            predicate_api_key=predicate_api_key,
             sentience_api_key=sentience_api_key,
             tool_registry=tool_registry,
         )

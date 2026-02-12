@@ -125,6 +125,7 @@ class AgentRuntime:
         backend: BrowserBackend,
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
     ):
@@ -138,7 +139,8 @@ class AgentRuntime:
                      - PlaywrightBackend (future, for direct Playwright)
             tracer: Tracer for emitting verification events
             snapshot_options: Default options for snapshots
-            sentience_api_key: API key for Pro/Enterprise tier (enables Gateway refinement)
+            predicate_api_key: Canonical API key parameter for Pro/Enterprise tier.
+            sentience_api_key: Backward-compatible API key alias (legacy name).
             tool_registry: Optional ToolRegistry for LLM-callable tools
         """
         self.backend = backend
@@ -147,8 +149,10 @@ class AgentRuntime:
 
         # Build default snapshot options with API key if provided
         default_opts = snapshot_options or SnapshotOptions()
-        if sentience_api_key:
-            default_opts.sentience_api_key = sentience_api_key
+        effective_api_key = predicate_api_key or sentience_api_key
+        if effective_api_key:
+            default_opts.predicate_api_key = effective_api_key
+            default_opts.sentience_api_key = effective_api_key
             if default_opts.use_api is None:
                 default_opts.use_api = True
         self._snapshot_options = default_opts
@@ -193,6 +197,7 @@ class AgentRuntime:
         page: Page,
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> AgentRuntime:
@@ -203,7 +208,8 @@ class AgentRuntime:
             page: Playwright Page for browser interaction
             tracer: Tracer for emitting verification events
             snapshot_options: Default options for snapshots
-            sentience_api_key: API key for Pro/Enterprise tier
+            predicate_api_key: Canonical API key parameter for Pro/Enterprise tier.
+            sentience_api_key: Backward-compatible API key alias (legacy name).
             tool_registry: Optional ToolRegistry for LLM-callable tools
 
         Returns:
@@ -216,6 +222,7 @@ class AgentRuntime:
             backend=backend,
             tracer=tracer,
             snapshot_options=snapshot_options,
+            predicate_api_key=predicate_api_key,
             sentience_api_key=sentience_api_key,
             tool_registry=tool_registry,
         )
@@ -226,6 +233,7 @@ class AgentRuntime:
         page: Page,
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> AgentRuntime:
@@ -236,6 +244,7 @@ class AgentRuntime:
             page=page,
             tracer=tracer,
             snapshot_options=snapshot_options,
+            predicate_api_key=predicate_api_key,
             sentience_api_key=sentience_api_key,
             tool_registry=tool_registry,
         )
@@ -247,6 +256,7 @@ class AgentRuntime:
         page: Page,
         tracer: Tracer,
         snapshot_options: SnapshotOptions | None = None,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
     ) -> AgentRuntime:
         """
@@ -260,7 +270,8 @@ class AgentRuntime:
             page: Playwright Page for browser interaction
             tracer: Tracer for emitting verification events
             snapshot_options: Default options for snapshots
-            sentience_api_key: API key for Pro/Enterprise tier
+            predicate_api_key: Canonical API key parameter for Pro/Enterprise tier.
+            sentience_api_key: Backward-compatible API key alias (legacy name).
 
         Returns:
             AgentRuntime instance
@@ -272,6 +283,7 @@ class AgentRuntime:
             backend=backend,
             tracer=tracer,
             snapshot_options=snapshot_options,
+            predicate_api_key=predicate_api_key,
             sentience_api_key=sentience_api_key,
         )
         # Store browser reference for snapshot() to use
