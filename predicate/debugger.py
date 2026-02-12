@@ -52,14 +52,18 @@ class SentienceDebugger:
         sentience_api_key: str | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> SentienceDebugger:
-        runtime = AgentRuntime.from_playwright_page(
-            page=page,
-            tracer=tracer,
-            snapshot_options=snapshot_options,
-            predicate_api_key=predicate_api_key,
-            sentience_api_key=sentience_api_key,
-            tool_registry=tool_registry,
-        )
+        factory_kwargs: dict[str, Any] = {
+            "page": page,
+            "tracer": tracer,
+            "snapshot_options": snapshot_options,
+            "sentience_api_key": sentience_api_key,
+            "tool_registry": tool_registry,
+        }
+        # Preserve old call shape unless new parameter is explicitly used.
+        if predicate_api_key is not None:
+            factory_kwargs["predicate_api_key"] = predicate_api_key
+
+        runtime = AgentRuntime.from_playwright_page(**factory_kwargs)
         return cls(runtime=runtime)
 
     def begin_step(self, goal: str, step_index: int | None = None) -> str:
