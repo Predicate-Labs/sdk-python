@@ -178,7 +178,7 @@ PredicateVisualAgent = SentienceVisualAgent
 PredicateVisualAgentAsync = SentienceVisualAgentAsync
 PredicateDebugger = SentienceDebugger
 
-__version__ = "0.99.8"
+__version__ = "0.99.9"
 
 __all__ = [
     # Extension helpers (for browser-use integration)
