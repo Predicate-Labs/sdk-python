@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class BBox(BaseModel):
@@ -787,9 +787,23 @@ class SnapshotOptions(BaseModel):
     )
 
     # API credentials (for browser-use integration without SentienceBrowser)
-    sentience_api_key: str | None = None  # Sentience API key for Pro/Enterprise features
+    # Keep both names during migration; Predicate name is canonical.
+    predicate_api_key: str | None = None
+    sentience_api_key: str | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @model_validator(mode="after")
+    def _sync_api_key_aliases(self) -> "SnapshotOptions":
+        """
+        Keep predicate_api_key and sentience_api_key in sync during migration.
+        Predicate naming wins when both are set.
+        """
+        if self.predicate_api_key:
+            self.sentience_api_key = self.predicate_api_key
+        elif self.sentience_api_key:
+            self.predicate_api_key = self.sentience_api_key
+        return self
 
 
 class AgentActionResult(BaseModel):

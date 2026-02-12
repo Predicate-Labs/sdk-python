@@ -247,11 +247,10 @@ async def snapshot(
 
     # Determine if we should use server-side API
     # Same logic as main snapshot() function in predicate/snapshot.py
-    should_use_api = (
-        options.use_api if options.use_api is not None else (options.sentience_api_key is not None)
-    )
+    effective_api_key = options.predicate_api_key or options.sentience_api_key
+    should_use_api = options.use_api if options.use_api is not None else (effective_api_key is not None)
 
-    if should_use_api and options.sentience_api_key:
+    if should_use_api and effective_api_key:
         # Use server-side API (Pro/Enterprise tier)
         return await _snapshot_via_api(backend, options)
     else:
@@ -596,7 +595,7 @@ async def _snapshot_via_api(
     try:
         api_result = await _post_snapshot_to_gateway_async(
             payload,
-            options.sentience_api_key,
+            options.predicate_api_key or options.sentience_api_key,
             api_url,
             timeout_s=options.gateway_timeout_s,
         )

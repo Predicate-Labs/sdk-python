@@ -86,6 +86,7 @@ class SentienceContext:
     def __init__(
         self,
         *,
+        predicate_api_key: str | None = None,
         sentience_api_key: str | None = None,
         use_api: bool | None = None,
         max_elements: int = 60,
@@ -96,13 +97,14 @@ class SentienceContext:
         Initialize SentienceContext.
 
         Args:
-            sentience_api_key: Sentience API key for gateway mode
+            predicate_api_key: Canonical API key parameter for gateway mode.
+            sentience_api_key: Backward-compatible API key alias (legacy name).
             use_api: Force API vs extension mode (auto-detected if None)
             max_elements: Maximum elements to fetch from snapshot
             show_overlay: Show visual overlay highlighting elements in browser
             top_element_selector: Configuration for element selection strategy
         """
-        self._api_key = sentience_api_key
+        self._api_key = predicate_api_key or sentience_api_key
         self._use_api = use_api
         self._max_elements = max_elements
         self._show_overlay = show_overlay
@@ -155,7 +157,7 @@ class SentienceContext:
 
             # Set API options
             if self._api_key:
-                options.sentience_api_key = self._api_key
+                options.predicate_api_key = self._api_key
             if self._use_api is not None:
                 options.use_api = self._use_api
             elif self._api_key:
