@@ -1355,3 +1355,15 @@ class AsyncSentienceBrowser:
         await asyncio.sleep(0.5)
 
         return instance
+
+
+# -----------------------------------------------------------------------------
+# Predicate rebrand aliases
+# -----------------------------------------------------------------------------
+#
+# The TypeScript SDK exposes `PredicateBrowser` as an alias of `SentienceBrowser`.
+# For parity (and to make docs/examples clearer), we also expose aliases here.
+#
+# Keep the Sentience* names for backward compatibility.
+PredicateBrowser = SentienceBrowser
+AsyncPredicateBrowser = AsyncSentienceBrowser
