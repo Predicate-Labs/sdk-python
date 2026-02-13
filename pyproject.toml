@@ -32,9 +32,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/SentienceAPI/sentience-python"
-Repository = "https://github.com/SentienceAPI/sentience-python"
-Issues = "https://github.com/SentienceAPI/sentience-python/issues"
+Homepage = "https://github.com/Predicate-Labs/sdk-python"
+Repository = "https://github.com/Predicate-Labs/sdk-python"
+Issues = "https://github.com/Predicate-Labs/sdk-python/issues"
 
 [project.scripts]
 predicate = "predicate.cli:main"

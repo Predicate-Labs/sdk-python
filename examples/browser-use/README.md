@@ -1,6 +1,6 @@
 # Sentience + browser-use Integration
 
-This directory contains examples for integrating [Sentience](https://github.com/SentienceAPI/sentience-python) with [browser-use](https://github.com/browser-use/browser-use).
+This directory contains examples for integrating [Sentience](https://github.com/Predicate-Labs/sdk-python) with [browser-use](https://github.com/browser-use/browser-use).
 
 ## What is browser-use?
 
