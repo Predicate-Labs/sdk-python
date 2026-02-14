@@ -44,6 +44,9 @@ class EventuallyConfig:
     timeout: float = DEFAULT_TIMEOUT  # Max time to wait (seconds)
     poll: float = DEFAULT_POLL  # Interval between retries (seconds)
     max_retries: int = DEFAULT_MAX_RETRIES  # Max number of retry attempts
+    # Optional: increase SnapshotOptions.limit across retries (additive schedule).
+    # See docs/expand_deterministic_verifications_sdk.md for details.
+    snapshot_limit_growth: dict[str, Any] | None = None
 
 
 class ExpectBuilder:
@@ -514,6 +517,51 @@ class EventuallyWrapper:
         last_outcome: AssertOutcome | None = None
         attempts = 0
 
+        growth = self._config.snapshot_limit_growth
+        growth_apply_on = "only_on_fail"
+        growth_start: int | None = None
+        growth_step: int | None = None
+        growth_max: int | None = None
+        if isinstance(growth, dict) and growth:
+            try:
+                growth_apply_on = str(growth.get("apply_on") or "only_on_fail")
+            except Exception:
+                growth_apply_on = "only_on_fail"
+            try:
+                v = growth.get("start_limit", None)
+                growth_start = int(v) if v is not None else None
+            except Exception:
+                growth_start = None
+            try:
+                v = growth.get("step", None)
+                growth_step = int(v) if v is not None else None
+            except Exception:
+                growth_step = None
+            try:
+                v = growth.get("max_limit", None)
+                growth_max = int(v) if v is not None else None
+            except Exception:
+                growth_max = None
+
+        if growth and growth_start is None:
+            growth_start = 50
+        if growth and growth_step is None:
+            growth_step = max(1, int(growth_start or 50))
+        if growth and growth_max is None:
+            growth_max = 500
+
+        def _clamp_limit(n: int) -> int:
+            if n < 1:
+                return 1
+            if n > 500:
+                return 500
+            return n
+
+        def _limit_for_attempt(attempt_idx_1based: int) -> int:
+            assert growth_start is not None and growth_step is not None and growth_max is not None
+            base = int(growth_start) + int(growth_step) * max(0, int(attempt_idx_1based) - 1)
+            return _clamp_limit(min(int(growth_max), base))
+
         while True:
             # Check timeout (higher precedence than max_retries)
             elapsed = time.monotonic() - start_time
@@ -543,7 +591,23 @@ class EventuallyWrapper:
             # Take fresh snapshot if not first attempt
             if attempts > 0:
                 try:
-                    fresh_snapshot = await snapshot_fn()
+                    # If snapshot_fn supports kwargs (e.g. runtime.snapshot), pass adaptive limit.
+                    snap_limit = None
+                    if growth:
+                        # attempts is 1-based for the snapshot attempt here (attempts>0 means >=2nd try)
+                        attempt_idx = attempts + 1
+                        apply = growth_apply_on == "all" or (
+                            growth_apply_on == "only_on_fail" and last_outcome is not None
+                        )
+                        if apply:
+                            snap_limit = _limit_for_attempt(attempt_idx)
+                    if snap_limit is not None:
+                        try:
+                            fresh_snapshot = await snapshot_fn(limit=int(snap_limit))
+                        except TypeError:
+                            fresh_snapshot = await snapshot_fn()
+                    else:
+                        fresh_snapshot = await snapshot_fn()
                     ctx = AssertContext(
                         snapshot=fresh_snapshot,
                         url=fresh_snapshot.url if fresh_snapshot else ctx.url,
@@ -588,6 +652,7 @@ def with_eventually(
     timeout: float = DEFAULT_TIMEOUT,
     poll: float = DEFAULT_POLL,
     max_retries: int = DEFAULT_MAX_RETRIES,
+    snapshot_limit_growth: dict[str, Any] | None = None,
 ) -> EventuallyWrapper:
     """
     Wrap a predicate with retry logic.
@@ -617,5 +682,6 @@ def with_eventually(
         timeout=timeout,
         poll=poll,
         max_retries=max_retries,
+        snapshot_limit_growth=snapshot_limit_growth,
     )
     return EventuallyWrapper(predicate, config)
