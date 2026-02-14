@@ -484,6 +484,151 @@ class AgentRuntime:
             truncated=truncated,
         )
 
+    async def _get_scroll_metrics(self) -> dict[str, Any]:
+        """
+        Best-effort, bounded scroll metrics for verification.
+
+        Returns a small JSON-serializable dict with:
+        - top: current scrollTop (px)
+        - height: scrollHeight (px) if available
+        - client: clientHeight (px) if available
+        """
+        # Keep this as a single bounded expression; do not dump DOM.
+        expr = """
+(() => {
+  try {
+    const el = document.scrollingElement || document.documentElement || document.body;
+    const top =
+      (el && typeof el.scrollTop === 'number')
+        ? el.scrollTop
+        : (typeof window.scrollY === 'number' ? window.scrollY : 0);
+    const height = (el && typeof el.scrollHeight === 'number') ? el.scrollHeight : null;
+    const client = (el && typeof el.clientHeight === 'number') ? el.clientHeight : null;
+    return { top, height, client };
+  } catch (e) {
+    return { top: null, height: null, client: null, error: String(e && e.message ? e.message : e) };
+  }
+})()
+""".strip()
+        v = await self.backend.eval(expr)
+        if isinstance(v, dict):
+            return v
+        return {"top": v, "height": None, "client": None}
+
+    async def scroll_by(
+        self,
+        dy: float,
+        *,
+        verify: bool = True,
+        min_delta_px: float = 50.0,
+        label: str = "scroll_effective",
+        required: bool = True,
+        timeout_s: float = 10.0,
+        poll_s: float = 0.25,
+        x: float | None = None,
+        y: float | None = None,
+        js_fallback: bool = True,
+    ) -> bool:
+        """
+        Scroll and (optionally) deterministically verify that the scroll had effect.
+
+        This targets a common failure mode: an agent "scrolls" but the page doesn't
+        actually advance (delta stays ~0 due to overlays, focus, nested scrollers, etc.).
+
+        Behavior:
+        - captures a bounded before/after scrollTop metric
+        - performs a wheel scroll via backend (most compatible)
+        - if verify=True, polls until |after-before| >= min_delta_px or timeout
+        - optionally attempts a JS scrollBy fallback once if wheel has no effect
+
+        Returns:
+            True if scroll was effective (or verify=False), else False.
+        """
+        await self.record_action(f"scroll_by(dy={dy})", url=await self.get_url())
+
+        if not verify:
+            await self.backend.wheel(delta_y=float(dy), x=x, y=y)
+            return True
+
+        before = await self._get_scroll_metrics()
+        before_top = before.get("top")
+        try:
+            before_top_f = float(before_top) if before_top is not None else 0.0
+        except Exception:
+            before_top_f = 0.0
+
+        used_js_fallback = False
+        start = time.monotonic()
+
+        # First attempt: wheel scroll (preferred).
+        await self.backend.wheel(delta_y=float(dy), x=x, y=y)
+
+        while True:
+            after = await self._get_scroll_metrics()
+            after_top = after.get("top")
+            try:
+                after_top_f = float(after_top) if after_top is not None else before_top_f
+            except Exception:
+                after_top_f = before_top_f
+
+            delta = after_top_f - before_top_f
+            passed = abs(delta) >= float(min_delta_px)
+
+            if passed:
+                outcome = AssertOutcome(
+                    passed=True,
+                    reason="",
+                    details={
+                        "dy": float(dy),
+                        "min_delta_px": float(min_delta_px),
+                        "before": before,
+                        "after": after,
+                        "delta_px": float(delta),
+                        "js_fallback_used": used_js_fallback,
+                    },
+                )
+                self._record_outcome(
+                    outcome=outcome,
+                    label=label,
+                    required=required,
+                    kind="scroll",
+                    record_in_step=True,
+                )
+                return True
+
+            elapsed = time.monotonic() - start
+            if elapsed >= float(timeout_s):
+                outcome = AssertOutcome(
+                    passed=False,
+                    reason=f"scroll delta {delta:.1f}px < min_delta_px={float(min_delta_px):.1f}px",
+                    details={
+                        "dy": float(dy),
+                        "min_delta_px": float(min_delta_px),
+                        "before": before,
+                        "after": after,
+                        "delta_px": float(delta),
+                        "js_fallback_used": used_js_fallback,
+                        "timeout_s": float(timeout_s),
+                    },
+                )
+                self._record_outcome(
+                    outcome=outcome,
+                    label=label,
+                    required=required,
+                    kind="scroll",
+                    record_in_step=True,
+                )
+                if required:
+                    self._persist_failure_artifacts(reason=f"scroll_failed:{label}")
+                return False
+
+            # Optional fallback: if wheel had no effect, try a bounded JS scroll request once.
+            if js_fallback and not used_js_fallback and abs(delta) < 1.0:
+                used_js_fallback = True
+                await self.backend.eval(f"window.scrollBy(0, {float(dy)})")
+
+            await asyncio.sleep(float(poll_s))
+
     async def list_tabs(self) -> TabListResult:
         backend = self._get_tab_backend()
         if backend is None:
