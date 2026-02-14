@@ -97,7 +97,13 @@ from .exceptions import (
 )
 from .playwright_backend import PlaywrightBackend
 from .protocol import BrowserBackend, LayoutMetrics, ViewportInfo
-from .sentience_context import SentienceContext, SentienceContextState, TopElementSelector
+from .sentience_context import (
+    PredicateContext,
+    PredicateContextState,
+    SentienceContext,
+    SentienceContextState,
+    TopElementSelector,
+)
 from .snapshot import CachedSnapshot, snapshot
 
 __all__ = [
@@ -117,6 +123,9 @@ __all__ = [
     # SentienceContext (Token-Slasher Context Middleware)
     "SentienceContext",
     "SentienceContextState",
+    # PredicateContext (rebrand alias)
+    "PredicateContext",
+    "PredicateContextState",
     "TopElementSelector",
     # Backend-agnostic functions
     "snapshot",

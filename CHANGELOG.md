@@ -5,6 +5,35 @@ All notable changes to the Sentience Python SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### 2026-02-13
+
+#### Expanded deterministic verifications (adaptive resnapshotting)
+
+When you use `.eventually()` for deterministic checks, you can now **automatically increase the snapshot element limit across retries**. This helps on long / virtualized pages where a small snapshot limit can miss the target element, causing a false failure.
+
+- **AgentRuntime verifications**: `AssertionHandle.eventually(..., snapshot_limit_growth=...)`
+- **Expect-style verifications**: `with_eventually(..., snapshot_limit_growth=...)`
+- **Commit**: `59125ce19001c457336dccbb3c9463560bd00245`
+
+**Example**
+
+```python
+from predicate.verification import exists
+
+# Grow snapshot limit on each retry until the element appears.
+await dbg.check(exists("text~'Checkout'"), label="checkout_visible", required=True).eventually(
+    timeout_s=12,
+    snapshot_limit_growth={
+        "start_limit": 60,
+        "step": 40,
+        "max_limit": 220,
+        "apply_on": "only_on_fail",  # default; or "all"
+    },
+)
+```
+
 ## [0.12.0] - 2025-12-26
 
 ### Added
