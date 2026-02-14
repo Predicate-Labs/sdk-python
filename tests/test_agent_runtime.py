@@ -165,6 +165,59 @@ class TestAgentRuntimeInit:
         assert runtime._snapshot_options.sentience_api_key == "sk_pro_key"
         assert runtime._snapshot_options.use_api is True
 
+
+@pytest.mark.asyncio
+async def test_scroll_by_verifies_delta_via_scrolltop() -> None:
+    backend = MagicMock()
+    backend.get_url = AsyncMock(return_value="https://example.com")
+    backend.wheel = AsyncMock(return_value=None)
+
+    # _get_scroll_metrics() uses backend.eval() with a bounded expression; return before/after.
+    backend.eval = AsyncMock(
+        side_effect=[
+            {"top": 100, "height": 2000, "client": 800},  # before
+            {"top": 180, "height": 2000, "client": 800},  # after
+        ]
+    )
+    tracer = MockTracer()
+    runtime = AgentRuntime(backend=backend, tracer=tracer)
+    runtime.begin_step("scroll test")
+
+    ok = await runtime.scroll_by(200, verify=True, min_delta_px=50, timeout_s=1.0, poll_s=0.01)
+    assert ok is True
+    backend.wheel.assert_awaited()
+    assert any(
+        e["type"] == "verification" and e["data"].get("kind") == "scroll" for e in tracer.events
+    )
+
+
+@pytest.mark.asyncio
+async def test_scroll_by_times_out_and_records_failed_verification() -> None:
+    backend = MagicMock()
+    backend.get_url = AsyncMock(return_value="https://example.com")
+    backend.wheel = AsyncMock(return_value=None)
+
+    # before and after unchanged → should fail (allow unlimited polls)
+    calls = {"n": 0}
+
+    async def _eval(_expr: str):
+        calls["n"] += 1
+        return {"top": 100, "height": 2000, "client": 800}
+
+    backend.eval = AsyncMock(side_effect=_eval)
+    tracer = MockTracer()
+    runtime = AgentRuntime(backend=backend, tracer=tracer)
+    runtime.begin_step("scroll fail")
+
+    ok = await runtime.scroll_by(200, verify=True, min_delta_px=50, timeout_s=0.05, poll_s=0.01)
+    assert ok is False
+    assert any(
+        e["type"] == "verification"
+        and e["data"].get("kind") == "scroll"
+        and e["data"].get("passed") is False
+        for e in tracer.events
+    )
+
     @pytest.mark.asyncio
     async def test_evaluate_js_success(self) -> None:
         backend = MockBackend()

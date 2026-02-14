@@ -155,6 +155,24 @@ def login_example() -> None:
 - Fluent assertion DSL via `expect(...)`
 - Retrying verification via `runtime.check(...).eventually(...)`
 
+### Scroll verification (prevent no-op scroll drift)
+
+A common agent failure mode is “scrolling” without the UI actually advancing (overlays, nested scrollers, focus issues). Use `AgentRuntime.scroll_by(...)` to deterministically verify scroll *had effect* via before/after `scrollTop`.
+
+```python
+runtime.begin_step("Scroll the page and verify it moved")
+ok = await runtime.scroll_by(
+    600,
+    verify=True,
+    min_delta_px=50,
+    label="scroll_effective",
+    required=True,
+    timeout_s=5.0,
+)
+if not ok:
+    raise RuntimeError("Scroll had no effect (likely blocked by overlay or nested scroller).")
+```
+
 ### Explained failure
 
 - JSONL trace events (`Tracer` + `JsonlTraceSink`)
