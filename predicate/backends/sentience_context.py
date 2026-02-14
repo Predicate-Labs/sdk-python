@@ -6,9 +6,9 @@ reducing tokens and improving reliability by using Sentience snapshots.
 
 Example usage:
     from browser_use import Agent
-    from predicate.backends import SentienceContext
+    from predicate.backends import PredicateContext
 
-    ctx = SentienceContext(show_overlay=True)
+    ctx = PredicateContext(show_overlay=True)
     state = await ctx.build(agent.browser_session, goal="Click the first Show HN post")
     if state:
         agent.add_context(state.prompt_block)  # or however browser-use injects state
@@ -469,3 +469,12 @@ class SentienceContext:
             pass
 
         return "item"
+
+
+# ---------------------------------------------------------------------------
+# Predicate-named counterparts (canonical moving forward).
+# Keep Sentience* names for backward compatibility.
+# ---------------------------------------------------------------------------
+
+PredicateContext = SentienceContext
+PredicateContextState = SentienceContextState
