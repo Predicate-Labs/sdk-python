@@ -84,6 +84,28 @@ from predicate.llm_provider import LocalLLMProvider
 llm = LocalLLMProvider(model_name="Qwen/Qwen2.5-3B-Instruct", device="auto", load_in_4bit=True)
 ```
 
+##### Opt-in token usage accounting (best-effort)
+
+If you want to measure token spend, you can enable best-effort accounting (depends on provider reporting `prompt_tokens` / `completion_tokens` / `total_tokens` in `LLMResponse`):
+
+```python
+from predicate import PredicateBrowserAgentConfig
+
+config = PredicateBrowserAgentConfig(token_usage_enabled=True)
+
+# Later:
+usage = agent.get_token_usage()
+agent.reset_token_usage()
+```
+
+##### RuntimeAgent: act once without step lifecycle (orchestrators)
+
+`RuntimeAgent` now exposes `act_once(...)` helpers that execute exactly one action **without** calling `runtime.begin_step()` / `runtime.emit_step_end()`. This is intended for external orchestrators (e.g. WebBench) that already own step lifecycle and just want the SDK’s snapshot-first propose+execute block.
+
+- `await agent.act_once(...) -> str`
+- `await agent.act_once_with_snapshot(...) -> (action, snap)`
+- `await agent.act_once_result(...) -> { action, snap, used_vision }`
+
 ### 2026-02-13
 
 #### Expanded deterministic verifications (adaptive resnapshotting)

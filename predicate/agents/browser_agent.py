@@ -10,7 +10,7 @@ from ..agent_runtime import AgentRuntime
 from ..captcha import CaptchaHandler, CaptchaOptions
 from ..captcha_strategies import ExternalSolver, HumanHandoffSolver, VisionSolver
 from ..llm_interaction_handler import LLMInteractionHandler
-from ..llm_provider import LLMProvider
+from ..llm_provider import LLMProvider, LLMResponse
 from ..models import Snapshot, StepHookContext
 from ..permissions import PermissionPolicy
 from ..runtime_agent import RuntimeAgent, RuntimeStep
@@ -84,6 +84,9 @@ class PredicateBrowserAgentConfig:
     # Prompt / token controls
     history_last_n: int = 0  # 0 disables LLM-facing step history (lowest token usage)
 
+    # Opt-in: track token usage from LLM provider responses (best-effort; depends on provider reporting).
+    token_usage_enabled: bool = False
+
     # Compact prompt customization
     # Signature: builder(task_goal, step_goal, dom_context, snapshot, history_summary) -> (system, user)
     compact_prompt_builder: Callable[
@@ -144,6 +147,112 @@ def apply_captcha_config_to_runtime(
             reset_session=reset_session,  # used if handler returns retry_new_session
         )
     )
+
+
+@dataclass
+class TokenUsageTotals:
+    calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    def add(self, resp: LLMResponse) -> None:
+        self.calls += 1
+        pt = resp.prompt_tokens if isinstance(resp.prompt_tokens, int) else 0
+        ct = resp.completion_tokens if isinstance(resp.completion_tokens, int) else 0
+        tt = resp.total_tokens if isinstance(resp.total_tokens, int) else (pt + ct)
+        self.prompt_tokens += max(0, int(pt))
+        self.completion_tokens += max(0, int(ct))
+        self.total_tokens += max(0, int(tt))
+
+
+class _TokenUsageCollector:
+    def __init__(self) -> None:
+        self._by_role: dict[str, TokenUsageTotals] = {}
+        self._by_model: dict[str, TokenUsageTotals] = {}
+
+    def record(self, *, role: str, resp: LLMResponse) -> None:
+        self._by_role.setdefault(role, TokenUsageTotals()).add(resp)
+        m = str(resp.model_name or "").strip() or "unknown"
+        self._by_model.setdefault(m, TokenUsageTotals()).add(resp)
+
+    def reset(self) -> None:
+        self._by_role.clear()
+        self._by_model.clear()
+
+    def summary(self) -> dict[str, Any]:
+        def _sum(items: dict[str, TokenUsageTotals]) -> TokenUsageTotals:
+            out = TokenUsageTotals()
+            for t in items.values():
+                out.calls += t.calls
+                out.prompt_tokens += t.prompt_tokens
+                out.completion_tokens += t.completion_tokens
+                out.total_tokens += t.total_tokens
+            return out
+
+        total = _sum(self._by_role)
+        return {
+            "total": {
+                "calls": total.calls,
+                "prompt_tokens": total.prompt_tokens,
+                "completion_tokens": total.completion_tokens,
+                "total_tokens": total.total_tokens,
+            },
+            "by_role": {
+                k: {
+                    "calls": v.calls,
+                    "prompt_tokens": v.prompt_tokens,
+                    "completion_tokens": v.completion_tokens,
+                    "total_tokens": v.total_tokens,
+                }
+                for k, v in self._by_role.items()
+            },
+            "by_model": {
+                k: {
+                    "calls": v.calls,
+                    "prompt_tokens": v.prompt_tokens,
+                    "completion_tokens": v.completion_tokens,
+                    "total_tokens": v.total_tokens,
+                }
+                for k, v in self._by_model.items()
+            },
+        }
+
+
+class _TokenAccountingProvider(LLMProvider):
+    def __init__(self, *, inner: LLMProvider, collector: _TokenUsageCollector, role: str):
+        super().__init__(model=getattr(inner, "model_name", "wrapped"))
+        self._inner = inner
+        self._collector = collector
+        self._role = role
+
+    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
+        resp = self._inner.generate(system_prompt, user_prompt, **kwargs)
+        try:
+            self._collector.record(role=self._role, resp=resp)
+        except Exception:
+            pass
+        return resp
+
+    def supports_json_mode(self) -> bool:
+        return self._inner.supports_json_mode()
+
+    def supports_vision(self) -> bool:
+        return self._inner.supports_vision()
+
+    def generate_with_image(
+        self, system_prompt: str, user_prompt: str, image_base64: str, **kwargs
+    ) -> LLMResponse:
+        resp = self._inner.generate_with_image(system_prompt, user_prompt, image_base64, **kwargs)
+        try:
+            self._collector.record(role=self._role, resp=resp)
+        except Exception:
+            pass
+        return resp
+
+    @property
+    def model_name(self) -> str:
+        return self._inner.model_name
 
 
 class _RuntimeAgentWithPromptOverrides(RuntimeAgent):
@@ -227,9 +336,33 @@ class PredicateBrowserAgent:
         config: PredicateBrowserAgentConfig = PredicateBrowserAgentConfig(),
     ) -> None:
         self.runtime = runtime
-        self.executor = executor
-        self.vision_executor = vision_executor
-        self.vision_verifier = vision_verifier
+        self._token_usage: _TokenUsageCollector | None = (
+            _TokenUsageCollector() if bool(config.token_usage_enabled) else None
+        )
+
+        # Optionally wrap providers for best-effort token usage accounting.
+        if self._token_usage is not None:
+            self.executor = _TokenAccountingProvider(
+                inner=executor, collector=self._token_usage, role="executor"
+            )
+            self.vision_executor = (
+                _TokenAccountingProvider(
+                    inner=vision_executor, collector=self._token_usage, role="vision_executor"
+                )
+                if vision_executor is not None
+                else None
+            )
+            self.vision_verifier = (
+                _TokenAccountingProvider(
+                    inner=vision_verifier, collector=self._token_usage, role="vision_verifier"
+                )
+                if vision_verifier is not None
+                else None
+            )
+        else:
+            self.executor = executor
+            self.vision_executor = vision_executor
+            self.vision_verifier = vision_verifier
         self.config = config
 
         # LLM-facing step history summaries (bounded)
@@ -251,6 +384,23 @@ class PredicateBrowserAgent:
             compact_prompt_postprocessor=self.config.compact_prompt_postprocessor,
             history_summary_provider=self._get_history_summary,
         )
+
+    def get_token_usage(self) -> dict[str, Any]:
+        """
+        Best-effort token usage summary.
+
+        Only available when `PredicateBrowserAgentConfig.token_usage_enabled=True`.
+        """
+        if self._token_usage is None:
+            return {"enabled": False, "reason": "token_usage_enabled is False"}
+        out = self._token_usage.summary()
+        out["enabled"] = True
+        return out
+
+    def reset_token_usage(self) -> None:
+        if self._token_usage is None:
+            return
+        self._token_usage.reset()
 
     def _get_history_summary(self) -> str:
         if int(self.config.history_last_n) <= 0:

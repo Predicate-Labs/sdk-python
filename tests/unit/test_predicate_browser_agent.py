@@ -95,6 +95,29 @@ class ProviderStub(LLMProvider):
         return self._model_name
 
 
+class TokenProviderStub(LLMProvider):
+    def __init__(self, *, model: str = "stub", response: str = "FINISH()"):
+        super().__init__(model)
+        self._response = response
+
+    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> LLMResponse:
+        _ = system_prompt, user_prompt, kwargs
+        return LLMResponse(
+            content=self._response,
+            model_name=self.model_name,
+            prompt_tokens=11,
+            completion_tokens=7,
+            total_tokens=18,
+        )
+
+    def supports_json_mode(self) -> bool:
+        return True
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+
 def make_snapshot(*, url: str, elements: list[Element], confidence: float | None = None) -> Snapshot:
     diagnostics = SnapshotDiagnostics(confidence=confidence) if confidence is not None else None
     return Snapshot(
@@ -159,6 +182,42 @@ def test_predicate_browser_agent_allows_compact_prompt_builder_override() -> Non
         assert executor.calls
         assert "SYSTEM_CUSTOM" in executor.calls[0]["system"]
         assert executor.calls[0]["user"] == "USER_CUSTOM"
+
+    asyncio.run(_run())
+
+
+def test_predicate_browser_agent_token_usage_is_opt_in_and_best_effort() -> None:
+    async def _run() -> None:
+        backend = MockBackend()
+        tracer = MockTracer()
+        runtime = AgentRuntime(backend=backend, tracer=tracer)
+
+        s0 = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)])
+        async def fake_snapshot(**_kwargs):
+            runtime.last_snapshot = s0
+            return runtime.last_snapshot
+        runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+
+        step = RuntimeStep(goal="No-op", verifications=[])
+        executor = TokenProviderStub(response="FINISH()")
+
+        agent = PredicateBrowserAgent(
+            runtime=runtime,
+            executor=executor,
+            config=PredicateBrowserAgentConfig(token_usage_enabled=True),
+        )
+
+        out = await agent.step(task_goal="test", step=step)
+        assert out.ok is True
+
+        usage = agent.get_token_usage()
+        assert usage["enabled"] is True
+        assert usage["total"]["total_tokens"] >= 18
+        assert usage["by_role"]["executor"]["calls"] >= 1
+
+        agent.reset_token_usage()
+        usage2 = agent.get_token_usage()
+        assert usage2["total"]["total_tokens"] == 0
 
     asyncio.run(_run())
 
