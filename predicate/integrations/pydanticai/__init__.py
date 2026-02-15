@@ -4,7 +4,7 @@ PydanticAI integration helpers (optional).
 This module does NOT import `pydantic_ai` at import time so the base SDK can be
 installed without the optional dependency. Users should install:
 
-    pip install predicatelabs[pydanticai]
+    pip install predicate-sdk[pydanticai]
 
 and then use `register_sentience_tools(...)` with a PydanticAI `Agent`.
 """

@@ -16,13 +16,13 @@ This directory contains examples for integrating [Sentience](https://github.com/
 Install both packages together using the optional dependency:
 
 ```bash
-pip install "predicatelabs[browser-use]"
+pip install "predicate-sdk[browser-use]"
 ```
 
 Or install separately:
 
 ```bash
-pip install predicatelabs browser-use
+pip install predicate-sdk browser-use
 ```
 
 ## Quick Start

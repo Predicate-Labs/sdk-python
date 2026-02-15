@@ -28,7 +28,14 @@ The core loop is:
 ## Install
 
 ```bash
-pip install predicatelabs
+pip install predicate-sdk
+playwright install chromium
+```
+
+If you’re developing from source (this repo), install the local checkout instead:
+
+```bash
+pip install -e .
 playwright install chromium
 ```
 
