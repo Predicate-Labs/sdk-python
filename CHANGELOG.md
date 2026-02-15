@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### 2026-02-15
+
+#### PredicateBrowserAgent (snapshot-first, verification-first)
+
+`PredicateBrowserAgent` is a new high-level agent wrapper that gives you a **browser-use-like** `step()` / `run()` surface, but keeps Predicate’s core philosophy:
+
+- **Snapshot-first perception** (structured DOM snapshot is the default)
+- **Verification-first control plane** (you can gate progress with deterministic checks)
+- Optional **vision fallback** (bounded) when snapshots aren’t sufficient
+
+It’s built on top of `AgentRuntime` + `RuntimeAgent`.
+
+##### Quickstart (single step)
+
+```python
+from predicate import AgentRuntime, PredicateBrowserAgent, PredicateBrowserAgentConfig, RuntimeStep
+from predicate.llm_provider import OpenAIProvider  # or AnthropicProvider / DeepInfraProvider / LocalLLMProvider
+
+runtime = AgentRuntime(backend=...)  # PlaywrightBackend, CDPBackendV0, etc.
+llm = OpenAIProvider(model="gpt-4o-mini")
+
+agent = PredicateBrowserAgent(
+    runtime=runtime,
+    executor=llm,
+    config=PredicateBrowserAgentConfig(
+        # Token control: include last N step summaries in the prompt (0 disables history).
+        history_last_n=2,
+    ),
+)
+
+ok = await agent.step(
+    task_goal="Find pricing and verify checkout button exists",
+    step=RuntimeStep(goal="Open pricing page"),
+)
+```
+
+##### Customize the compact prompt (advanced)
+
+If you want to change the “compact prompt” the executor sees (e.g. fewer fields / different layout), you can override it:
+
+```python
+from predicate import PredicateBrowserAgentConfig
+
+def compact_prompt_builder(task_goal, step_goal, dom_context, snapshot, history_summary):
+    system = "You are a web automation agent. Return ONLY one action: CLICK(id) | TYPE(id, \"text\") | PRESS(\"key\") | FINISH()"
+    user = f"TASK: {task_goal}\nSTEP: {step_goal}\n\nRECENT:\n{history_summary}\n\nELEMENTS:\n{dom_context}\n\nReturn the single best action:"
+    return system, user
+
+config = PredicateBrowserAgentConfig(compact_prompt_builder=compact_prompt_builder)
+```
+
+##### CAPTCHA handling (interface-only; no solver shipped)
+
+If you set `captcha.policy="callback"`, you must provide a handler. The SDK does **not** include a public CAPTCHA solver.
+
+```python
+from predicate import CaptchaConfig, HumanHandoffSolver, PredicateBrowserAgentConfig
+
+config = PredicateBrowserAgentConfig(
+    captcha=CaptchaConfig(
+        policy="callback",
+        # Manual solve in the live session; SDK waits until it clears:
+        handler=HumanHandoffSolver(timeout_ms=10 * 60_000, poll_ms=1_000),
+    )
+)
+```
+
+##### LLM providers (cloud or local)
+
+`PredicateBrowserAgent` works with any `LLMProvider` implementation. For a local HF Transformers model:
+
+```python
+from predicate.llm_provider import LocalLLMProvider
+
+llm = LocalLLMProvider(model_name="Qwen/Qwen2.5-3B-Instruct", device="auto", load_in_4bit=True)
+```
+
 ### 2026-02-13
 
 #### Expanded deterministic verifications (adaptive resnapshotting)
