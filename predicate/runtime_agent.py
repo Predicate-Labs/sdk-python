@@ -21,7 +21,7 @@ from .backends import actions as backend_actions
 from .llm_interaction_handler import LLMInteractionHandler
 from .llm_provider import LLMProvider
 from .models import BBox, Snapshot, StepHookContext
-from .verification import AssertContext, AssertOutcome, Predicate
+from .verification import Predicate
 
 
 @dataclass(frozen=True)
@@ -53,6 +53,13 @@ class RuntimeStep:
     # Vision executor fallback (bounded).
     vision_executor_enabled: bool = True
     max_vision_executor_attempts: int = 1
+
+
+@dataclass(frozen=True)
+class ActOnceResult:
+    action: str
+    snap: Snapshot
+    used_vision: bool
 
 
 class RuntimeAgent:
@@ -163,6 +170,128 @@ class RuntimeAgent:
                     error=error_msg,
                 ),
             )
+
+    async def act_once(
+        self,
+        *,
+        task_goal: str,
+        step: RuntimeStep,
+        allow_vision_fallback: bool = True,
+        history_summary: str = "",
+        compact_prompt_builder: Callable[
+            [str, str, str, Snapshot, str], tuple[str, str]
+        ]
+        | None = None,
+        dom_context_postprocessor: Callable[[str], str] | None = None,
+    ) -> str:
+        """
+        Execute exactly one action for a step without owning step lifecycle.
+
+        This helper is designed for orchestration layers (e.g. WebBench) that already
+        call `runtime.begin_step(...)` / `runtime.emit_step_end(...)` and want to
+        reuse RuntimeAgent's snapshot-first action proposal + execution logic without:
+        - double-counting step budgets
+        - emitting duplicate step_start/step_end events
+
+        Returns:
+            Action string (e.g. "CLICK(123)", "TYPE(5, \"foo\")", "PRESS(\"Enter\")", "FINISH()")
+        """
+        res = await self.act_once_result(
+            task_goal=task_goal,
+            step=step,
+            allow_vision_fallback=allow_vision_fallback,
+            history_summary=history_summary,
+            compact_prompt_builder=compact_prompt_builder,
+            dom_context_postprocessor=dom_context_postprocessor,
+        )
+        return res.action
+
+    async def act_once_with_snapshot(
+        self,
+        *,
+        task_goal: str,
+        step: RuntimeStep,
+        allow_vision_fallback: bool = True,
+        history_summary: str = "",
+        compact_prompt_builder: Callable[
+            [str, str, str, Snapshot, str], tuple[str, str]
+        ]
+        | None = None,
+        dom_context_postprocessor: Callable[[str], str] | None = None,
+    ) -> tuple[str, Snapshot]:
+        """
+        Like `act_once`, but also returns the pre-action snapshot used for proposal.
+        """
+        res = await self.act_once_result(
+            task_goal=task_goal,
+            step=step,
+            allow_vision_fallback=allow_vision_fallback,
+            history_summary=history_summary,
+            compact_prompt_builder=compact_prompt_builder,
+            dom_context_postprocessor=dom_context_postprocessor,
+        )
+        return res.action, res.snap
+
+    async def act_once_result(
+        self,
+        *,
+        task_goal: str,
+        step: RuntimeStep,
+        allow_vision_fallback: bool = True,
+        history_summary: str = "",
+        compact_prompt_builder: Callable[
+            [str, str, str, Snapshot, str], tuple[str, str]
+        ]
+        | None = None,
+        dom_context_postprocessor: Callable[[str], str] | None = None,
+    ) -> ActOnceResult:
+        """
+        Like `act_once`, but returns action + proposal snapshot + whether vision was used.
+        """
+        snap = await self._snapshot_with_ramp(step=step)
+
+        # Optional short-circuit to vision (bounded by caller).
+        if allow_vision_fallback and await self._should_short_circuit_to_vision(step=step, snap=snap):
+            if self.vision_executor and self.vision_executor.supports_vision():
+                url = await self._get_url_for_prompt()
+                image_b64 = await self._screenshot_base64_png()
+                system_prompt, user_prompt = self._vision_executor_prompts(
+                    task_goal=task_goal,
+                    step=step,
+                    url=url,
+                    snap=snap,
+                )
+                resp = self.vision_executor.generate_with_image(
+                    system_prompt,
+                    user_prompt,
+                    image_b64,
+                    temperature=0.0,
+                )
+                action = self._extract_action_from_text(resp.content)
+                await self._execute_action(action=action, snap=snap)
+                return ActOnceResult(action=action, snap=snap, used_vision=True)
+
+        # Structured snapshot-first proposal.
+        dom_context = self._structured_llm.build_context(snap, step.goal)
+        if dom_context_postprocessor is not None:
+            dom_context = dom_context_postprocessor(dom_context)
+
+        if compact_prompt_builder is not None:
+            system_prompt, user_prompt = compact_prompt_builder(
+                task_goal, step.goal, dom_context, snap, history_summary or ""
+            )
+            resp = self.executor.generate(system_prompt, user_prompt, temperature=0.0)
+            action = self._structured_llm.extract_action(resp.content)
+        else:
+            combined_goal = task_goal
+            if history_summary:
+                combined_goal = f"{task_goal}\n\nRECENT STEPS:\n{history_summary}"
+            combined_goal = f"{combined_goal}\n\nSTEP: {step.goal}"
+            resp = self._structured_llm.query_llm(dom_context, combined_goal)
+            action = self._structured_llm.extract_action(resp.content)
+
+        await self._execute_action(action=action, snap=snap)
+        return ActOnceResult(action=action, snap=snap, used_vision=False)
 
     async def _run_hook(
         self,
