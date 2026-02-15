@@ -2,7 +2,7 @@
 Example: PydanticAI + Sentience self-correcting action loop using URL guards.
 
 Run:
-  pip install predicatelabs[pydanticai]
+  pip install predicate-sdk[pydanticai]
   python examples/pydantic_ai/pydantic_ai_self_correcting_click.py
 """
 

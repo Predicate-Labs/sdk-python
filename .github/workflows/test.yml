@@ -33,7 +33,7 @@ jobs:
       shell: bash
       run: |
         pip cache purge || true
-        pip uninstall -y predicatelabs || true
+        pip uninstall -y predicate-sdk || true
         # Aggressively clean any bytecode cache (cross-platform Python approach)
         python -c "import pathlib; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]" || true
         python -c "import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path('.').rglob('__pycache__') if p.is_dir()]" || true

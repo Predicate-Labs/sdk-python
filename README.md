@@ -28,7 +28,7 @@ The core loop is:
 ## Install
 
 ```bash
-pip install predicatelabs
+pip install predicate-sdk
 playwright install chromium
 ```
 
