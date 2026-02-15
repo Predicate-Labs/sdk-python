@@ -32,6 +32,13 @@ pip install predicate-sdk
 playwright install chromium
 ```
 
+If you’re developing from source (this repo), install the local checkout instead:
+
+```bash
+pip install -e .
+playwright install chromium
+```
+
 ## Conceptual example (why this exists)
 
 In Predicate, agents don’t “hope” an action worked.
