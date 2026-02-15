@@ -33,6 +33,15 @@ from .agent import SentienceAgent, SentienceAgentAsync
 from .agent_config import AgentConfig
 from .agent_runtime import AgentRuntime, AssertionHandle
 
+# Snapshot-first browser agent (new high-level surface)
+from .agents import (
+    CaptchaConfig,
+    PermissionRecoveryConfig,
+    PredicateBrowserAgent,
+    PredicateBrowserAgentConfig,
+    VisionFallbackConfig,
+)
+
 # Backend-agnostic actions (aliased to avoid conflict with existing actions)
 # Browser backends (for browser-use integration)
 from .backends import (
