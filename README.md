@@ -143,6 +143,57 @@ def login_example() -> None:
             raise RuntimeError("login failed")
 ```
 
+## Pre-action authority hook (production pattern)
+
+If you want every action proposal to be authorized before execution, pass a
+`pre_action_authorizer` into `RuntimeAgent`.
+
+This hook receives a shared `predicate-contracts` `ActionRequest` generated from
+runtime state (`snapshot` + assertion evidence) and must return either:
+
+- `True` / `False`, or
+- an object with an `allowed: bool` field (for richer decision payloads).
+
+```python
+from predicate.agent_runtime import AgentRuntime
+from predicate.runtime_agent import RuntimeAgent, RuntimeStep
+
+# Optional: your authority client can be local guard, sidecar client, or remote API client.
+def pre_action_authorizer(action_request):
+    # Example: call your authority service
+    # resp = authority_client.authorize(action_request)
+    # return resp
+    return True
+
+
+runtime = AgentRuntime(backend=backend, tracer=tracer)
+agent = RuntimeAgent(
+    runtime=runtime,
+    executor=executor,
+    pre_action_authorizer=pre_action_authorizer,
+    authority_principal_id="agent:web-checkout",
+    authority_tenant_id="tenant-a",
+    authority_session_id="session-123",
+    authority_fail_closed=True,  # deny/authorizer errors block action execution
+)
+
+ok = await agent.run_step(
+    task_goal="Complete checkout",
+    step=RuntimeStep(goal="Click submit order"),
+)
+```
+
+Fail-open option (not recommended for sensitive actions):
+
+```python
+agent = RuntimeAgent(
+    runtime=runtime,
+    executor=executor,
+    pre_action_authorizer=pre_action_authorizer,
+    authority_fail_closed=False,  # authorizer errors allow action to proceed
+)
+```
+
 ## Capabilities (lifecycle guarantees)
 
 ### Controlled perception

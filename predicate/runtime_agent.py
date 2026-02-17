@@ -62,6 +62,12 @@ class ActOnceResult:
     used_vision: bool
 
 
+@dataclass(frozen=True)
+class PreActionAuthorityDecision:
+    allowed: bool
+    reason: str | None = None
+
+
 class RuntimeAgent:
     """
     A thin orchestration layer over AgentRuntime:
@@ -79,12 +85,22 @@ class RuntimeAgent:
         vision_executor: LLMProvider | None = None,
         vision_verifier: LLMProvider | None = None,
         short_circuit_canvas: bool = True,
+        pre_action_authorizer: Callable[[Any], Any] | None = None,
+        authority_principal_id: str | None = None,
+        authority_tenant_id: str | None = None,
+        authority_session_id: str | None = None,
+        authority_fail_closed: bool = True,
     ) -> None:
         self.runtime = runtime
         self.executor = executor
         self.vision_executor = vision_executor
         self.vision_verifier = vision_verifier
         self.short_circuit_canvas = short_circuit_canvas
+        self.pre_action_authorizer = pre_action_authorizer
+        self.authority_principal_id = authority_principal_id
+        self.authority_tenant_id = authority_tenant_id
+        self.authority_session_id = authority_session_id
+        self.authority_fail_closed = authority_fail_closed
 
         self._structured_llm = LLMInteractionHandler(executor)
 
@@ -120,7 +136,7 @@ class RuntimeAgent:
 
             # 1) Structured executor attempt.
             action = self._propose_structured_action(task_goal=task_goal, step=step, snap=snap)
-            await self._execute_action(action=action, snap=snap)
+            await self._execute_action(action=action, snap=snap, step_goal=step.goal)
             ok = await self._apply_verifications(step=step)
             if ok:
                 outcome = "ok"
@@ -268,7 +284,7 @@ class RuntimeAgent:
                     temperature=0.0,
                 )
                 action = self._extract_action_from_text(resp.content)
-                await self._execute_action(action=action, snap=snap)
+                await self._execute_action(action=action, snap=snap, step_goal=step.goal)
                 return ActOnceResult(action=action, snap=snap, used_vision=True)
 
         # Structured snapshot-first proposal.
@@ -290,7 +306,7 @@ class RuntimeAgent:
             resp = self._structured_llm.query_llm(dom_context, combined_goal)
             action = self._structured_llm.extract_action(resp.content)
 
-        await self._execute_action(action=action, snap=snap)
+        await self._execute_action(action=action, snap=snap, step_goal=step.goal)
         return ActOnceResult(action=action, snap=snap, used_vision=False)
 
     async def _run_hook(
@@ -367,7 +383,7 @@ class RuntimeAgent:
         )
 
         action = self._extract_action_from_text(resp.content)
-        await self._execute_action(action=action, snap=snap)
+        await self._execute_action(action=action, snap=snap, step_goal=step.goal)
         # Important: vision executor fallback is a *retry* of the same step.
         # Clear prior step assertions so required_assertions_passed reflects the final attempt.
         self.runtime.flush_assertions()
@@ -397,20 +413,27 @@ class RuntimeAgent:
         # Respect required verifications semantics.
         return self.runtime.required_assertions_passed() and all_ok
 
-    async def _execute_action(self, *, action: str, snap: Snapshot | None) -> None:
+    async def _execute_action(self, *, action: str, snap: Snapshot | None, step_goal: str | None) -> None:
         url = None
         try:
             url = await self.runtime.get_url()
         except Exception:
             url = getattr(snap, "url", None)
 
-        await self.runtime.record_action(action, url=url)
-
         # Coordinate-backed execution (by snapshot id or explicit coordinates).
         kind, payload = self._parse_action(action)
 
         if kind == "finish":
+            await self.runtime.record_action(action, url=url)
             return
+
+        await self._authorize_pre_action_or_raise(
+            action=action,
+            kind=kind,
+            url=url,
+            step_goal=step_goal,
+        )
+        await self.runtime.record_action(action, url=url)
 
         if kind == "press":
             await self._press_key_best_effort(payload["key"])
@@ -448,6 +471,65 @@ class RuntimeAgent:
             return
 
         raise ValueError(f"Unknown action kind: {kind}")
+
+    async def _authorize_pre_action_or_raise(
+        self,
+        *,
+        action: str,
+        kind: str,
+        url: str | None,
+        step_goal: str | None,
+    ) -> None:
+        if self.pre_action_authorizer is None:
+            return
+        principal_id = self.authority_principal_id or "agent:sdk-python"
+        action_name = self._authority_action_name(kind)
+        resource = url or "about:blank"
+        intent = step_goal or action
+
+        try:
+            request = self.runtime.build_authority_action_request(
+                principal_id=principal_id,
+                action=action_name,
+                resource=resource,
+                intent=intent,
+                tenant_id=self.authority_tenant_id,
+                session_id=self.authority_session_id,
+            )
+            decision_raw = self.pre_action_authorizer(request)
+            if inspect.isawaitable(decision_raw):
+                decision_raw = await decision_raw
+            decision = self._normalize_authority_decision(decision_raw)
+            if decision.allowed:
+                return
+            raise RuntimeError(
+                f"pre_action_authority_denied: {decision.reason or 'denied_by_authority'}"
+            )
+        except Exception:
+            if self.authority_fail_closed:
+                raise
+            return
+
+    def _normalize_authority_decision(self, value: Any) -> PreActionAuthorityDecision:
+        if isinstance(value, PreActionAuthorityDecision):
+            return value
+        allowed_attr = getattr(value, "allowed", None)
+        if isinstance(allowed_attr, bool):
+            reason_attr = getattr(value, "reason", None)
+            reason = str(reason_attr) if isinstance(reason_attr, str) and reason_attr else None
+            return PreActionAuthorityDecision(allowed=allowed_attr, reason=reason)
+        if isinstance(value, bool):
+            return PreActionAuthorityDecision(allowed=value)
+        raise RuntimeError("invalid_pre_action_authority_decision")
+
+    def _authority_action_name(self, kind: str) -> str:
+        if kind in {"click", "click_xy", "click_rect"}:
+            return "browser.click"
+        if kind == "type":
+            return "browser.type"
+        if kind == "press":
+            return "browser.press"
+        return "browser.unknown"
 
     async def _stabilize_best_effort(self) -> None:
         try:
