@@ -98,6 +98,7 @@ if TYPE_CHECKING:
     from .backends.protocol import BrowserBackend
     from .browser import AsyncSentienceBrowser
     from .tracing import Tracer
+    from predicate_contracts import ActionRequest
 
 
 class AgentRuntime:
@@ -979,6 +980,39 @@ class AgentRuntime:
             return "sha256:" + hashlib.sha256(f"{snap.url}{snap.timestamp}".encode()).hexdigest()
         except Exception:
             return None
+
+    def build_authority_action_request(
+        self,
+        *,
+        principal_id: str,
+        action: str,
+        resource: str,
+        intent: str,
+        tenant_id: str | None = None,
+        session_id: str | None = None,
+        state_source: str = "sdk-python",
+    ) -> ActionRequest:
+        """
+        Build a predicate-contracts ActionRequest from current runtime state.
+
+        This boundary helper keeps sdk-python internals decoupled from authority
+        enforcement internals by exporting only shared contract types.
+        """
+        from .integrations.authority import (
+            AuthorityActionInput,
+            build_action_request_from_runtime,
+        )
+
+        action_input = AuthorityActionInput(
+            principal_id=principal_id,
+            action=action,
+            resource=resource,
+            intent=intent,
+            tenant_id=tenant_id,
+            session_id=session_id,
+            state_source=state_source,
+        )
+        return build_action_request_from_runtime(runtime=self, action_input=action_input)
 
     async def emit_step_end(
         self,

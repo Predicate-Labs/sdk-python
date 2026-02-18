@@ -279,6 +279,62 @@ async def test_runtime_agent_hooks_called() -> None:
 
 
 @pytest.mark.asyncio
+async def test_runtime_agent_pre_action_authority_denied_fail_closed() -> None:
+    backend = MockBackend()
+    tracer = MockTracer()
+    runtime = AgentRuntime(backend=backend, tracer=tracer)
+    snapshot = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)])
+
+    async def fake_snapshot(**_kwargs):
+        runtime.last_snapshot = snapshot
+        return snapshot
+
+    runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+    executor = ProviderStub(responses=["CLICK(1)"])
+    agent = RuntimeAgent(
+        runtime=runtime,
+        executor=executor,
+        pre_action_authorizer=lambda _request: False,
+        authority_fail_closed=True,
+    )
+    step = RuntimeStep(goal="Click denied", verifications=[], max_snapshot_attempts=1)
+
+    with pytest.raises(RuntimeError, match="pre_action_authority_denied"):
+        await agent.run_step(task_goal="test", step=step)
+    assert len(backend.mouse_clicks) == 0
+
+
+@pytest.mark.asyncio
+async def test_runtime_agent_pre_action_authority_error_fail_open() -> None:
+    backend = MockBackend()
+    tracer = MockTracer()
+    runtime = AgentRuntime(backend=backend, tracer=tracer)
+    snapshot = make_snapshot(url="https://example.com/start", elements=[make_clickable_element(1)])
+
+    async def fake_snapshot(**_kwargs):
+        runtime.last_snapshot = snapshot
+        return snapshot
+
+    runtime.snapshot = AsyncMock(side_effect=fake_snapshot)  # type: ignore[method-assign]
+    executor = ProviderStub(responses=["CLICK(1)"])
+
+    def _broken_authorizer(_request):
+        raise RuntimeError("authority_backend_unavailable")
+
+    agent = RuntimeAgent(
+        runtime=runtime,
+        executor=executor,
+        pre_action_authorizer=_broken_authorizer,
+        authority_fail_closed=False,
+    )
+    step = RuntimeStep(goal="Click fail-open", verifications=[], max_snapshot_attempts=1)
+
+    ok = await agent.run_step(task_goal="test", step=step)
+    assert ok is True
+    assert len(backend.mouse_clicks) == 1
+
+
+@pytest.mark.asyncio
 async def test_snapshot_limit_ramp_increases_limit_on_low_confidence() -> None:
     backend = MockBackend()
     tracer = MockTracer()

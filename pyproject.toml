@@ -29,6 +29,7 @@ dependencies = [
     "httpx>=0.25.0",  # For async API calls
     "playwright-stealth>=1.0.6",  # Bot evasion and stealth mode
     "markdownify>=0.11.6",  # Enhanced HTML to Markdown conversion
+    "predicate-contracts",
 ]
 
 [project.urls]
