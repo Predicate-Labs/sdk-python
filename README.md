@@ -28,8 +28,14 @@ The core loop is:
 ## Install
 
 ```bash
-pip install predicate-sdk
+pip install predicate-runtime
 playwright install chromium
+```
+
+Legacy install compatibility remains available through the shim package:
+
+```bash
+pip install predicate-sdk
 ```
 
 If you’re developing from source (this repo), install the local checkout instead:

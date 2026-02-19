@@ -5,7 +5,7 @@ These examples show how to use Sentience as a **tool layer** inside LangChain an
 Install:
 
 ```bash
-pip install predicate-sdk[langchain]
+pip install predicate-runtime[langchain]
 ```
 
 Examples:

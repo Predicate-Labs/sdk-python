@@ -2,7 +2,7 @@
 LangGraph reference example: Sentience observe → act → verify → branch (self-correcting).
 
 Install:
-  pip install predicate-sdk[langchain]
+  pip install predicate-runtime[langchain]
 
 Run:
   python examples/lang-chain/langgraph_self_correcting_graph.py
