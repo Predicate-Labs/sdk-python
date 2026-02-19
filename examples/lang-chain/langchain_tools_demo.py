@@ -2,7 +2,7 @@
 Example: Build Sentience LangChain tools (async-only).
 
 Install:
-  pip install predicate-sdk[langchain]
+  pip install predicate-runtime[langchain]
 
 Run:
   python examples/lang-chain/langchain_tools_demo.py

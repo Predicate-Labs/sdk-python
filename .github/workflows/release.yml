@@ -283,13 +283,65 @@ jobs:
         tag_name: v${{ steps.version.outputs.version }}
         name: Release v${{ steps.version.outputs.version }}
         body: |
-          Release v${{ steps.version.outputs.version }} of predicate-sdk
+          Release v${{ steps.version.outputs.version }} of predicate-runtime
 
           ## Installation
           ```bash
-          pip install predicate-sdk==${{ steps.version.outputs.version }}
+          pip install predicate-runtime==${{ steps.version.outputs.version }}
           ```
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-compat-shim:
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Extract version from tag or input
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "release" ]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${VERSION#refs/tags/}
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Sync shim version and runtime dependency
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        SHIM_PYPROJECT="compat/predicate-sdk-shim/pyproject.toml"
+        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" "$SHIM_PYPROJECT"
+        sed -i "s/^    \"predicate-runtime==.*\",/    \"predicate-runtime==$VERSION\",/" "$SHIM_PYPROJECT"
+
+    - name: Build compatibility shim package
+      run: |
+        python -m build compat/predicate-sdk-shim -o dist-compat
+
+    - name: Check compatibility shim package
+      run: |
+        twine check dist-compat/*
+
+    - name: Publish compatibility shim to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload dist-compat/*

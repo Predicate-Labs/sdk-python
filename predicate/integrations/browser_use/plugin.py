@@ -361,7 +361,7 @@ class PredicateBrowserUsePlugin:
                 raise ImportError("browser_use.ActionResult/BrowserSession not available")
         except Exception as e:  # pragma: no cover
             raise ImportError(
-                "browser-use is required to register tools. Install with `predicate-sdk[browser-use]`."
+                "browser-use is required to register tools. Install with `predicate-runtime[browser-use]`."
             ) from e
 
         if tools is None:

@@ -2,7 +2,7 @@
 Example: PydanticAI + Sentience typed extraction (Phase 1 integration).
 
 Run:
-  pip install predicate-sdk[pydanticai]
+  pip install predicate-runtime[pydanticai]
   python examples/pydantic_ai/pydantic_ai_typed_extraction.py
 """
 
