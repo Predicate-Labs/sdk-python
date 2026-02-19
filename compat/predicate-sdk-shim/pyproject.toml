@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "predicate-sdk"
-version = "1.1.0"
+version = "1.1.1"
 description = "Compatibility shim for predicate-runtime"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ authors = [
     {name = "Sentience Team"}
 ]
 dependencies = [
-    "predicate-runtime==1.1.0",
+    "predicate-runtime==1.1.1",
 ]
 keywords = ["predicate", "runtime", "compatibility", "shim"]
 classifiers = [
